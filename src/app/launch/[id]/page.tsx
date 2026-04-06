@@ -1,0 +1,1618 @@
+'use client';
+
+import { useEffect, useState, useCallback, useRef } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { format, parseISO, addBusinessDays, differenceInBusinessDays } from 'date-fns';
+import {
+  ArrowLeft, CheckCircle2, Circle, Clock, AlertTriangle,
+  ChevronDown, ChevronRight, Trash2, RotateCcw, Plus, Pencil, Archive,
+  Eye, Pause, Calendar, Settings2, Check
+} from 'lucide-react';
+import Link from 'next/link';
+import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, TIER_CONFIG, TaskStatus, DELIVERABLE_TASKS, Owner } from '@/lib/types';
+import { ExternalLink, Link2 as LinkIcon, Sparkles } from 'lucide-react';
+import { isAfter, startOfDay } from 'date-fns';
+import { useData } from '@/components/DataProvider';
+import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName } from '@/lib/utils';
+import { StrategyTab } from '@/components/StrategyTab';
+import { MarketingPlanTab } from '@/components/MarketingPlanTab';
+import GanttChart from '@/components/GanttChart';
+import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
+import { RefreshCw, AlertCircle, X } from 'lucide-react';
+
+function getDisplayLabel(task: GTMTask): string {
+  if (task.deliverableLabel && task.deliverableLabel.trim()) return task.deliverableLabel;
+  if (task.deliverableUrl && task.deliverableUrl.trim()) {
+    try {
+      const url = new URL(task.deliverableUrl);
+      const segments = url.pathname.split('/').filter(Boolean);
+      const last = segments[segments.length - 1];
+      if (last && last.includes('.') && last.length < 80) return decodeURIComponent(last);
+    } catch {}
+  }
+  return DELIVERABLE_TASKS[task.name] || 'Link';
+}
+
+const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; icon: React.ReactNode }[] = [
+  { value: 'not_started', label: 'Not Started', color: '#6B7280', icon: <Circle className="w-3.5 h-3.5" /> },
+  { value: 'in_progress', label: 'In Progress', color: '#3B82F6', icon: <Clock className="w-3.5 h-3.5" /> },
+  { value: 'blocked', label: 'Stuck', color: '#EF4444', icon: <AlertTriangle className="w-3.5 h-3.5" /> },
+  { value: 'waiting_review', label: 'Waiting for Review', color: '#F59E0B', icon: <Eye className="w-3.5 h-3.5" /> },
+  { value: 'complete', label: 'Completed', color: '#10B981', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
+];
+
+type Tab = 'tracker' | 'deliverables' | 'strategy' | 'plan' | 'timeline';
+
+export default function LaunchDetail() {
+  const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { launches, saveLaunch, deleteLaunch, loading } = useData();
+  const initialTaskId = searchParams.get('task');
+  const [launch, setLaunch] = useState<Launch | null>(null);
+  const [activeTab, setActiveTab] = useState<Tab>('tracker');
+  const [expandedPhases, setExpandedPhases] = useState<Set<PhaseKey>>(new Set(PHASES.map(p => p.key)));
+  const [mounted, setMounted] = useState(false);
+  const [recalcResult, setRecalcResult] = useState<{ daysLate: number; daysAbsorbed: number; impossible: boolean; warnings: string[]; changes: TaskDateChange[] } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [customHex, setCustomHex] = useState(launch?.brandColor || '');
+  const [imageUrlInput, setImageUrlInput] = useState(launch?.productImageUrl || '');
+
+  const foundLaunch = launches.find(l => l.id === params.id);
+
+  useEffect(() => {
+    if (foundLaunch) {
+      setLaunch(foundLaunch);
+      setCustomHex(foundLaunch.brandColor || '');
+      setImageUrlInput(foundLaunch.productImageUrl || '');
+    }
+    setMounted(true);
+  }, [foundLaunch]);
+
+  const updateLaunch = useCallback((updated: Launch) => {
+    setLaunch(updated);
+    saveLaunch(updated);
+  }, []);
+
+  const togglePhase = (phase: PhaseKey) => {
+    setExpandedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(phase)) next.delete(phase);
+      else next.add(phase);
+      return next;
+    });
+  };
+
+  const updateTaskStatus = (taskId: string, status: TaskStatus) => {
+    if (!launch) return;
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t =>
+        t.id === taskId
+          ? { ...t, status, completedDate: status === 'complete' ? new Date().toISOString() : null }
+          : t
+      ),
+    };
+    updateLaunch(updated);
+  };
+
+  const updateTaskNotes = (taskId: string, notes: string) => {
+    if (!launch) return;
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, notes } : t),
+    };
+    updateLaunch(updated);
+  };
+
+  const handleDelete = () => {
+    if (!launch) return;
+    if (confirm(`Delete "${launch.name}"? This cannot be undone.`)) {
+      deleteLaunch(launch.id);
+      router.push('/');
+    }
+  };
+
+  const handleArchive = () => {
+    if (!launch) return;
+    updateLaunch({ ...launch, status: 'post_launch' });
+    router.push('/archive');
+  };
+
+  const updateTaskField = useCallback((taskId: string, updates: Partial<GTMTask>) => {
+    if (!launch) return;
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+    };
+    updateLaunch(updated);
+  }, [launch, updateLaunch]);
+
+  // Cascade due dates through dependency graph when a task's date changes
+  const updateTaskDateWithCascade = useCallback((taskId: string, newDate: string) => {
+    if (!launch) return;
+    const task = launch.tasks.find(t => t.id === taskId);
+    if (!task) return;
+    if (!task.dueDate) {
+      updateTaskField(taskId, { dueDate: newDate });
+      return;
+    }
+    const daysDiff = differenceInBusinessDays(parseISO(newDate), parseISO(task.dueDate));
+    if (daysDiff === 0) return;
+
+    // Build task map and reverse dependency map (task → tasks that depend on it)
+    const taskMap = new Map(launch.tasks.map(t => [t.id, { ...t }]));
+    const dependentsOf = new Map<string, string[]>(); // taskId → [dependent task IDs]
+    for (const t of launch.tasks) {
+      for (const depId of t.dependencies) {
+        if (!dependentsOf.has(depId)) dependentsOf.set(depId, []);
+        dependentsOf.get(depId)!.push(t.id);
+      }
+    }
+
+    // Apply the date change to the source task
+    const sourceTask = taskMap.get(taskId)!;
+    sourceTask.dueDate = newDate;
+    if (sourceTask.startDate) {
+      sourceTask.startDate = format(addBusinessDays(parseISO(sourceTask.startDate), daysDiff), 'yyyy-MM-dd');
+    }
+
+    // BFS: propagate through dependency graph
+    const queue = [taskId];
+    const visited = new Set<string>([taskId]);
+
+    while (queue.length > 0) {
+      const currentId = queue.shift()!;
+      const current = taskMap.get(currentId)!;
+      const deps = dependentsOf.get(currentId) || [];
+
+      for (const depTaskId of deps) {
+        if (visited.has(depTaskId)) continue;
+        const depTask = taskMap.get(depTaskId)!;
+        if (!depTask.dueDate) continue;
+
+        // Find the latest dependency due date for this task
+        const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
+          const d = taskMap.get(dId);
+          if (d?.dueDate && d.dueDate > latest) return d.dueDate;
+          return latest;
+        }, '');
+
+        if (!latestDepDue) continue;
+
+        // The dependent task should start after the latest dep finishes
+        const latestDepDate = parseISO(latestDepDue);
+        const currentStart = depTask.startDate ? parseISO(depTask.startDate) :
+          (depTask.dueDate && depTask.durationDays ? addBusinessDays(parseISO(depTask.dueDate), -depTask.durationDays) : null);
+
+        // If the latest dep due date is after this task's start, push it forward
+        if (currentStart && isAfter(latestDepDate, currentStart)) {
+          const newStart = latestDepDate;
+          const duration = depTask.durationDays || differenceInBusinessDays(parseISO(depTask.dueDate), currentStart);
+          const newDue = addBusinessDays(newStart, Math.max(0, duration));
+          depTask.startDate = format(newStart, 'yyyy-MM-dd');
+          depTask.dueDate = format(newDue, 'yyyy-MM-dd');
+          visited.add(depTaskId);
+          queue.push(depTaskId);
+        } else if (!currentStart && depTask.dueDate) {
+          // Fallback: if no startDate, shift by the same diff as the dependency moved
+          const depDueDate = parseISO(depTask.dueDate);
+          if (isAfter(latestDepDate, depDueDate)) {
+            const shift = differenceInBusinessDays(latestDepDate, depDueDate) + (depTask.durationDays || 3);
+            depTask.dueDate = format(addBusinessDays(depDueDate, shift), 'yyyy-MM-dd');
+            visited.add(depTaskId);
+            queue.push(depTaskId);
+          }
+        }
+      }
+    }
+
+    updateLaunch({ ...launch, tasks: Array.from(taskMap.values()) });
+  }, [launch, updateLaunch, updateTaskField]);
+
+  if (!mounted || loading) return <div className="p-8" />;
+  if (!launch) return (
+    <div className="p-8 text-center">
+      <p className="text-[#A8A29E]">Launch not found.</p>
+      <Link href="/" className="text-[#FF1493] text-sm mt-2 inline-block">Back to dashboard</Link>
+    </div>
+  );
+
+  const progress = getLaunchProgress(launch);
+  const daysUntil = getDaysUntilLaunch(launch);
+  const accentColor = launch.brandColor || TIER_CONFIG[launch.tier].color;
+
+  const PRESET_COLORS = [
+    '#FF1493', '#EF4444', '#F59E0B', '#10B981', '#3B82F6',
+    '#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#1B1464',
+  ];
+
+  const deliverableCount = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim()).length;
+
+  const TABS: { key: Tab; label: string; badge?: number }[] = [
+    { key: 'tracker', label: 'Task Tracker' },
+    { key: 'deliverables', label: 'Deliverables', badge: deliverableCount },
+    { key: 'strategy', label: 'Strategy' },
+    { key: 'plan', label: '360 Marketing Plan' },
+    { key: 'timeline', label: 'Timeline' },
+  ];
+
+  return (
+    <div className="p-8 max-w-[1200px]">
+      {/* Header */}
+      <div className="mb-6">
+        <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-xs text-[#A8A29E] hover:text-[#57534E] mb-4">
+          <ArrowLeft className="w-3.5 h-3.5" /> Back
+        </button>
+
+        <div className="flex items-start justify-between">
+          <div>
+            <div className="flex items-center gap-3 mb-1">
+              {launch.productImageUrl ? (
+                <img
+                  src={launch.productImageUrl}
+                  alt={launch.name}
+                  className="w-12 h-12 rounded-lg object-cover border border-[#E7E5E4] shrink-0"
+                />
+              ) : (
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-lg font-bold shrink-0"
+                  style={{ background: accentColor }}
+                >
+                  {launch.name.charAt(0).toUpperCase()}
+                </div>
+              )}
+              <h1 className="text-2xl font-bold" style={{ color: launch.brandColor || '#1B1464' }}>{launch.name}</h1>
+              <span
+                className="px-2.5 py-0.5 rounded-full text-xs font-medium"
+                style={{
+                  background: TIER_CONFIG[launch.tier].color + '15',
+                  color: TIER_CONFIG[launch.tier].color,
+                }}
+              >
+                Tier {launch.tier}
+              </span>
+              <button
+                onClick={() => setShowSettings(!showSettings)}
+                className={`p-1.5 rounded-lg transition-colors ${showSettings ? 'bg-[#F5F5F4] text-[#1B1464]' : 'text-[#A8A29E] hover:text-[#57534E] hover:bg-[#F5F5F4]'}`}
+                title="Launch settings"
+              >
+                <Settings2 className="w-4 h-4" />
+              </button>
+            </div>
+            {launch.description && (
+              <p className="text-sm text-[#57534E] mb-2">{launch.description}</p>
+            )}
+            <div className="flex items-center gap-4 text-xs text-[#A8A29E]">
+              <span>Launch: {format(parseISO(launch.launchDate), 'MMMM d, yyyy')}</span>
+              <span>·</span>
+              <span>{launch.productCategory || 'No category'}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+            <div className="text-right">
+              <p className={`text-2xl font-bold ${daysUntil < 0 ? 'text-[#DC2626]' : daysUntil <= 14 ? 'text-[#F59E0B]' : ''}`} style={daysUntil >= 15 ? { color: accentColor } : undefined}>
+                {daysUntil < 0 ? `${Math.abs(daysUntil)}d past` : `${daysUntil} days`}
+              </p>
+              <p className="text-[11px] text-[#A8A29E]">until launch</p>
+            </div>
+            <button
+              onClick={handleArchive}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] rounded-lg text-xs font-medium hover:bg-[#F5F5F4] transition-colors"
+              title="Move to archive"
+            >
+              <Archive className="w-3.5 h-3.5" />
+              Archive
+            </button>
+            <button onClick={handleDelete} className="p-2 rounded-lg hover:bg-red-50 text-[#D6D3D1] hover:text-[#DC2626] transition-colors">
+              <Trash2 className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+
+        {/* Settings Panel */}
+        {showSettings && (
+          <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-5 animate-fade-in space-y-5">
+            <h3 className="text-sm font-semibold text-[#1B1464]">Launch Customization</h3>
+
+            {/* Brand Color */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Brand Color</label>
+              <div className="flex flex-wrap items-center gap-2 mb-2">
+                {PRESET_COLORS.map(color => {
+                  const isSelected = launch.brandColor === color;
+                  return (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        setCustomHex(color);
+                        updateLaunch({ ...launch, brandColor: color });
+                      }}
+                      className="relative w-7 h-7 rounded-full border-2 transition-all"
+                      style={{
+                        background: color,
+                        borderColor: isSelected ? '#1B1464' : 'transparent',
+                        boxShadow: isSelected ? '0 0 0 2px white, 0 0 0 4px ' + color : undefined,
+                      }}
+                      title={color}
+                    >
+                      {isSelected && (
+                        <Check className="w-3.5 h-3.5 text-white absolute inset-0 m-auto" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2">
+                <label className="text-[11px] text-[#A8A29E]">Custom:</label>
+                <input
+                  type="text"
+                  value={customHex}
+                  onChange={e => setCustomHex(e.target.value)}
+                  onBlur={() => {
+                    if (/^#[0-9A-Fa-f]{6}$/.test(customHex)) {
+                      updateLaunch({ ...launch, brandColor: customHex });
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && /^#[0-9A-Fa-f]{6}$/.test(customHex)) {
+                      updateLaunch({ ...launch, brandColor: customHex });
+                    }
+                  }}
+                  placeholder="#FF1493"
+                  className="w-24 px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 font-mono"
+                />
+                {customHex && /^#[0-9A-Fa-f]{6}$/.test(customHex) && (
+                  <div className="w-5 h-5 rounded-full border border-[#E7E5E4]" style={{ background: customHex }} />
+                )}
+                {launch.brandColor && (
+                  <button
+                    onClick={() => {
+                      setCustomHex('');
+                      updateLaunch({ ...launch, brandColor: undefined });
+                    }}
+                    className="text-[11px] text-[#A8A29E] hover:text-[#57534E] ml-2 transition-colors"
+                  >
+                    Reset to tier default
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Product Image */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Product Image</label>
+              <div className="flex items-center gap-3">
+                <input
+                  type="url"
+                  value={imageUrlInput}
+                  onChange={e => setImageUrlInput(e.target.value)}
+                  onBlur={() => {
+                    if (imageUrlInput !== (launch.productImageUrl || '')) {
+                      updateLaunch({ ...launch, productImageUrl: imageUrlInput || undefined });
+                    }
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter' && imageUrlInput !== (launch.productImageUrl || '')) {
+                      updateLaunch({ ...launch, productImageUrl: imageUrlInput || undefined });
+                    }
+                  }}
+                  placeholder="Paste image URL..."
+                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                />
+                {launch.productImageUrl && (
+                  <button
+                    onClick={() => {
+                      setImageUrlInput('');
+                      updateLaunch({ ...launch, productImageUrl: undefined });
+                    }}
+                    className="text-[11px] text-[#DC2626] hover:text-[#B91C1C] transition-colors"
+                  >
+                    Remove
+                  </button>
+                )}
+              </div>
+              {launch.productImageUrl && (
+                <div className="mt-2">
+                  <img
+                    src={launch.productImageUrl}
+                    alt="Product preview"
+                    className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4]"
+                  />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Progress */}
+        <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-[#1B1464]">Overall Progress</span>
+            <span className="text-sm font-bold" style={{ color: accentColor }}>{progress}%</span>
+          </div>
+          <div className="h-2 bg-[#F5F5F4] rounded-full overflow-hidden mb-3">
+            <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: accentColor }} />
+          </div>
+          <div className="grid grid-cols-4 gap-3">
+            {PHASES.map(phase => {
+              const phaseTasks = launch.tasks.filter(t => t.phase === phase.key);
+              if (phaseTasks.length === 0) return (
+                <div key={phase.key} className="text-center">
+                  <p className="text-[11px] text-[#A8A29E] mb-1">{phase.name}</p>
+                  <p className="text-xs text-[#D6D3D1]">N/A</p>
+                </div>
+              );
+              const pp = getPhaseProgress(launch, phase.key);
+              return (
+                <div key={phase.key}>
+                  <p className="text-[11px] text-[#A8A29E] mb-1">{phase.name}</p>
+                  <div className="h-1 bg-[#F5F5F4] rounded-full overflow-hidden">
+                    <div className="h-full rounded-full progress-fill" style={{ width: `${pp}%`, background: phase.color }} />
+                  </div>
+                  <p className="text-[11px] font-medium mt-0.5" style={{ color: phase.color }}>{pp}%</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Recalculate Timeline */}
+        {(() => {
+          const overdueTasks = launch.tasks.filter(t =>
+            t.status !== 'complete' && t.status !== 'skipped' && t.dueDate &&
+            parseISO(t.dueDate) < new Date() && !recalcResult
+          );
+          if (overdueTasks.length === 0 && !recalcResult) return null;
+
+          return recalcResult ? (() => {
+            // Only show major changes: shifts > 25% of the task's typical duration (min 2 days)
+            const majorChanges = recalcResult.changes.filter(c => {
+              const task = launch.tasks.find(t => t.name === c.taskName);
+              const duration = task?.durationDays || 5;
+              const threshold = Math.max(2, Math.ceil(duration * 0.25));
+              return Math.abs(c.daysMoved) >= threshold;
+            });
+            const largestShift = recalcResult.changes.reduce((max, c) => Math.abs(c.daysMoved) > Math.abs(max.daysMoved) ? c : max, recalcResult.changes[0]);
+
+            return (
+            <div className={`mt-3 rounded-xl border p-4 ${recalcResult.impossible ? 'bg-red-50 border-red-200' : 'bg-[#FFF0F7] border-[#FF1493]/20'}`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <RefreshCw className="w-4 h-4 text-[#FF1493] shrink-0" />
+                  <p className="text-sm text-[#1B1464]">
+                    <span className="font-medium text-[#FF1493]">Timeline recalculated</span>
+                    {' — '}
+                    {majorChanges.length > 0 ? (
+                      <span className="text-[#57534E]">
+                        {majorChanges.map((c, i) => (
+                          <span key={i}>
+                            {i > 0 && ', '}
+                            <span className="font-medium text-[#1B1464]">{c.taskName}</span>
+                            {' '}
+                            <span className={c.daysMoved > 0 ? 'text-[#F59E0B]' : 'text-[#10B981]'}>
+                              {c.daysMoved > 0 ? '+' : ''}{c.daysMoved}d
+                            </span>
+                          </span>
+                        ))}
+                        {recalcResult.changes.length > majorChanges.length && (
+                          <span className="text-[#A8A29E]"> + {recalcResult.changes.length - majorChanges.length} minor shifts</span>
+                        )}
+                      </span>
+                    ) : (
+                      <span className="text-[#57534E]">
+                        {recalcResult.changes.length} task{recalcResult.changes.length !== 1 ? 's' : ''} shifted (largest: {largestShift?.taskName} {largestShift?.daysMoved > 0 ? '+' : ''}{largestShift?.daysMoved}d)
+                      </span>
+                    )}
+                  </p>
+                </div>
+                <button onClick={() => setRecalcResult(null)} className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors shrink-0 ml-3">
+                  OK
+                </button>
+              </div>
+
+              {/* Warnings — only show if critical */}
+              {recalcResult.warnings.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-[#FF1493]/10 space-y-1">
+                  {recalcResult.warnings.map((w, i) => (
+                    <p key={i} className="text-[11px] text-[#57534E] flex items-start gap-1.5">
+                      <span className="text-[#F59E0B] mt-0.5 shrink-0">&#9679;</span>
+                      {w}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+            );
+          })() : overdueTasks.length > 0 ? (
+            <div className="mt-3 bg-amber-50 rounded-xl border border-amber-200 p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-[#F59E0B]" />
+                  <div>
+                    <p className="text-sm font-medium text-[#92400E]">
+                      {overdueTasks.length} task{overdueTasks.length !== 1 ? 's' : ''} past due
+                    </p>
+                    <p className="text-xs text-[#92400E]/70">
+                      Recalculate to shift dates forward while protecting launch deadlines
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    const result = recalculateTimeline(launch);
+                    updateLaunch({ ...launch, tasks: result.tasks });
+                    setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes });
+                  }}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  Recalculate Timeline
+                </button>
+              </div>
+            </div>
+          ) : null;
+        })()}
+        </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-[#E7E5E4] mb-6">
+        {TABS.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.key
+                ? ''
+                : 'border-transparent text-[#A8A29E] hover:text-[#57534E]'
+            }`}
+            style={activeTab === tab.key ? { borderColor: accentColor, color: accentColor } : undefined}
+          >
+            {tab.label}
+            {tab.badge !== undefined && tab.badge > 0 && (
+              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '15', color: accentColor }}>
+                {tab.badge}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'tracker' && (
+        <TrackerView
+          launch={launch}
+          expandedPhases={expandedPhases}
+          togglePhase={togglePhase}
+          updateTaskStatus={updateTaskStatus}
+          updateTaskNotes={updateTaskNotes}
+          onUpdateLaunch={updateLaunch}
+          updateTaskField={updateTaskField}
+          updateTaskDateWithCascade={updateTaskDateWithCascade}
+          initialTaskId={initialTaskId}
+        />
+      )}
+      {activeTab === 'deliverables' && (
+        <DeliverablesView launch={launch} />
+      )}
+      {activeTab === 'strategy' && (
+        <StrategyTab launch={launch} onUpdate={updateLaunch} />
+      )}
+      {activeTab === 'plan' && (
+        <MarketingPlanTab launch={launch} onUpdate={updateLaunch} />
+      )}
+      {activeTab === 'timeline' && (
+        <GanttChart
+          tasks={launch.tasks}
+          launchDate={launch.launchDate}
+          sephoraLaunchDate={launch.sephoraLaunchDate}
+          amazonLaunchDate={launch.amazonLaunchDate}
+        />
+      )}
+    </div>
+  );
+}
+
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId }: {
+  launch: Launch;
+  expandedPhases: Set<PhaseKey>;
+  togglePhase: (phase: PhaseKey) => void;
+  updateTaskStatus: (taskId: string, status: TaskStatus) => void;
+  updateTaskNotes: (taskId: string, notes: string) => void;
+  onUpdateLaunch: (launch: Launch) => void;
+  updateTaskField: (taskId: string, updates: Partial<GTMTask>) => void;
+  updateTaskDateWithCascade: (taskId: string, newDate: string) => void;
+  initialTaskId?: string | null;
+}) {
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(initialTaskId || null);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
+  const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const bulkRef = useRef<HTMLDivElement>(null);
+  const scrolledToTask = useRef(false);
+
+  const toggleTaskSelection = (taskId: string) => {
+    setSelectedTaskIds(prev => {
+      const next = new Set(prev);
+      if (next.has(taskId)) next.delete(taskId);
+      else next.add(taskId);
+      return next;
+    });
+  };
+
+  const selectAllTasks = () => {
+    if (selectedTaskIds.size === launch.tasks.length) {
+      setSelectedTaskIds(new Set());
+    } else {
+      setSelectedTaskIds(new Set(launch.tasks.map(t => t.id)));
+    }
+  };
+
+  const bulkUpdateStatus = (status: TaskStatus) => {
+    for (const taskId of selectedTaskIds) {
+      const updates: Partial<GTMTask> = { status };
+      if (status === 'complete') updates.completedDate = new Date().toISOString().split('T')[0];
+      else updates.completedDate = null;
+      updateTaskField(taskId, updates);
+    }
+    setSelectedTaskIds(new Set());
+    setBulkStatusOpen(false);
+  };
+
+  // Close bulk dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (bulkRef.current && !bulkRef.current.contains(e.target as Node)) setBulkStatusOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // Auto-scroll to the task if opened via ?task= param
+  useEffect(() => {
+    if (initialTaskId && !scrolledToTask.current) {
+      scrolledToTask.current = true;
+      // Small delay to let the DOM render the expanded task
+      setTimeout(() => {
+        const el = document.getElementById(`task-${initialTaskId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 200);
+    }
+  }, [initialTaskId]);
+
+  const [earlyFinishPrompt, setEarlyFinishPrompt] = useState<{
+    taskId: string;
+    daysSaved: number;
+    redistributions: { taskId: string; taskName: string; currentGap: number; newGap: number }[];
+    newTasks: GTMTask[];
+  } | null>(null);
+
+  const handleMarkComplete = (taskId: string) => {
+    const task = launch.tasks.find(t => t.id === taskId);
+    if (!task || !task.dueDate) {
+      updateTaskStatus(taskId, 'complete');
+      return;
+    }
+
+    // Check if completing early
+    const dueDate = parseISO(task.dueDate);
+    const today = startOfDay(new Date());
+    const isEarly = isAfter(dueDate, today);
+
+    if (isEarly) {
+      const result = calculateEarlyFinishRedistribution(launch, taskId);
+      if (result && result.daysSaved > 0 && result.redistributions.length > 0) {
+        setEarlyFinishPrompt({ taskId, ...result });
+        return;
+      }
+    }
+
+    updateTaskStatus(taskId, 'complete');
+  };
+
+  const handleAcceptRedistribution = () => {
+    if (!earlyFinishPrompt) return;
+    // Apply redistributed dates AND mark task complete
+    const updatedTasks = earlyFinishPrompt.newTasks.map(t =>
+      t.id === earlyFinishPrompt.taskId
+        ? { ...t, status: 'complete' as TaskStatus, completedDate: new Date().toISOString() }
+        : t
+    );
+    onUpdateLaunch({ ...launch, tasks: updatedTasks });
+    setEarlyFinishPrompt(null);
+  };
+
+  const handleDeclineRedistribution = () => {
+    if (!earlyFinishPrompt) return;
+    updateTaskStatus(earlyFinishPrompt.taskId, 'complete');
+    setEarlyFinishPrompt(null);
+  };
+
+  const updateDeliverableUrl = (taskId: string, url: string) => {
+    onUpdateLaunch({
+      ...launch,
+      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, deliverableUrl: url } : t),
+    });
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Early finish prompt */}
+      {earlyFinishPrompt && (
+        <div className="bg-[#FFF0F7] rounded-xl border border-[#FF1493]/20 p-4 animate-fade-in">
+          <div className="flex items-start gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-[#FF1493] mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-[#FF1493]">
+                Nice! You finished {earlyFinishPrompt.daysSaved} day{earlyFinishPrompt.daysSaved !== 1 ? 's' : ''} early
+              </p>
+              <p className="text-xs text-[#57534E] mt-0.5">
+                Want to add buffer to these tight windows?
+              </p>
+            </div>
+          </div>
+          <div className="bg-white rounded-lg border border-[#E7E5E4] divide-y divide-[#E7E5E4] mb-3">
+            {earlyFinishPrompt.redistributions.map((r, i) => (
+              <div key={i} className="flex items-center justify-between px-3 py-2">
+                <span className="text-xs text-[#1B1464]">{r.taskName}</span>
+                <span className="text-xs text-[#FF1493] font-medium">
+                  {r.currentGap}d → {r.newGap}d (+{r.newGap - r.currentGap})
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleAcceptRedistribution}
+              className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+            >
+              Add buffer to tight tasks
+            </button>
+            <button
+              onClick={handleDeclineRedistribution}
+              className="px-3 py-1.5 text-[#57534E] text-xs font-medium hover:bg-[#F5F5F4] rounded-lg transition-colors"
+            >
+              Keep dates as-is
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Chronological task list */}
+      {(() => {
+        const sortedTasks = [...launch.tasks].sort((a, b) => {
+          const aDate = a.dueDate || a.startDate || '9999';
+          const bDate = b.dueDate || b.startDate || '9999';
+          if (aDate !== bDate) return aDate.localeCompare(bDate);
+          return a.sortOrder - b.sortOrder;
+        });
+        const phaseMap = Object.fromEntries(PHASES.map(p => [p.key, p]));
+
+        return (
+          <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden">
+            {/* Phase legend */}
+            <div className="flex items-center gap-4 px-4 py-2.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+              {PHASES.map(p => {
+                const count = launch.tasks.filter(t => t.phase === p.key).length;
+                if (count === 0) return null;
+                return (
+                  <div key={p.key} className="flex items-center gap-1.5 text-[11px] text-[#57534E]">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: p.color }} />
+                    {p.name}
+                  </div>
+                );
+              })}
+            </div>
+            {/* Bulk action bar */}
+            {selectedTaskIds.size > 0 && (
+              <div className="flex items-center gap-3 px-4 py-2 bg-[#FF1493]/5 border-b border-[#FF1493]/20">
+                <span className="text-xs font-medium text-[#FF1493]">
+                  {selectedTaskIds.size} selected
+                </span>
+                <div className="relative" ref={bulkRef}>
+                  <button
+                    onClick={() => setBulkStatusOpen(!bulkStatusOpen)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#E7E5E4] rounded-lg text-xs font-medium text-[#1B1464] hover:bg-[#FAFAF9] transition-colors"
+                  >
+                    Change Status
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {bulkStatusOpen && (
+                    <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg border border-[#E7E5E4] shadow-lg py-1 w-[200px] animate-fade-in">
+                      {STATUS_OPTIONS.map(s => (
+                        <button
+                          key={s.value}
+                          onClick={() => bulkUpdateStatus(s.value)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[#FAFAF9] transition-colors"
+                        >
+                          <span style={{ color: s.color }}>{s.icon}</span>
+                          <span className="text-[#1B1464]">{s.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setSelectedTaskIds(new Set())}
+                  className="text-xs text-[#A8A29E] hover:text-[#57534E] transition-colors ml-auto"
+                >
+                  Clear selection
+                </button>
+              </div>
+            )}
+            {/* Column headers */}
+            <div className="grid grid-cols-[20px_auto_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-2 bg-[#FAFAF9] text-[11px] font-medium text-[#A8A29E] uppercase tracking-wider border-b border-[#E7E5E4]">
+              <input
+                type="checkbox"
+                checked={selectedTaskIds.size === launch.tasks.length && launch.tasks.length > 0}
+                onChange={selectAllTasks}
+                className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
+              />
+              <span className="w-6" />
+              <span>Task</span>
+              <span>Owner</span>
+              <span>Due Date</span>
+              <span>Status</span>
+              <span />
+            </div>
+            {sortedTasks.map(task => {
+              const phase = phaseMap[task.phase] || PHASES[0];
+              return (
+                <TaskRow
+                  key={task.id}
+                  task={task}
+                  launch={launch}
+                  phase={phase}
+                  isExpanded={expandedTaskId === task.id}
+                  isSelected={selectedTaskIds.has(task.id)}
+                  onToggleSelect={() => toggleTaskSelection(task.id)}
+                  onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                  onMarkComplete={handleMarkComplete}
+                  updateTaskStatus={updateTaskStatus}
+                  updateTaskNotes={updateTaskNotes}
+                  updateDeliverableUrl={updateDeliverableUrl}
+                  updateTaskField={updateTaskField}
+                  updateTaskDateWithCascade={updateTaskDateWithCascade}
+                  onDeleteTask={(taskId) => {
+                    onUpdateLaunch({ ...launch, tasks: launch.tasks.filter(t => t.id !== taskId) });
+                  }}
+                  onNavigateToTask={(targetId) => {
+                    setExpandedTaskId(targetId);
+                    setTimeout(() => {
+                      const el = document.getElementById(`task-${targetId}`);
+                      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }, 100);
+                  }}
+                />
+              );
+            })}
+            {/* Add Task button */}
+            <button
+              onClick={() => {
+                const newTask: GTMTask = {
+                  id: `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  name: 'New Task',
+                  phase: 'content_planning',
+                  owner: 'marketing',
+                  durationDays: 3,
+                  startDate: null,
+                  dueDate: null,
+                  completedDate: null,
+                  status: 'not_started',
+                  notes: '',
+                  dependencies: [],
+                  sortOrder: launch.tasks.length,
+                };
+                onUpdateLaunch({ ...launch, tasks: [...launch.tasks, newTask] });
+                setExpandedTaskId(newTask.id);
+              }}
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-[#A8A29E] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors border-t border-[#E7E5E4]"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add task
+            </button>
+          </div>
+        );
+      })()}
+    </div>
+  );
+}
+
+function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, onToggleExpand, onMarkComplete, updateTaskStatus, updateTaskNotes, updateDeliverableUrl, updateTaskField, updateTaskDateWithCascade, onDeleteTask, onNavigateToTask }: {
+  task: GTMTask;
+  launch: Launch;
+  phase: { key: PhaseKey; color: string };
+  isExpanded: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
+  onToggleExpand: () => void;
+  onMarkComplete: (taskId: string) => void;
+  updateTaskStatus: (taskId: string, status: TaskStatus) => void;
+  updateTaskNotes: (taskId: string, notes: string) => void;
+  updateDeliverableUrl: (taskId: string, url: string) => void;
+  updateTaskField: (taskId: string, updates: Partial<GTMTask>) => void;
+  updateTaskDateWithCascade: (taskId: string, newDate: string) => void;
+  onDeleteTask: (taskId: string) => void;
+  onNavigateToTask?: (taskId: string) => void;
+}) {
+  const [statusOpen, setStatusOpen] = useState(false);
+  const [editingDate, setEditingDate] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameValue, setNameValue] = useState(task.name);
+  const [linkLabel, setLinkLabel] = useState(task.deliverableLabel || '');
+  const [editingDeps, setEditingDeps] = useState(false);
+  const [editingLink, setEditingLink] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(!!(task.notes && task.notes.trim()));
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const statusRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (statusRef.current && !statusRef.current.contains(e.target as Node)) setStatusOpen(false);
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const isOverdue = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
+    parseISO(task.dueDate) < new Date();
+  const deliverableLabel = DELIVERABLE_TASKS[task.name];
+  const hasLink = task.deliverableUrl && task.deliverableUrl.trim() !== '';
+  const currentStatus = STATUS_OPTIONS.find(s => s.value === task.status) || STATUS_OPTIONS[0];
+
+  function handleStatusChange(status: TaskStatus) {
+    if (status === 'complete') {
+      onMarkComplete(task.id);
+    } else {
+      updateTaskStatus(task.id, status);
+    }
+    setStatusOpen(false);
+  }
+
+  return (
+    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''}`}>
+      <div className="grid grid-cols-[20px_auto_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
+        {/* Selection checkbox */}
+        <input
+          type="checkbox"
+          checked={!!isSelected}
+          onChange={onToggleSelect}
+          className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
+          onClick={e => e.stopPropagation()}
+        />
+        {/* Status pill dropdown */}
+        <div className="relative shrink-0 w-6" ref={statusRef}>
+          <button
+            onClick={() => setStatusOpen(!statusOpen)}
+            className="flex items-center justify-center w-6 h-6 rounded-full transition-colors"
+            style={{ color: currentStatus.color }}
+            title={currentStatus.label}
+          >
+            {currentStatus.icon}
+          </button>
+          {statusOpen && (
+            <div className="fixed z-[100] bg-white rounded-lg border border-[#E7E5E4] shadow-lg py-1 w-[200px] animate-fade-in" style={{ top: (statusRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: statusRef.current?.getBoundingClientRect().left ?? 0 }}>
+              {STATUS_OPTIONS.map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => handleStatusChange(s.value)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[#FAFAF9] transition-colors ${
+                    task.status === s.value ? 'bg-[#FAFAF9] font-semibold' : ''
+                  }`}
+                >
+                  <span style={{ color: s.color }}>{s.icon}</span>
+                  <span className="text-[#1B1464]">{s.label}</span>
+                  {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#FF1493]" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Task name — inline editable */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            {editingName ? (
+              <input
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={() => { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); } if (e.key === 'Escape') { setNameValue(task.name); setEditingName(false); } }}
+                className="text-sm text-[#1B1464] border-b border-[#FF1493] outline-none bg-transparent w-full"
+                autoFocus
+              />
+            ) : (
+              <div className="flex items-center gap-1.5 min-w-0">
+                <div className="w-2 h-2 rounded-full shrink-0" style={{ background: phase.color }} title={PHASES.find(p => p.key === task.phase)?.name || task.phase} />
+                <p
+                  className={`text-sm truncate cursor-pointer hover:text-[#FF1493] transition-colors ${task.status === 'complete' ? 'line-through text-[#A8A29E]' : 'text-[#1B1464]'}`}
+                  onClick={onToggleExpand}
+                  title="Click to view details"
+                >
+                  {task.isMeeting && <span className="mr-1">📅</span>}
+                  {task.name}
+                </p>
+                {task.isCompressed && (
+                  <span className="shrink-0 bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded font-medium" title={`Compressed by ${task.compressionDays} BD`}>
+                    -{task.compressionDays}d
+                  </span>
+                )}
+                {task.dependencies.length > 0 && (
+                  <span className="shrink-0 text-[10px] text-[#A8A29E]" title={`Depends on ${task.dependencies.length} task${task.dependencies.length > 1 ? 's' : ''}`}>
+                    {task.dependencies.length} dep{task.dependencies.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
+            )}
+            {/* Deliverable link button */}
+            {deliverableLabel && hasLink && (
+              <a
+                href={task.deliverableUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={e => e.stopPropagation()}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FFF0F7] text-[#FF1493] rounded-md text-[10px] font-medium hover:bg-[#FF1493] hover:text-white transition-colors shrink-0 cursor-pointer max-w-[160px]"
+                title={`Open ${getDisplayLabel(task)}`}
+              >
+                <ExternalLink className="w-2.5 h-2.5 shrink-0" />
+                <span className="truncate">{getDisplayLabel(task)}</span>
+              </a>
+            )}
+            {deliverableLabel && !hasLink && (
+              <button
+                onClick={onToggleExpand}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded-md text-[10px] font-medium hover:bg-[#FFF0F7] hover:text-[#FF1493] transition-colors shrink-0"
+                title="Add link"
+              >
+                <Plus className="w-2.5 h-2.5" />
+                Add Link
+              </button>
+            )}
+          </div>
+          {task.notes && !isExpanded && (
+            <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate max-w-md">{task.notes}</p>
+          )}
+        </div>
+
+        {/* Owner — editable select */}
+        <select
+          value={task.owner}
+          onChange={e => updateTaskField(task.id, { owner: e.target.value as Owner })}
+          className="text-xs font-medium px-2 py-1 rounded-full border-0 bg-transparent cursor-pointer focus:outline-none"
+          style={{ color: OWNER_COLORS[task.owner] }}
+        >
+          {Object.entries(OWNER_LABELS).map(([key, label]) => (
+            <option key={key} value={key}>{label}</option>
+          ))}
+        </select>
+
+        {/* Due Date — inline editable */}
+        {editingDate ? (
+          <input
+            type="date"
+            value={task.dueDate || ''}
+            onChange={(e) => {
+              updateTaskDateWithCascade(task.id, e.target.value);
+              setEditingDate(false);
+            }}
+            onBlur={() => setEditingDate(false)}
+            className="text-xs px-1 py-0.5 border border-[#FF1493] rounded bg-white focus:outline-none"
+            autoFocus
+          />
+        ) : (
+          <button
+            onClick={() => setEditingDate(true)}
+            className={`text-xs text-left hover:text-[#FF1493] transition-colors ${isOverdue ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
+            title="Click to edit due date (cascades to downstream tasks)"
+          >
+            {task.dueDate ? format(parseISO(task.dueDate), 'MMM d, yyyy') : '+ Set date'}
+          </button>
+        )}
+
+        {/* Status pill */}
+        <button
+          onClick={() => setStatusOpen(!statusOpen)}
+          className="flex items-center gap-1.5 rounded-full pl-1.5 pr-2 py-1 border transition-colors hover:shadow-sm text-left"
+          style={{
+            color: currentStatus.color,
+            borderColor: currentStatus.color + '40',
+            background: currentStatus.color + '10',
+          }}
+        >
+          {currentStatus.icon}
+          <span className="text-[10px] font-semibold whitespace-nowrap">{currentStatus.label}</span>
+        </button>
+
+        <button
+          onClick={onToggleExpand}
+          className="text-[#D6D3D1] hover:text-[#57534E] transition-colors text-xs"
+          title="Details"
+        >
+          ···
+        </button>
+      </div>
+
+      {/* Expanded detail panel */}
+      {isExpanded && (
+        <div className="px-4 pb-4 ml-9 space-y-3 animate-fade-in">
+
+          {/* Task name edit */}
+          <div className="flex items-center gap-2">
+            {editingName ? (
+              <input
+                value={nameValue}
+                onChange={(e) => setNameValue(e.target.value)}
+                onBlur={() => { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); } if (e.key === 'Escape') { setNameValue(task.name); setEditingName(false); } }}
+                className="text-sm font-medium text-[#1B1464] border-b border-[#FF1493] outline-none bg-transparent flex-1"
+                autoFocus
+              />
+            ) : (
+              <>
+                <span className="text-sm font-medium text-[#1B1464]">{task.name}</span>
+                <button
+                  onClick={() => { setNameValue(task.name); setEditingName(true); }}
+                  className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
+                  title="Edit task name"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Schedule window */}
+          {task.startDate && task.dueDate && (
+            <div className="flex items-center gap-1.5 text-[11px] text-[#57534E]">
+              <Calendar className="w-3 h-3 text-[#A8A29E]" />
+              <span>{format(parseISO(task.startDate), 'MMM d')} → {format(parseISO(task.dueDate), 'MMM d, yyyy')}</span>
+              {task.durationDays && <span className="text-[#A8A29E]">({task.durationDays} business days)</span>}
+            </div>
+          )}
+
+          {/* 1. Dependencies — read-only pills with edit toggle */}
+          {(task.dependencies.length > 0 || editingDeps || launch.tasks.some(t => t.dependencies.includes(task.id))) && (
+            <div className="space-y-1.5">
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <label className="text-[11px] font-medium text-[#57534E]">Depends on</label>
+                  {!editingDeps && (
+                    <button
+                      onClick={() => setEditingDeps(true)}
+                      className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
+                      title="Edit dependencies"
+                    >
+                      <Pencil className="w-3 h-3" />
+                    </button>
+                  )}
+                </div>
+                {task.dependencies.length > 0 ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {task.dependencies.map(depId => {
+                      const dep = launch.tasks.find(t => t.id === depId);
+                      if (!dep) return null;
+                      const isComplete = dep.status === 'complete';
+                      return (
+                        <button
+                          key={depId}
+                          onClick={() => {
+                            if (onNavigateToTask) onNavigateToTask(dep.id);
+                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium cursor-pointer hover:ring-2 hover:ring-[#FF1493]/30 transition-all ${
+                            isComplete
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                              : 'bg-[#F5F5F4] text-[#57534E] border border-[#E7E5E4]'
+                          }`}
+                          title={`Go to ${dep.name}`}
+                        >
+                          {isComplete
+                            ? <CheckCircle2 className="w-3 h-3" />
+                            : <Circle className="w-3 h-3" />
+                          }
+                          {dep.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : !editingDeps ? (
+                  <p className="text-[10px] text-[#A8A29E]">No dependencies</p>
+                ) : null}
+                {task.dependencies.length > 1 && !editingDeps && (
+                  <p className="text-[10px] text-[#A8A29E] mt-1">
+                    Starts after <span className="font-medium">all</span> dependencies complete (uses latest due date)
+                  </p>
+                )}
+                {editingDeps && (
+                  <div className="mt-2">
+                    <label className="text-[10px] font-medium text-[#57534E] mb-1 block">Edit Dependencies</label>
+                    <select
+                      multiple
+                      value={task.dependencies}
+                      onChange={e => {
+                        const selected = Array.from(e.target.selectedOptions).map(o => o.value);
+                        updateTaskField(task.id, { dependencies: selected });
+                      }}
+                      className="w-[280px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 max-h-[100px]"
+                    >
+                      {launch.tasks
+                        .filter(t => t.id !== task.id)
+                        .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+                        .map(t => (
+                          <option key={t.id} value={t.id}>{t.name}</option>
+                        ))
+                      }
+                    </select>
+                    <p className="text-[10px] text-[#A8A29E] mt-0.5">Hold Cmd/Ctrl to select multiple</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        onClick={() => setEditingDeps(false)}
+                        className="px-3 py-1 bg-[#FF1493] text-white text-[11px] font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+                      >
+                        Done
+                      </button>
+                      <button
+                        onClick={() => setEditingDeps(false)}
+                        className="px-3 py-1 text-[#57534E] text-[11px] font-medium hover:bg-[#F5F5F4] rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {(() => {
+                const blockedTasks = launch.tasks.filter(t => t.dependencies.includes(task.id));
+                if (blockedTasks.length === 0) return null;
+                return (
+                  <div>
+                    <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Blocks</label>
+                    <div className="flex flex-wrap gap-1.5">
+                      {blockedTasks.map(bt => (
+                        <span key={bt.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-[#FFF0F7] text-[#D4117D] border border-[#FF1493]/20">
+                          {bt.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* 2. Deliverable — compact link preview or inline add */}
+          <div>
+            <div className="flex items-center gap-1.5 mb-1">
+              <LinkIcon className="w-3 h-3 text-[#57534E]" />
+              <label className="text-[11px] font-medium text-[#57534E]">
+                {deliverableLabel || 'Deliverable'}
+              </label>
+              {hasLink && (
+                <button
+                  onClick={() => setEditingLink(!editingLink)}
+                  className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
+                  title="Edit link"
+                >
+                  <Pencil className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+            {hasLink && !editingLink ? (
+              <a
+                href={task.deliverableUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors"
+              >
+                <ExternalLink className="w-3 h-3 shrink-0" />
+                <span className="truncate max-w-[300px]">{getDisplayLabel(task)}</span>
+              </a>
+            ) : hasLink && editingLink ? (
+              <div className="flex gap-2 items-center">
+                <input
+                  type="url"
+                  value={task.deliverableUrl || ''}
+                  onChange={e => updateDeliverableUrl(task.id, e.target.value)}
+                  placeholder="Paste link..."
+                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                />
+                <input
+                  type="text"
+                  value={linkLabel}
+                  onChange={e => { setLinkLabel(e.target.value); updateTaskField(task.id, { deliverableLabel: e.target.value }); }}
+                  placeholder="Label (optional)"
+                  className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                />
+                <button
+                  onClick={() => setEditingLink(false)}
+                  className="text-[#A8A29E] hover:text-[#57534E] p-1 rounded hover:bg-[#F5F5F4] transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : !editingLink ? (
+              <button
+                onClick={() => setEditingLink(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#FF1493] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Add link
+              </button>
+            ) : (
+              <div className="flex gap-2 items-center">
+                <input
+                  type="url"
+                  value={task.deliverableUrl || ''}
+                  onChange={e => updateDeliverableUrl(task.id, e.target.value)}
+                  placeholder="Paste Google Drive, Dropbox, or other link..."
+                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                  autoFocus
+                />
+                <input
+                  type="text"
+                  value={linkLabel}
+                  onChange={e => { setLinkLabel(e.target.value); updateTaskField(task.id, { deliverableLabel: e.target.value }); }}
+                  placeholder="Label (optional)"
+                  className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                />
+                <button
+                  onClick={() => setEditingLink(false)}
+                  className="text-[#A8A29E] hover:text-[#57534E] p-1 rounded hover:bg-[#F5F5F4] transition-colors"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* 3. Meeting scheduler — only for meeting tasks */}
+          {task.isMeeting && (
+            <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium text-blue-900 flex items-center gap-1.5">
+                    <Calendar className="w-3.5 h-3.5" />
+                    Meeting
+                  </p>
+                  {task.startDate && task.dueDate && task.startDate !== task.dueDate ? (
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Schedule between {format(parseISO(task.startDate), 'MMM d')} and {format(parseISO(task.dueDate), 'MMM d')}
+                    </p>
+                  ) : task.dueDate ? (
+                    <p className="text-[11px] text-blue-700 mt-0.5">
+                      Due {format(parseISO(task.dueDate), 'MMM d, yyyy')}
+                    </p>
+                  ) : null}
+                </div>
+                <a
+                  href={`https://outlook.office.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(task.name + ' \u2014 ' + launch.name)}&startdt=${task.startDate || task.dueDate || ''}T09:00:00&enddt=${task.startDate || task.dueDate || ''}T10:00:00`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shrink-0"
+                >
+                  <Calendar className="w-3.5 h-3.5" />
+                  Schedule in Outlook
+                </a>
+              </div>
+            </div>
+          )}
+
+          {/* 3b. Sub-items / Checklist */}
+          {task.meetingChecklist && task.meetingChecklist.length > 0 && (
+            <div className="bg-[#FAFAF9] rounded-lg border border-[#E7E5E4] p-3">
+              <p className="text-[11px] font-medium text-[#57534E] mb-2">
+                {task.isMeeting ? 'Discussion Items' : 'Sub-items'}
+              </p>
+              <div className="space-y-1.5">
+                {task.meetingChecklist.map((item, i) => (
+                  <div key={i} className="flex items-center gap-2 text-xs text-[#57534E]">
+                    <div className="w-1.5 h-1.5 rounded-full bg-[#A8A29E] shrink-0" />
+                    {item}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 4. Approval tracking */}
+          <div>
+            <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Approval Status</label>
+            <div className="flex items-center gap-1.5">
+              {(['draft', 'submitted', 'approved', 'revision_needed'] as const).map(status => {
+                const isActive = (task.approvalStatus || 'draft') === status;
+                const colors: Record<string, string> = {
+                  draft: '#6B7280',
+                  submitted: '#3B82F6',
+                  approved: '#10B981',
+                  revision_needed: '#F59E0B',
+                };
+                const labels: Record<string, string> = {
+                  draft: 'Draft',
+                  submitted: 'Submitted',
+                  approved: 'Approved',
+                  revision_needed: 'Needs Revision',
+                };
+                return (
+                  <button
+                    key={status}
+                    onClick={() => {
+                      const updates: Partial<GTMTask> = { approvalStatus: status };
+                      if (status === 'submitted') updates.submittedDate = new Date().toISOString();
+                      if (status === 'approved') updates.approvedDate = new Date().toISOString();
+                      updateTaskField(task.id, updates);
+                    }}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold border transition-colors ${
+                      isActive
+                        ? 'text-white border-transparent'
+                        : 'bg-white hover:bg-[#F5F5F4]'
+                    }`}
+                    style={isActive
+                      ? { background: colors[status], borderColor: colors[status] }
+                      : { color: colors[status], borderColor: colors[status] + '40' }
+                    }
+                  >
+                    {labels[status]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* 5. Notes & Updates — collapsible */}
+          <div>
+            <button
+              onClick={() => setNotesOpen(!notesOpen)}
+              className="flex items-center gap-1 text-[11px] font-medium text-[#57534E] hover:text-[#1B1464] transition-colors"
+            >
+              {notesOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              Notes & Updates
+              {task.notes && task.notes.trim() && !notesOpen && (
+                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-[#FF1493] shrink-0" />
+              )}
+            </button>
+            {notesOpen && (
+              <textarea
+                value={task.notes}
+                onChange={e => updateTaskNotes(task.id, e.target.value)}
+                placeholder="Add notes or status updates..."
+                rows={3}
+                className="w-full mt-1.5 px-3 py-2 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+              />
+            )}
+          </div>
+
+          {/* 6. Lead Time & Dependencies — collapsible power-user section */}
+          <div>
+            <button
+              onClick={() => setAdvancedOpen(!advancedOpen)}
+              className="flex items-center gap-1 text-[11px] font-medium text-[#A8A29E] hover:text-[#57534E] transition-colors"
+            >
+              {advancedOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+              <Settings2 className="w-3 h-3" />
+              Lead Time & Dependencies
+            </button>
+            {advancedOpen && (
+              <div className="flex gap-4 mt-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-[#57534E] mb-1">Lead Time (days)</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={task.durationDays}
+                    onChange={e => updateTaskField(task.id, { durationDays: parseInt(e.target.value) || 1 })}
+                    className="w-20 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-[#57534E] mb-1">Edit Dependencies</label>
+                  <select
+                    multiple
+                    value={task.dependencies}
+                    onChange={e => {
+                      const selected = Array.from(e.target.selectedOptions).map(o => o.value);
+                      updateTaskField(task.id, { dependencies: selected });
+                    }}
+                    className="w-[240px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 max-h-[80px]"
+                  >
+                    {launch.tasks
+                      .filter(t => t.id !== task.id)
+                      .sort((a, b) => a.sortOrder - b.sortOrder)
+                      .map(t => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))
+                    }
+                  </select>
+                  <p className="text-[10px] text-[#A8A29E] mt-0.5">Hold Cmd/Ctrl to select multiple</p>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 7. Delete task — danger zone */}
+          <div className="pt-2 border-t border-[#E7E5E4]">
+            <button
+              onClick={() => {
+                if (confirm(`Delete task "${task.name}"?`)) onDeleteTask(task.id);
+              }}
+              className="inline-flex items-center gap-1.5 text-[11px] text-[#DC2626] hover:bg-red-50 px-2 py-1 rounded transition-colors"
+            >
+              <Trash2 className="w-3 h-3" />
+              Delete task
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeliverablesView({ launch }: { launch: Launch }) {
+  const tasksWithLinks = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim());
+  const tasksMissingLinks = launch.tasks.filter(t => DELIVERABLE_TASKS[t.name] && (!t.deliverableUrl || !t.deliverableUrl.trim()));
+
+  return (
+    <div className="space-y-6">
+      {/* Linked deliverables */}
+      <div>
+        <h3 className="text-sm font-semibold text-[#1B1464] mb-3">
+          Linked Deliverables ({tasksWithLinks.length})
+        </h3>
+        {tasksWithLinks.length === 0 ? (
+          <div className="bg-white rounded-xl border border-[#E7E5E4] p-8 text-center">
+            <LinkIcon className="w-8 h-8 text-[#D6D3D1] mx-auto mb-2" />
+            <p className="text-sm text-[#A8A29E]">No deliverables linked yet.</p>
+            <p className="text-xs text-[#D6D3D1] mt-1">Add links to tasks in the Task Tracker tab.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-[#E7E5E4] divide-y divide-[#E7E5E4]">
+            {tasksWithLinks.map(task => {
+              const phase = PHASES.find(p => p.key === task.phase);
+              return (
+                <div key={task.id} className="flex items-center gap-3 px-4 py-3 hover:bg-[#FAFAF9] transition-colors">
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: phase?.color || '#6B7280' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#1B1464] font-medium truncate">{task.name}</p>
+                    <p className="text-[11px] text-[#A8A29E]">{phase?.name || 'Unknown Phase'}</p>
+                  </div>
+                  <a
+                    href={task.deliverableUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors shrink-0"
+                  >
+                    <ExternalLink className="w-3 h-3" />
+                    {getDisplayLabel(task)}
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Missing deliverables */}
+      {tasksMissingLinks.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-[#A8A29E] mb-3">
+            Missing Links ({tasksMissingLinks.length})
+          </h3>
+          <div className="bg-white rounded-xl border border-[#E7E5E4] divide-y divide-[#E7E5E4]">
+            {tasksMissingLinks.map(task => {
+              const phase = PHASES.find(p => p.key === task.phase);
+              return (
+                <div key={task.id} className="flex items-center gap-3 px-4 py-3">
+                  <div className="w-2 h-2 rounded-full shrink-0 opacity-40" style={{ background: phase?.color || '#6B7280' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#A8A29E] truncate">{task.name}</p>
+                    <p className="text-[11px] text-[#D6D3D1]">{DELIVERABLE_TASKS[task.name]}</p>
+                  </div>
+                  <span className="text-[11px] text-[#D6D3D1] px-2 py-0.5 bg-[#F5F5F4] rounded">No link</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
