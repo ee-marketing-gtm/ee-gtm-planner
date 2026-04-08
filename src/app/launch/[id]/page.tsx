@@ -853,6 +853,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
 
         return (
           <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden">
+            {/* Sticky header group */}
+            <div className="sticky top-0 z-20 bg-white">
             {/* Phase legend */}
             <div className="flex items-center gap-4 px-4 py-2.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
               {PHASES.map(p => {
@@ -917,6 +919,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               <span>Status</span>
               <span />
             </div>
+            </div>{/* end sticky header */}
             {sortedTasks.map(task => {
               const phase = phaseMap[task.phase] || PHASES[0];
               return (
