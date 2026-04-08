@@ -225,7 +225,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   // ═══════════════════════════════════════════════════════════════════
 
   {
-    name: 'Finalize Email Plan',
+    name: 'Finalize Email Strategy',
     leadTime: 3,
     dependsOn: ['Align on Email Plan'],
     owner: 'growth',
@@ -255,7 +255,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
       'Finalize Product Positioning & Messaging',
       'Finalize Creative Shoot Plan',
       'Finalize Bundle Assortment',
-      'Finalize Email Plan',
+      'Finalize Email Strategy',
       'Finalize Social Strategy',
       'Finalize Influencer Strategy',
       'Final Taglines & Campaign Copy Due',
@@ -448,7 +448,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Email Brief',
     leadTime: 3,
-    dependsOn: ['Finalize Email Plan', 'Align on Email Plan'],
+    dependsOn: ['Finalize Email Strategy', 'Align on Email Plan'],
     owner: 'marketing',
     phase: 'design_briefs',
     notes: 'Email campaign briefs based on finalized email plan.',
