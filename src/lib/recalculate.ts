@@ -149,7 +149,7 @@ export function recalculateTimeline(launch: Launch): RecalcResult {
   if (launchDateParsed) {
     for (const task of taskMap.values()) {
       if (task.status === 'complete' || task.status === 'skipped' || !task.dueDate) continue;
-      if (task.name.includes('Launch Complete') || task.name.includes('D2C Launch')) continue;
+      if (task.name === 'D2C Launch' || task.name === 'Sephora Launch') continue;
       const taskDue = parseISO(task.dueDate);
       if (isAfter(taskDue, launchDateParsed)) {
         const over = differenceInBusinessDays(taskDue, launchDateParsed);

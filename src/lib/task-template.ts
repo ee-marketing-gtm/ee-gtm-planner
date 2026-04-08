@@ -277,7 +277,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Final GTM Deck',
     leadTime: 3,
-    dependsOn: ['Finalize 360 GTM Plan & Retail Channels'],
+    dependsOn: ['Finalize 360 GTM Plan & Retail Channels', 'RSP Finalization', 'Finalize Bundle Assortment'],
     owner: 'marketing',
     support: 'cross-functional',
     phase: 'finalize_mgmt',
@@ -711,7 +711,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     notes: 'Date added manually when OOH is confirmed.',
   },
   {
-    name: 'D2C Launch Complete',
+    name: 'D2C Launch',
     leadTime: 0,
     dependsOn: ['DTC & Amazon Final Assets Due', 'Final DTC PDP Copy & Reviews Due', 'Creator Content Delivered', 'Social Campaign Start'],
     owner: 'marketing',
@@ -720,7 +720,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     notes: 'Confirm all D2C channels are live.',
   },
   {
-    name: 'Sephora Launch Complete',
+    name: 'Sephora Launch',
     leadTime: 0,
     dependsOn: ['Sephora Final Assets Due', 'Sephora Catalog & PDP Copy Due'],
     owner: 'marketing',

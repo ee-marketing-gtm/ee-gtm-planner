@@ -55,6 +55,12 @@ export default function LaunchDetail() {
   const [mounted, setMounted] = useState(false);
   const [recalcResult, setRecalcResult] = useState<{ daysLate: number; daysAbsorbed: number; impossible: boolean; warnings: string[]; changes: TaskDateChange[] } | null>(null);
   const [preRecalcTasks, setPreRecalcTasks] = useState<import('@/lib/types').GTMTask[] | null>(null);
+  const [cascadeWarning, setCascadeWarning] = useState<{
+    pendingTasks: import('@/lib/types').GTMTask[];
+    overTasks: { name: string; dueDate: string; daysOver: number }[];
+    suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
+    impossible: boolean;
+  } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [customHex, setCustomHex] = useState(launch?.brandColor || '');
   const [imageUrlInput, setImageUrlInput] = useState(launch?.productImageUrl || '');
@@ -216,26 +222,48 @@ export default function LaunchDetail() {
     // Check if any tasks now exceed launch dates
     const newTasks = Array.from(taskMap.values());
     const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
-    const sephoraLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
 
-    const overLaunchTasks: string[] = [];
+    const overTasks: { name: string; dueDate: string; daysOver: number }[] = [];
     for (const t of newTasks) {
       if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
-      if (t.name.includes('Launch Complete')) continue;
+      if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
       const due = parseISO(t.dueDate);
       if (dtcLaunch && isAfter(due, dtcLaunch)) {
-        overLaunchTasks.push(t.name);
+        overTasks.push({ name: t.name, dueDate: t.dueDate, daysOver: differenceInBusinessDays(due, dtcLaunch) });
       }
     }
 
-    if (overLaunchTasks.length > 0) {
-      const proceed = confirm(
-        `Warning: This change pushes ${overLaunchTasks.length} task${overLaunchTasks.length !== 1 ? 's' : ''} past the launch date:\n\n` +
-        overLaunchTasks.slice(0, 5).join('\n') +
-        (overLaunchTasks.length > 5 ? `\n...and ${overLaunchTasks.length - 5} more` : '') +
-        '\n\nApply anyway?'
-      );
-      if (!proceed) return;
+    if (overTasks.length > 0) {
+      // Find tasks in the chain that could be compressed to fix this
+      const totalDaysOver = Math.max(...overTasks.map(t => t.daysOver));
+      const suggestions: { taskName: string; currentDays: number; suggestedDays: number }[] = [];
+
+      // Walk the chain from the moved task to find compressible tasks
+      const chainTasks = newTasks
+        .filter(t => t.status !== 'complete' && t.status !== 'skipped' && t.durationDays && t.durationDays > 2)
+        .sort((a, b) => (b.durationDays || 0) - (a.durationDays || 0));
+
+      let daysToSave = totalDaysOver;
+      for (const ct of chainTasks) {
+        if (daysToSave <= 0) break;
+        const maxReduction = Math.floor((ct.durationDays || 0) * 0.4); // Can compress up to 40%
+        if (maxReduction < 1) continue;
+        const reduction = Math.min(maxReduction, daysToSave);
+        suggestions.push({
+          taskName: ct.name,
+          currentDays: ct.durationDays || 0,
+          suggestedDays: (ct.durationDays || 0) - reduction,
+        });
+        daysToSave -= reduction;
+      }
+
+      setCascadeWarning({
+        pendingTasks: newTasks,
+        overTasks,
+        suggestions: suggestions.slice(0, 5),
+        impossible: daysToSave > 0,
+      });
+      return;
     }
 
     updateLaunch({ ...launch, tasks: newTasks });
@@ -436,6 +464,8 @@ export default function LaunchDetail() {
                     'Draft Sephora Catalog & PDP Copy Due': ['Draft Sephora Catalog & PDP Copy Ready'],
                     'Finalize Influencer Strategy': ['Finalize Influencer Strategy & Start Sourcing Creators'],
                     'Start Sourcing Creators': ['Finalize Influencer Strategy & Start Sourcing Creators'],
+                    'D2C Launch Complete': ['D2C Launch'],
+                    'Sephora Launch Complete': ['Sephora Launch'],
                   };
                   // Build reverse: new name → old name
                   const renameReverse = new Map<string, string>();
@@ -666,6 +696,72 @@ export default function LaunchDetail() {
           ) : null;
         })()}
         </div>
+
+      {/* Cascade Warning */}
+      {cascadeWarning && (
+        <div className="bg-red-50 rounded-xl border border-red-200 p-4 mb-4 animate-fade-in">
+          <div className="flex items-start gap-2 mb-3">
+            <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-[#DC2626]">
+                This change pushes {cascadeWarning.overTasks.length} task{cascadeWarning.overTasks.length !== 1 ? 's' : ''} past the launch date
+              </p>
+              <div className="mt-2 space-y-1">
+                {cascadeWarning.overTasks.slice(0, 5).map((t, i) => (
+                  <p key={i} className="text-xs text-[#92400E]">
+                    <span className="font-medium">{t.name}</span> — {t.daysOver} BD past launch
+                  </p>
+                ))}
+                {cascadeWarning.overTasks.length > 5 && (
+                  <p className="text-xs text-[#A8A29E]">...and {cascadeWarning.overTasks.length - 5} more</p>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {cascadeWarning.suggestions.length > 0 && (
+            <div className="bg-white rounded-lg border border-[#E7E5E4] p-3 mb-3">
+              <p className="text-xs font-medium text-[#57534E] mb-2">
+                {cascadeWarning.impossible ? 'Suggested reductions (still not enough):' : 'To fit within the launch date, try:'}
+              </p>
+              <div className="space-y-1.5">
+                {cascadeWarning.suggestions.map((s, i) => (
+                  <div key={i} className="flex items-center justify-between text-xs">
+                    <span className="text-[#1B1464]">{s.taskName}</span>
+                    <span className="text-[#DC2626] font-medium">
+                      {s.currentDays}d → {s.suggestedDays}d
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {cascadeWarning.impossible && (
+            <p className="text-xs text-[#DC2626] mb-3 font-medium">
+              Not enough room to compress — consider extending the launch date.
+            </p>
+          )}
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                updateLaunch({ ...launch, tasks: cascadeWarning.pendingTasks });
+                setCascadeWarning(null);
+              }}
+              className="px-3 py-1.5 bg-[#DC2626] text-white text-xs font-medium rounded-lg hover:bg-[#B91C1C] transition-colors"
+            >
+              Apply Anyway
+            </button>
+            <button
+              onClick={() => setCascadeWarning(null)}
+              className="px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] text-xs font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-[#E7E5E4] mb-6">
@@ -1189,6 +1285,9 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
 
   const isOverdue = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
     parseISO(task.dueDate) < new Date();
+  const isPastLaunch = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
+    task.name !== 'D2C Launch' && task.name !== 'Sephora Launch' &&
+    launch.launchDate && parseISO(task.dueDate) > parseISO(launch.launchDate);
   const allDepsComplete = task.dependencies.length > 0 && task.dependencies.every(depId => {
     const dep = launch.tasks.find(t => t.id === depId);
     return dep && (dep.status === 'complete' || dep.status === 'skipped');
@@ -1207,7 +1306,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
   }
 
   return (
-    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
+    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
       <div className="grid grid-cols-[20px_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
         {/* Selection checkbox */}
         <input
@@ -1311,8 +1410,8 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
         ) : (
           <button
             onClick={() => setEditingDate(true)}
-            className={`text-xs text-left hover:text-[#FF1493] transition-colors ${isOverdue ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
-            title="Click to edit due date (cascades to downstream tasks)"
+            className={`text-xs text-left hover:text-[#FF1493] transition-colors ${isOverdue || isPastLaunch ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
+            title={isPastLaunch ? 'Past launch date! Click to edit (cascades to downstream tasks)' : 'Click to edit due date (cascades to downstream tasks)'}
           >
             {task.dueDate ? format(parseISO(task.dueDate), 'MMM d, yyyy') : '+ Set date'}
           </button>
