@@ -634,7 +634,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Final DTC PDP Copy & Reviews Due',
     leadTime: 5,
-    dependsOn: ['Draft PDP Copy Brief', 'Final Sephora Catalog & PDP Copy'],
+    dependsOn: ['Draft PDP Copy Brief'],
     owner: 'marketing',
     phase: 'design_production',
     d2cCopyLeadTime: 10,
