@@ -31,6 +31,7 @@ export function NewLaunchModal({ onClose }: Props) {
   const [d2cAssetLead, setD2cAssetLead] = useState(15);
   const [d2cCopyLead, setD2cCopyLead] = useState(10);
   const [showAdvanced, setShowAdvanced] = useState(false);
+  const [showPartners, setShowPartners] = useState(false);
 
   // External partner anchors
   const [anchors, setAnchors] = useState<ExternalAnchorConfig[]>([]);
@@ -252,11 +253,18 @@ export function NewLaunchModal({ onClose }: Props) {
 
           {/* External Partner Deadlines */}
           <div className="border border-[#E7E5E4] rounded-lg p-3">
-            <h3 className="text-[13px] font-medium text-[#57534E] mb-2 flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => setShowPartners(!showPartners)}
+              className="flex items-center gap-1.5 w-full text-left"
+            >
               <Lock className="w-3.5 h-3.5 text-purple-500" />
-              External Partner Deadlines
-              <span className="text-[11px] text-[#A8A29E] font-normal ml-1">(optional)</span>
-            </h3>
+              <span className="text-[13px] font-medium text-[#57534E]">External Partner Deadlines</span>
+              <span className="text-[11px] text-[#A8A29E] font-normal ml-1">(click to customize)</span>
+              {anchors.length > 0 && <span className="text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full font-medium">{anchors.length}</span>}
+              <span className="ml-auto text-[#A8A29E] text-xs">{showPartners ? '▲' : '▼'}</span>
+            </button>
+            {showPartners && (<>
             {anchors.map((a, i) => (
               <div key={i} className="flex items-center gap-2 mb-2 text-sm">
                 <span className="bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md text-xs font-medium">{a.partnerName}</span>
@@ -296,6 +304,7 @@ export function NewLaunchModal({ onClose }: Props) {
                 <Plus className="w-3.5 h-3.5" />
               </button>
             </div>
+            </>)}
           </div>
 
           <div>
