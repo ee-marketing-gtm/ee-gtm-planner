@@ -287,7 +287,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   // ═══════════════════════════════════════════════════════════════════
 
   {
-    name: 'Packaging Samples Due',
+    name: 'Packaging Samples for Photoshoot Due',
     leadTime: 0,
     dependsOn: [],
     owner: 'ops',
@@ -339,7 +339,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [
       'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Packaging Samples Due',
+      'Packaging Samples for Photoshoot Due',
     ],
     owner: 'creative',
     phase: 'content_production',
@@ -351,7 +351,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [
       'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Packaging Samples Due',
+      'Packaging Samples for Photoshoot Due',
     ],
     owner: 'creative',
     phase: 'content_production',
