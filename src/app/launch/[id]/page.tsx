@@ -213,7 +213,32 @@ export default function LaunchDetail() {
       }
     }
 
-    updateLaunch({ ...launch, tasks: Array.from(taskMap.values()) });
+    // Check if any tasks now exceed launch dates
+    const newTasks = Array.from(taskMap.values());
+    const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+    const sephoraLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
+
+    const overLaunchTasks: string[] = [];
+    for (const t of newTasks) {
+      if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
+      if (t.name.includes('Launch Complete')) continue;
+      const due = parseISO(t.dueDate);
+      if (dtcLaunch && isAfter(due, dtcLaunch)) {
+        overLaunchTasks.push(t.name);
+      }
+    }
+
+    if (overLaunchTasks.length > 0) {
+      const proceed = confirm(
+        `Warning: This change pushes ${overLaunchTasks.length} task${overLaunchTasks.length !== 1 ? 's' : ''} past the launch date:\n\n` +
+        overLaunchTasks.slice(0, 5).join('\n') +
+        (overLaunchTasks.length > 5 ? `\n...and ${overLaunchTasks.length - 5} more` : '') +
+        '\n\nApply anyway?'
+      );
+      if (!proceed) return;
+    }
+
+    updateLaunch({ ...launch, tasks: newTasks });
   }, [launch, updateLaunch, updateTaskField]);
 
   if (!mounted || loading) return <div className="p-8" />;
