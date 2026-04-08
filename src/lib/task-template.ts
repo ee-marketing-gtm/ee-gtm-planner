@@ -618,7 +618,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Sephora Final Assets Due',
     leadTime: 0,
-    dependsOn: [],
+    dependsOn: ['Sephora Final Assets Ready'],
     owner: 'retail',
     phase: 'design_production',
     channelAnchor: 'sephora',
@@ -628,7 +628,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Sephora Catalog & PDP Copy Due',
     leadTime: 0,
-    dependsOn: [],
+    dependsOn: ['Final Sephora Catalog & PDP Copy'],
     owner: 'retail',
     phase: 'design_production',
     channelAnchor: 'sephora',
