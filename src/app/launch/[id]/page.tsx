@@ -893,9 +893,9 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
         const phaseMap = Object.fromEntries(PHASES.map(p => [p.key, p]));
 
         return (
-          <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden">
+          <div className="bg-white rounded-xl border border-[#E7E5E4]">
             {/* Sticky header group */}
-            <div className="sticky top-0 z-20 bg-white">
+            <div className="sticky top-0 z-20 bg-white rounded-t-xl border-b border-[#E7E5E4]">
             {/* Phase legend */}
             <div className="flex items-center gap-4 px-4 py-2.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
               {PHASES.map(p => {
