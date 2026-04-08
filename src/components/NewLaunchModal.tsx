@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuid } from 'uuid';
 import { X, Plus, Lock } from 'lucide-react';
-import { Launch, LaunchType, LaunchTier, ContentProductionType, ExternalAnchorConfig, LAUNCH_TYPE_LABELS, TIER_CONFIG } from '@/lib/types';
+import { Launch, LaunchType, LaunchTier, ExternalAnchorConfig, LAUNCH_TYPE_LABELS, TIER_CONFIG } from '@/lib/types';
 import { getDefaultStrategy, getDefaultMarketingPlan } from '@/lib/templates';
 import { scheduleLaunch } from '@/lib/scheduler';
 import { scheduledTasksToGTMTasks } from '@/lib/scheduler-bridge';
@@ -23,7 +23,6 @@ export function NewLaunchModal({ onClose }: Props) {
   const [amazonLaunchDate, setAmazonLaunchDate] = useState('');
   const [launchType, setLaunchType] = useState<LaunchType>('new_product');
   const [tier, setTier] = useState<LaunchTier>('A');
-  const [contentProductionType, setContentProductionType] = useState<ContentProductionType>('with_tech');
   const [productCategory, setProductCategory] = useState('');
   const [description, setDescription] = useState('');
 
@@ -76,7 +75,7 @@ export function NewLaunchModal({ onClose }: Props) {
       amazonLaunchDate: amazonLaunchDate || undefined,
       launchType,
       tier,
-      contentProductionType,
+      contentProductionType: 'with_tech',
       status: 'planning',
       productCategory,
       description,
@@ -205,20 +204,6 @@ export function NewLaunchModal({ onClose }: Props) {
                 </button>
               ))}
             </div>
-          </div>
-
-          <div>
-            <label className="block text-[13px] font-medium text-[#57534E] mb-1.5">Content Production</label>
-            <select
-              value={contentProductionType}
-              onChange={e => setContentProductionType(e.target.value as ContentProductionType)}
-              className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
-            >
-              <option value="with_tech">Full Production (with Tech)</option>
-              <option value="no_tech">Content Production (No Tech)</option>
-              <option value="none">No Content Production</option>
-              <option value="landing_page">Landing Page Required</option>
-            </select>
           </div>
 
           {/* Retail Lead Time Settings */}

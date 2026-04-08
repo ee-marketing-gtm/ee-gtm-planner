@@ -11,7 +11,7 @@
  * The scheduler walks backward from the launch date(s) to compute every due date.
  *
  * DEPENDENCY FLOW OVERVIEW:
- *   Phase 0: RSP → Bundle Finalization (pre-planning, NPD-dependent)
+ *   Phase 0: RSP → RSP Finalization (pre-planning, NPD-dependent)
  *   Phase 1: Product Sheet → Positioning → GTM Brainstorm
  *            → [6 cross-functional alignment tracks in parallel]
  *            → Finalize strategies (social, influencer, email)
@@ -69,15 +69,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [],
     owner: 'growth',
     phase: 'pre_planning',
-    notes: 'Requires final COGS from Operations. Timing backward from when Bundle Finalization needs it.',
-  },
-  {
-    name: 'Bundle Finalization',
-    leadTime: 3,
-    dependsOn: ['RSP Finalization'],
-    owner: 'growth',
-    phase: 'pre_planning',
-    notes: 'Cannot finalize bundles without confirmed RSP.',
+    notes: 'Requires final COGS from Operations. Timing backward from when Finalize Bundle Assortment needs it.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -135,7 +127,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Finalize Bundle Assortment',
     leadTime: 3,
-    dependsOn: ['GTM Brainstorm Meeting', 'Bundle Finalization'],
+    dependsOn: ['GTM Brainstorm Meeting', 'RSP Finalization'],
     owner: 'growth',
     phase: 'content_planning',
   },
@@ -175,45 +167,45 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
 
   // ═══════════════════════════════════════════════════════════════════
   // PHASE 1b: CROSS-FUNCTIONAL ALIGNMENT
-  // All happen in parallel after brainstorm, all same duration (5 BD)
+  // All happen in parallel after brainstorm + positioning, all same duration (3 BD)
   // ═══════════════════════════════════════════════════════════════════
 
   {
     name: 'Align on Paid Influencer Strategy',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'influencer',
     phase: 'cross_functional',
     notes: 'Must align before brief drafting begins.',
   },
   {
     name: 'Align on Social Strategy',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'social',
     phase: 'cross_functional',
     notes: 'Must align before brief drafting begins.',
   },
   {
     name: 'Align on Paid Ads Strategy',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'growth',
     phase: 'cross_functional',
     notes: 'Must align before brief drafting begins.',
   },
   {
     name: 'Align on Email Plan',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'growth',
     phase: 'cross_functional',
     notes: 'Must align before brief drafting begins.',
   },
   {
     name: 'Align on Homepage Plan',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'growth',
     support: 'creative',
     phase: 'cross_functional',
@@ -221,8 +213,8 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
   {
     name: 'Align on Early Access Decision',
-    leadTime: 5,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    leadTime: 3,
+    dependsOn: ['GTM Brainstorm Meeting', 'Finalize Product Positioning & Messaging'],
     owner: 'growth',
     phase: 'cross_functional',
     notes: 'Decide if launch includes early access window.',
@@ -291,46 +283,16 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════
-  // PACKAGING DEVELOPMENT (parallel track)
+  // PACKAGING MILESTONE (tracked separately; samples must arrive before shoots)
   // ═══════════════════════════════════════════════════════════════════
 
   {
-    name: 'Marketing Briefs Creative on Packaging',
-    leadTime: 3,
-    dependsOn: ['Final GTM Deck'],
-    owner: 'marketing',
-    phase: 'packaging',
-  },
-  {
-    name: 'Creative Sources & Develops Packaging Options',
-    leadTime: 10,
-    dependsOn: ['Marketing Briefs Creative on Packaging'],
-    owner: 'creative',
-    phase: 'packaging',
-  },
-  {
-    name: 'Packaging Design Refinement & Finalization',
-    leadTime: 5,
-    dependsOn: ['Creative Sources & Develops Packaging Options'],
-    owner: 'marketing',
-    phase: 'packaging',
-    notes: 'Marketing + founder refine concepts, finalize structure/shape/colors.',
-  },
-  {
-    name: 'Packaging Copy Sheet',
-    leadTime: 5,
-    dependsOn: ['Marketing Briefs Creative on Packaging'],
-    owner: 'marketing',
-    phase: 'packaging',
-    notes: 'Runs in parallel with design exploration. Draft copy should be near-final for samples.',
-  },
-  {
-    name: 'Packaging Samples Ready',
+    name: 'Packaging Samples Due',
     leadTime: 0,
-    dependsOn: ['Packaging Design Refinement & Finalization', 'Packaging Copy Sheet'],
-    owner: 'creative',
-    phase: 'packaging',
-    notes: 'Gate: packaging finalized before product photoshoots. Shoots need packaging samples, NOT finished goods.',
+    dependsOn: [],
+    owner: 'ops',
+    phase: 'content_production',
+    notes: 'Packaging samples must be ready before shoots. Due date works backward from shoot dates. Packaging development tracked separately.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -350,20 +312,15 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
   {
     name: 'Finalize Shoot & Content Capture Plan',
-    leadTime: 10,
+    leadTime: 5,
     dependsOn: [
       'Draft Shoot & Content Capture Plan',
-      'Align on Paid Influencer Strategy',
-      'Align on Social Strategy',
-      'Align on Paid Ads Strategy',
-      'Align on Email Plan',
-      'Align on Homepage Plan',
-      'Align on Early Access Decision',
+      'Finalize Product Positioning & Messaging',
     ],
     owner: 'marketing',
     support: 'creative',
     phase: 'content_production',
-    notes: 'All cross-functional alignment must be complete. Determines what gets shot.',
+    notes: 'Requires positioning to be finalized. Determines what gets shot.',
     deliverableUrl: 'https://netorgft3648903.sharepoint.com/:x:/r/sites/EveredenGlobal/_layouts/15/Doc.aspx?sourcedoc=%7B8E824468-31FA-4050-9E86-D6DED103C9C5%7D&file=2026%20Asset%20Form%20.xlsx&action=default&mobileredirect=true',
   },
 
@@ -382,7 +339,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [
       'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Packaging Samples Ready',
+      'Packaging Samples Due',
     ],
     owner: 'creative',
     phase: 'content_production',
@@ -394,7 +351,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [
       'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Packaging Samples Ready',
+      'Packaging Samples Due',
     ],
     owner: 'creative',
     phase: 'content_production',
@@ -729,12 +686,21 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     notes: 'Date added manually when OOH is confirmed.',
   },
   {
-    name: 'Confirm Launch Complete',
+    name: 'D2C Launch Complete',
     leadTime: 0,
-    dependsOn: [],
+    dependsOn: ['DTC & Amazon Final Assets Due', 'Final DTC PDP Copy & Reviews Due', 'Creator Content Delivered', 'Social Campaign Start'],
     owner: 'marketing',
     phase: 'launch',
-    notes: 'Final confirmation all channels are live. Nothing depends on this — terminal task.',
+    notes: 'Confirm all D2C channels are live.',
+  },
+  {
+    name: 'Sephora Launch Complete',
+    leadTime: 0,
+    dependsOn: ['Sephora Final Assets Due', 'Final Sephora Catalog & PDP Copy'],
+    owner: 'marketing',
+    phase: 'launch',
+    channelAnchor: 'sephora',
+    notes: 'Confirm Sephora is live.',
   },
 ];
 

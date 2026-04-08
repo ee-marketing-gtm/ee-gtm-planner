@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import { format, parseISO, isBefore, isToday, addDays, startOfDay, addBusinessDays } from 'date-fns';
 import {
   Rocket, AlertTriangle, Clock, CheckCircle2, ArrowRight,
-  CalendarDays, ChevronRight, Circle, Download, List, LayoutGrid,
+  CalendarDays, ChevronRight, Circle, List, LayoutGrid,
   ChevronDown, Eye, Pause, Plus, Undo2, RefreshCw, Archive
 } from 'lucide-react';
 import { Launch, GTMTask, TaskStatus, PHASES, TIER_CONFIG, LAUNCH_TYPE_LABELS, OWNER_LABELS, OWNER_COLORS, DELIVERABLE_TASKS } from '@/lib/types';
@@ -18,7 +18,6 @@ import {
   getNextTask, getOverdueTasks, getUpcomingTasks,
   getLaunchProgress, getDaysUntilLaunch, getPhaseName, getLaunchColor
 } from '@/lib/utils';
-import { generate2026Launches } from '@/lib/seed-2026';
 
 function getDisplayLabel(task: GTMTask): string {
   // Show custom label if set, otherwise try to extract filename from URL, fall back to generic label
@@ -235,17 +234,7 @@ export default function Dashboard() {
         <div className="bg-white rounded-xl border border-[#E7E5E4] p-12 text-center">
           <Rocket className="w-10 h-10 text-[#D6D3D1] mx-auto mb-3" />
           <p className="text-sm text-[#A8A29E]">No active launches yet.</p>
-          <p className="text-xs text-[#D6D3D1] mt-1 mb-4">Click &ldquo;New Launch&rdquo; to get started, or load the 2026 calendar.</p>
-          <button
-            onClick={() => {
-              const seeded = generate2026Launches();
-              saveLaunches([...launches, ...seeded]);
-            }}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-[#FF1493] text-white text-sm font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Load 2026 Launches
-          </button>
+          <p className="text-xs text-[#D6D3D1] mt-1">Click &ldquo;New Launch&rdquo; in the sidebar to get started.</p>
         </div>
       ) : view === 'agenda' ? (
         <AgendaView

@@ -14,8 +14,6 @@ import { ExternalLink, Link2 as LinkIcon, Sparkles } from 'lucide-react';
 import { isAfter, startOfDay } from 'date-fns';
 import { useData } from '@/components/DataProvider';
 import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName } from '@/lib/utils';
-import { StrategyTab } from '@/components/StrategyTab';
-import { MarketingPlanTab } from '@/components/MarketingPlanTab';
 import GanttChart from '@/components/GanttChart';
 import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
 import { RefreshCw, AlertCircle, X } from 'lucide-react';
@@ -41,7 +39,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; icon: R
   { value: 'complete', label: 'Completed', color: '#10B981', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
 ];
 
-type Tab = 'tracker' | 'deliverables' | 'strategy' | 'plan' | 'timeline';
+type Tab = 'tracker' | 'deliverables' | 'timeline';
 
 export default function LaunchDetail() {
   const params = useParams();
@@ -232,8 +230,6 @@ export default function LaunchDetail() {
   const TABS: { key: Tab; label: string; badge?: number }[] = [
     { key: 'tracker', label: 'Task Tracker' },
     { key: 'deliverables', label: 'Deliverables', badge: deliverableCount },
-    { key: 'strategy', label: 'Strategy' },
-    { key: 'plan', label: '360 Marketing Plan' },
     { key: 'timeline', label: 'Timeline' },
   ];
 
@@ -596,12 +592,6 @@ export default function LaunchDetail() {
       {activeTab === 'deliverables' && (
         <DeliverablesView launch={launch} />
       )}
-      {activeTab === 'strategy' && (
-        <StrategyTab launch={launch} onUpdate={updateLaunch} />
-      )}
-      {activeTab === 'plan' && (
-        <MarketingPlanTab launch={launch} onUpdate={updateLaunch} />
-      )}
       {activeTab === 'timeline' && (
         <GanttChart
           tasks={launch.tasks}
@@ -628,14 +618,30 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(initialTaskId || null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
-  const toggleTaskSelection = (taskId: string) => {
+  const lastClickedRef = useRef<string | null>(null);
+
+  const toggleTaskSelection = (taskId: string, shiftKey?: boolean) => {
     setSelectedTaskIds(prev => {
       const next = new Set(prev);
-      if (next.has(taskId)) next.delete(taskId);
-      else next.add(taskId);
+      if (shiftKey && lastClickedRef.current) {
+        const allTaskIds = launch.tasks.map(t => t.id);
+        const lastIdx = allTaskIds.indexOf(lastClickedRef.current);
+        const curIdx = allTaskIds.indexOf(taskId);
+        if (lastIdx !== -1 && curIdx !== -1) {
+          const [start, end] = lastIdx < curIdx ? [lastIdx, curIdx] : [curIdx, lastIdx];
+          for (let i = start; i <= end; i++) {
+            next.add(allTaskIds[i]);
+          }
+        }
+      } else {
+        if (next.has(taskId)) next.delete(taskId);
+        else next.add(taskId);
+      }
+      lastClickedRef.current = taskId;
       return next;
     });
   };
@@ -649,12 +655,14 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   };
 
   const bulkUpdateStatus = (status: TaskStatus) => {
-    for (const taskId of selectedTaskIds) {
-      const updates: Partial<GTMTask> = { status };
-      if (status === 'complete') updates.completedDate = new Date().toISOString().split('T')[0];
-      else updates.completedDate = null;
-      updateTaskField(taskId, updates);
-    }
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t => {
+        if (!selectedTaskIds.has(t.id)) return t;
+        return { ...t, status, completedDate: status === 'complete' ? new Date().toISOString().split('T')[0] : null };
+      }),
+    };
+    onUpdateLaunch(updated);
     setSelectedTaskIds(new Set());
     setBulkStatusOpen(false);
   };
@@ -666,6 +674,18 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  // ESC to deselect all
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        setSelectedTaskIds(new Set());
+        setBulkStatusOpen(false);
+      }
+    }
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Auto-scroll to the task if opened via ?task= param
@@ -778,9 +798,34 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
         </div>
       )}
 
+      {/* Search bar */}
+      <div className="relative">
+        <input
+          type="text"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          placeholder="Search tasks by name, notes, or owner..."
+          className="w-full px-4 py-2.5 pl-10 border border-[#E7E5E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] bg-white"
+        />
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+        {searchQuery && (
+          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8A29E] hover:text-[#57534E]">
+            <X className="w-4 h-4" />
+          </button>
+        )}
+      </div>
+
       {/* Chronological task list */}
       {(() => {
-        const sortedTasks = [...launch.tasks].sort((a, b) => {
+        const q = searchQuery.toLowerCase().trim();
+        const filteredTasks = q
+          ? launch.tasks.filter(t =>
+              t.name.toLowerCase().includes(q) ||
+              (t.notes && t.notes.toLowerCase().includes(q)) ||
+              (OWNER_LABELS[t.owner] && OWNER_LABELS[t.owner].toLowerCase().includes(q))
+            )
+          : launch.tasks;
+        const sortedTasks = [...filteredTasks].sort((a, b) => {
           const aDate = a.dueDate || a.startDate || '9999';
           const bDate = b.dueDate || b.startDate || '9999';
           if (aDate !== bDate) return aDate.localeCompare(bDate);
@@ -841,14 +886,13 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               </div>
             )}
             {/* Column headers */}
-            <div className="grid grid-cols-[20px_auto_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-2 bg-[#FAFAF9] text-[11px] font-medium text-[#A8A29E] uppercase tracking-wider border-b border-[#E7E5E4]">
+            <div className="grid grid-cols-[20px_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-2 bg-[#FAFAF9] text-[11px] font-medium text-[#A8A29E] uppercase tracking-wider border-b border-[#E7E5E4]">
               <input
                 type="checkbox"
                 checked={selectedTaskIds.size === launch.tasks.length && launch.tasks.length > 0}
                 onChange={selectAllTasks}
                 className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
               />
-              <span className="w-6" />
               <span>Task</span>
               <span>Owner</span>
               <span>Due Date</span>
@@ -865,7 +909,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                   phase={phase}
                   isExpanded={expandedTaskId === task.id}
                   isSelected={selectedTaskIds.has(task.id)}
-                  onToggleSelect={() => toggleTaskSelection(task.id)}
+                  onToggleSelect={(shiftKey?: boolean) => toggleTaskSelection(task.id, shiftKey)}
                   onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                   onMarkComplete={handleMarkComplete}
                   updateTaskStatus={updateTaskStatus}
@@ -924,7 +968,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
   phase: { key: PhaseKey; color: string };
   isExpanded: boolean;
   isSelected?: boolean;
-  onToggleSelect?: () => void;
+  onToggleSelect?: (shiftKey?: boolean) => void;
   onToggleExpand: () => void;
   onMarkComplete: (taskId: string) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
@@ -956,6 +1000,10 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
 
   const isOverdue = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
     parseISO(task.dueDate) < new Date();
+  const allDepsComplete = task.dependencies.length > 0 && task.dependencies.every(depId => {
+    const dep = launch.tasks.find(t => t.id === depId);
+    return dep && (dep.status === 'complete' || dep.status === 'skipped');
+  });
   const deliverableLabel = DELIVERABLE_TASKS[task.name];
   const hasLink = task.deliverableUrl && task.deliverableUrl.trim() !== '';
   const currentStatus = STATUS_OPTIONS.find(s => s.value === task.status) || STATUS_OPTIONS[0];
@@ -970,45 +1018,16 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
   }
 
   return (
-    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''}`}>
-      <div className="grid grid-cols-[20px_auto_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
+    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
+      <div className="grid grid-cols-[20px_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
         {/* Selection checkbox */}
         <input
           type="checkbox"
           checked={!!isSelected}
-          onChange={onToggleSelect}
+          onChange={() => {}}
+          onClick={e => { e.stopPropagation(); onToggleSelect?.(e.shiftKey); }}
           className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
-          onClick={e => e.stopPropagation()}
         />
-        {/* Status pill dropdown */}
-        <div className="relative shrink-0 w-6" ref={statusRef}>
-          <button
-            onClick={() => setStatusOpen(!statusOpen)}
-            className="flex items-center justify-center w-6 h-6 rounded-full transition-colors"
-            style={{ color: currentStatus.color }}
-            title={currentStatus.label}
-          >
-            {currentStatus.icon}
-          </button>
-          {statusOpen && (
-            <div className="fixed z-[100] bg-white rounded-lg border border-[#E7E5E4] shadow-lg py-1 w-[200px] animate-fade-in" style={{ top: (statusRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: statusRef.current?.getBoundingClientRect().left ?? 0 }}>
-              {STATUS_OPTIONS.map(s => (
-                <button
-                  key={s.value}
-                  onClick={() => handleStatusChange(s.value)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[#FAFAF9] transition-colors ${
-                    task.status === s.value ? 'bg-[#FAFAF9] font-semibold' : ''
-                  }`}
-                >
-                  <span style={{ color: s.color }}>{s.icon}</span>
-                  <span className="text-[#1B1464]">{s.label}</span>
-                  {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#FF1493]" />}
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
         {/* Task name — inline editable */}
         <div className="min-w-0">
           <div className="flex items-center gap-2">
@@ -1096,6 +1115,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
               setEditingDate(false);
             }}
             onBlur={() => setEditingDate(false)}
+            onKeyDown={(e) => e.stopPropagation()}
             className="text-xs px-1 py-0.5 border border-[#FF1493] rounded bg-white focus:outline-none"
             autoFocus
           />
@@ -1110,18 +1130,37 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
         )}
 
         {/* Status pill */}
-        <button
-          onClick={() => setStatusOpen(!statusOpen)}
-          className="flex items-center gap-1.5 rounded-full pl-1.5 pr-2 py-1 border transition-colors hover:shadow-sm text-left"
-          style={{
-            color: currentStatus.color,
-            borderColor: currentStatus.color + '40',
-            background: currentStatus.color + '10',
-          }}
-        >
-          {currentStatus.icon}
-          <span className="text-[10px] font-semibold whitespace-nowrap">{currentStatus.label}</span>
-        </button>
+        <div className="relative" ref={statusRef}>
+          <button
+            onClick={() => setStatusOpen(!statusOpen)}
+            className="flex items-center gap-1.5 rounded-full pl-1.5 pr-2 py-1 border transition-colors hover:shadow-sm text-left"
+            style={{
+              color: currentStatus.color,
+              borderColor: currentStatus.color + '40',
+              background: currentStatus.color + '10',
+            }}
+          >
+            {currentStatus.icon}
+            <span className="text-[10px] font-semibold whitespace-nowrap">{currentStatus.label}</span>
+          </button>
+          {statusOpen && (
+            <div className="fixed z-[100] bg-white rounded-lg border border-[#E7E5E4] shadow-lg py-1 w-[200px] animate-fade-in" style={{ top: (statusRef.current?.getBoundingClientRect().bottom ?? 0) + 4, left: (statusRef.current?.getBoundingClientRect().left ?? 0) - 60 }}>
+              {STATUS_OPTIONS.map(s => (
+                <button
+                  key={s.value}
+                  onClick={() => handleStatusChange(s.value)}
+                  className={`w-full flex items-center gap-2.5 px-3 py-2 text-xs hover:bg-[#FAFAF9] transition-colors ${
+                    task.status === s.value ? 'bg-[#FAFAF9] font-semibold' : ''
+                  }`}
+                >
+                  <span style={{ color: s.color }}>{s.icon}</span>
+                  <span className="text-[#1B1464]">{s.label}</span>
+                  {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#FF1493]" />}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
         <button
           onClick={onToggleExpand}
@@ -1217,11 +1256,22 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
                 ) : !editingDeps ? (
                   <p className="text-[10px] text-[#A8A29E]">No dependencies</p>
                 ) : null}
-                {task.dependencies.length > 1 && !editingDeps && (
-                  <p className="text-[10px] text-[#A8A29E] mt-1">
-                    Starts after <span className="font-medium">all</span> dependencies complete (uses latest due date)
-                  </p>
-                )}
+                {task.dependencies.length > 0 && !editingDeps && (() => {
+                  const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                    const dep = launch.tasks.find(t => t.id === depId);
+                    if (!dep?.dueDate) return latest;
+                    if (!latest?.dueDate) return dep;
+                    return dep.dueDate > latest.dueDate ? dep : latest;
+                  }, null);
+                  return drivingDep ? (
+                    <p className="text-[10px] text-[#A8A29E] mt-1">
+                      Starts after all dependencies complete (uses latest due date)
+                      {task.dependencies.length > 1 && drivingDep && (
+                        <span className="text-[#FF1493]"> — driven by: {drivingDep.name} ({drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : 'no date'})</span>
+                      )}
+                    </p>
+                  ) : null;
+                })()}
                 {editingDeps && (
                   <div className="mt-2">
                     <label className="text-[10px] font-medium text-[#57534E] mb-1 block">Edit Dependencies</label>
@@ -1268,9 +1318,14 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
                     <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Blocks</label>
                     <div className="flex flex-wrap gap-1.5">
                       {blockedTasks.map(bt => (
-                        <span key={bt.id} className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-[#FFF0F7] text-[#D4117D] border border-[#FF1493]/20">
+                        <button
+                          key={bt.id}
+                          onClick={() => onNavigateToTask?.(bt.id)}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer hover:ring-2 hover:ring-amber-300/30 transition-all"
+                          title={`Go to ${bt.name}`}
+                        >
                           {bt.name}
-                        </span>
+                        </button>
                       ))}
                     </div>
                   </div>

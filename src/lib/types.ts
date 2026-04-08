@@ -139,7 +139,6 @@ export const PHASES: Phase[] = [
   { key: 'content_production', name: 'Content Production', color: '#f97316' },
   { key: 'design_briefs', name: 'Design Briefs', color: '#e85d04' },
   { key: 'design_production', name: 'Asset Production', color: '#EC4899' },
-  { key: 'packaging', name: 'Packaging Development', color: '#7C3AED' },
   { key: 'launch', name: 'Launch', color: '#455a64' },
 ];
 
