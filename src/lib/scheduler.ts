@@ -232,6 +232,12 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
       deadlines.set(name, manualOverrideMap.get(name)!);
       continue;
     }
+    // Pin launch milestones to their actual launch date
+    if (tmpl.pinnedToLaunchDate) {
+      const pinDate = tmpl.channelAnchor === 'sephora' ? sephoraDate : dtcDate;
+      deadlines.set(name, pinDate);
+      continue;
+    }
 
     // Compute deadline from successors
     const succs = successors.get(name) || [];
@@ -325,6 +331,12 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
     }
     if (manualOverrideMap.has(name)) {
       dueDates.set(name, manualOverrideMap.get(name)!);
+      continue;
+    }
+    // Pin launch milestone tasks to their actual launch date
+    if (tmpl.pinnedToLaunchDate) {
+      const pinDate = tmpl.channelAnchor === 'sephora' ? sephoraDate : dtcDate;
+      dueDates.set(name, pinDate);
       continue;
     }
 

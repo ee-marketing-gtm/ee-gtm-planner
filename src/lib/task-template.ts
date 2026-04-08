@@ -42,6 +42,7 @@ export interface TaskTemplate {
   isOptional?: boolean;         // only included if user enables it
   isManualDate?: boolean;       // date set manually, not auto-scheduled
   channelAnchor?: 'sephora';   // anchors to Sephora launch date instead of DTC
+  pinnedToLaunchDate?: boolean; // always set due date to the launch date (DTC or Sephora)
   sephoraLeadTime?: number;     // BD before Sephora launch this must be done (e.g., 50)
   d2cAssetLeadTime?: number;    // BD before D2C launch for asset deadline
   d2cCopyLeadTime?: number;     // BD before D2C launch for copy deadline
@@ -699,6 +700,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['DTC & Amazon Final Assets Due', 'Final DTC PDP Copy & Reviews Due', 'Creator Content Delivered', 'Social Campaign Start'],
     owner: 'marketing',
     phase: 'launch',
+    pinnedToLaunchDate: true,
     notes: 'Confirm all D2C channels are live.',
   },
   {
@@ -708,6 +710,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'launch',
     channelAnchor: 'sephora',
+    pinnedToLaunchDate: true,
     notes: 'Confirm Sephora is live.',
   },
 ];
