@@ -502,7 +502,7 @@ export default function LaunchDetail() {
             <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: accentColor }} />
           </div>
           <div className="grid grid-cols-4 gap-3">
-            {PHASES.map(phase => {
+            {PHASES.filter(phase => !['pre_planning', 'finalize_mgmt', 'launch'].includes(phase.key)).map(phase => {
               const phaseTasks = launch.tasks.filter(t => t.phase === phase.key);
               if (phaseTasks.length === 0) return (
                 <div key={phase.key} className="text-center">

@@ -672,6 +672,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['DTC & Amazon Final Assets Due'],
     owner: 'social',
     phase: 'launch',
+    pinnedToLaunchDate: true,
     notes: 'Starts ~2 weeks before D2C launch. Needs final DTC/Amazon assets.',
   },
   {
