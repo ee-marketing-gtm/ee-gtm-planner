@@ -840,19 +840,15 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               (OWNER_LABELS[t.owner] && OWNER_LABELS[t.owner].toLowerCase().includes(q))
             )
           : launch.tasks;
-        const visibleTasks = hideCompleted
-          ? filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')
-          : filteredTasks;
-        const sortedTasks = [...visibleTasks].sort((a, b) => {
-          // Push completed/skipped to bottom
-          const aDone = a.status === 'complete' || a.status === 'skipped' ? 1 : 0;
-          const bDone = b.status === 'complete' || b.status === 'skipped' ? 1 : 0;
-          if (aDone !== bDone) return aDone - bDone;
+        const dateSort = (a: GTMTask, b: GTMTask) => {
           const aDate = a.dueDate || a.startDate || '9999';
           const bDate = b.dueDate || b.startDate || '9999';
           if (aDate !== bDate) return aDate.localeCompare(bDate);
           return a.sortOrder - b.sortOrder;
-        });
+        };
+        const activeTasks = [...filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')].sort(dateSort);
+        const doneTasks = [...filteredTasks.filter(t => t.status === 'complete' || t.status === 'skipped')].sort(dateSort);
+        const sortedTasks = activeTasks;
         const phaseMap = Object.fromEntries(PHASES.map(p => [p.key, p]));
 
         return (
@@ -952,6 +948,59 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 />
               );
             })}
+            {/* Done section */}
+            {doneTasks.length > 0 && !hideCompleted && (
+              <>
+                <button
+                  onClick={() => setHideCompleted(true)}
+                  className="w-full flex items-center gap-2 px-4 py-2.5 bg-emerald-50/50 border-t border-[#E7E5E4] text-xs font-medium text-emerald-700 hover:bg-emerald-50 transition-colors"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Done ({doneTasks.length})
+                  <ChevronDown className={`w-3.5 h-3.5 ml-auto transition-transform ${hideCompleted ? '-rotate-90' : ''}`} />
+                </button>
+                {doneTasks.map(task => {
+                  const phase = phaseMap[task.phase] || PHASES[0];
+                  return (
+                    <TaskRow
+                      key={task.id}
+                      task={task}
+                      launch={launch}
+                      phase={phase}
+                      isExpanded={expandedTaskId === task.id}
+                      isSelected={selectedTaskIds.has(task.id)}
+                      onToggleSelect={(shiftKey?: boolean) => toggleTaskSelection(task.id, shiftKey)}
+                      onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
+                      onMarkComplete={handleMarkComplete}
+                      updateTaskStatus={updateTaskStatus}
+                      updateTaskNotes={updateTaskNotes}
+                      updateDeliverableUrl={updateDeliverableUrl}
+                      updateTaskField={updateTaskField}
+                      updateTaskDateWithCascade={updateTaskDateWithCascade}
+                      onDeleteTask={(taskId) => {
+                        onUpdateLaunch({ ...launch, tasks: launch.tasks.filter(t => t.id !== taskId) });
+                      }}
+                      onNavigateToTask={(targetId) => {
+                        setExpandedTaskId(targetId);
+                        setTimeout(() => {
+                          const el = document.getElementById(`task-${targetId}`);
+                          if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }, 100);
+                      }}
+                    />
+                  );
+                })}
+              </>
+            )}
+            {hideCompleted && doneTasks.length > 0 && (
+              <button
+                onClick={() => setHideCompleted(false)}
+                className="w-full flex items-center gap-2 px-4 py-2.5 bg-emerald-50/30 border-t border-[#E7E5E4] text-xs text-[#A8A29E] hover:text-emerald-700 hover:bg-emerald-50/50 transition-colors"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                Show {doneTasks.length} completed task{doneTasks.length !== 1 ? 's' : ''}
+              </button>
+            )}
             {/* Add Task button */}
             <button
               onClick={() => {
