@@ -392,7 +392,7 @@ export default function LaunchDetail() {
               </p>
               <button
                 onClick={() => {
-                  if (!confirm('Regenerate all tasks from the latest template? Your status, notes, and links on matching tasks will be preserved.')) return;
+                  if (!confirm('Regenerate all tasks from the latest template? Your status, notes, links, and dates on completed tasks will be preserved.')) return;
                   const result = scheduleLaunch({
                     dtcLaunchDate: launch.launchDate,
                     sephoraLaunchDate: launch.sephoraLaunchDate || undefined,
@@ -400,11 +400,29 @@ export default function LaunchDetail() {
                     externalAnchors: launch.externalAnchors || undefined,
                   });
                   const freshTasks = scheduledTasksToGTMTasks(result.tasks);
-                  // Merge: preserve status/notes/links from old tasks by matching on name
+
+                  // Build lookup from old tasks by name
                   const oldByName = new Map(launch.tasks.map(t => [t.name, t]));
+
+                  // Rename mappings: old task name → new task names that should inherit its state
+                  const renameMappings: Record<string, string[]> = {
+                    'Photo Selects Ready': ['Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
+                  };
+                  // Build reverse: new name → old name
+                  const renameReverse = new Map<string, string>();
+                  for (const [oldName, newNames] of Object.entries(renameMappings)) {
+                    for (const newName of newNames) {
+                      if (oldByName.has(oldName) && !oldByName.has(newName)) {
+                        renameReverse.set(newName, oldName);
+                      }
+                    }
+                  }
+
                   const mergedTasks = freshTasks.map(ft => {
-                    const old = oldByName.get(ft.name);
+                    const old = oldByName.get(ft.name) || (renameReverse.has(ft.name) ? oldByName.get(renameReverse.get(ft.name)!) : undefined);
                     if (!old) return ft;
+
+                    const isComplete = old.status === 'complete' || old.status === 'skipped';
                     return {
                       ...ft,
                       status: old.status,
@@ -412,6 +430,11 @@ export default function LaunchDetail() {
                       notes: old.notes || ft.notes,
                       deliverableUrl: old.deliverableUrl || ft.deliverableUrl,
                       deliverableLabel: old.deliverableLabel,
+                      // Preserve dates on completed tasks so finished work isn't reshuffled
+                      ...(isComplete ? {
+                        dueDate: old.dueDate,
+                        startDate: old.startDate,
+                      } : {}),
                     };
                   });
                   updateLaunch({ ...launch, tasks: mergedTasks, updatedAt: new Date().toISOString() });
