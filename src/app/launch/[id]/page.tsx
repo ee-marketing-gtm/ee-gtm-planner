@@ -1446,16 +1446,25 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
                   <p className="text-[10px] text-[#A8A29E]">No dependencies</p>
                 ) : null}
                 {task.dependencies.length > 0 && !editingDeps && (() => {
+                  const allDepsComplete = task.dependencies.every(depId => {
+                    const dep = launch.tasks.find(t => t.id === depId);
+                    return dep && (dep.status === 'complete' || dep.status === 'skipped');
+                  });
+                  if (allDepsComplete) {
+                    return <p className="text-[10px] text-emerald-600 mt-1">All dependencies complete</p>;
+                  }
+                  // Find the driving dep among INCOMPLETE deps only
                   const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
                     const dep = launch.tasks.find(t => t.id === depId);
                     if (!dep?.dueDate) return latest;
+                    if (dep.status === 'complete' || dep.status === 'skipped') return latest;
                     if (!latest?.dueDate) return dep;
                     return dep.dueDate > latest.dueDate ? dep : latest;
                   }, null);
                   return drivingDep ? (
                     <p className="text-[10px] text-[#A8A29E] mt-1">
-                      Starts after all dependencies complete (uses latest due date)
-                      {task.dependencies.length > 1 && drivingDep && (
+                      Waiting on incomplete dependencies
+                      {task.dependencies.length > 1 && (
                         <span className="text-[#FF1493]"> — driven by: {drivingDep.name} ({drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : 'no date'})</span>
                       )}
                     </p>

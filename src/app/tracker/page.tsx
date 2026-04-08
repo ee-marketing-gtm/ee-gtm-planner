@@ -315,11 +315,20 @@ export default function TrackerPage() {
                             {task.name}
                           </p>
                           {task.dependencies.length > 0 && (() => {
-                            const depNames = task.dependencies.map(depId => {
+                            const allDepsComplete = task.dependencies.every(depId => {
+                              const dep = launch.tasks.find(t => t.id === depId);
+                              return dep && (dep.status === 'complete' || dep.status === 'skipped');
+                            });
+                            if (allDepsComplete) return null;
+                            const incompleteDeps = task.dependencies.filter(depId => {
+                              const dep = launch.tasks.find(t => t.id === depId);
+                              return dep && dep.status !== 'complete' && dep.status !== 'skipped';
+                            });
+                            const depNames = incompleteDeps.map(depId => {
                               const dep = launch.tasks.find(t => t.id === depId);
                               return dep?.name || '';
                             }).filter(Boolean);
-                            const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                            const drivingDep = incompleteDeps.reduce<GTMTask | null>((latest, depId) => {
                               const dep = launch.tasks.find(t => t.id === depId);
                               if (!dep?.dueDate) return latest;
                               if (!latest?.dueDate) return dep;
@@ -327,9 +336,9 @@ export default function TrackerPage() {
                             }, null);
                             return (
                               <p className="text-[10px] text-[#A8A29E] truncate mt-0.5">
-                                {task.dependencies.length === 1
-                                  ? <>After: {depNames[0]}</>
-                                  : <>After {task.dependencies.length} deps{drivingDep ? <> — driven by: <span className="text-[#57534E]">{drivingDep.name}</span></> : null}</>
+                                {incompleteDeps.length === 1
+                                  ? <>Waiting on: {depNames[0]}</>
+                                  : <>Waiting on {incompleteDeps.length} deps{drivingDep ? <> — driven by: <span className="text-[#57534E]">{drivingDep.name}</span></> : null}</>
                                 }
                               </p>
                             );
