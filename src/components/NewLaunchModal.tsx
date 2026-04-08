@@ -20,7 +20,7 @@ export function NewLaunchModal({ onClose }: Props) {
   const [name, setName] = useState('');
   const [launchDate, setLaunchDate] = useState('');
   const [sephoraLaunchDate, setSephoraLaunchDate] = useState('');
-  const [amazonLaunchDate, setAmazonLaunchDate] = useState('');
+
   const [launchType, setLaunchType] = useState<LaunchType>('new_product');
   const [tier, setTier] = useState<LaunchTier>('A');
   const [productCategory, setProductCategory] = useState('');
@@ -58,7 +58,7 @@ export function NewLaunchModal({ onClose }: Props) {
     const result = scheduleLaunch({
       dtcLaunchDate: launchDate,
       sephoraLaunchDate: sephoraLaunchDate || undefined,
-      amazonLaunchDate: amazonLaunchDate || undefined,
+      amazonLaunchDate: launchDate || undefined,
       sephoraAssetLeadBD: sephoraAssetLead,
       d2cAssetLeadBD: d2cAssetLead,
       d2cCopyLeadBD: d2cCopyLead,
@@ -73,7 +73,7 @@ export function NewLaunchModal({ onClose }: Props) {
       name,
       launchDate,
       sephoraLaunchDate: sephoraLaunchDate || undefined,
-      amazonLaunchDate: amazonLaunchDate || undefined,
+      amazonLaunchDate: launchDate || undefined,
       launchType,
       tier,
       contentProductionType: 'with_tech',
@@ -121,9 +121,9 @@ export function NewLaunchModal({ onClose }: Props) {
           {/* Launch Dates */}
           <div>
             <label className="block text-[13px] font-medium text-[#57534E] mb-1.5">Launch Dates</label>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-[11px] text-[#A8A29E] mb-1">DTC *</label>
+                <label className="block text-[11px] text-[#A8A29E] mb-1">DTC / Amazon *</label>
                 <input
                   type="date"
                   value={launchDate}
@@ -143,15 +143,6 @@ export function NewLaunchModal({ onClose }: Props) {
                 {!sephoraLaunchDate && launchDate && (
                   <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
                 )}
-              </div>
-              <div>
-                <label className="block text-[11px] text-[#A8A29E] mb-1">Amazon</label>
-                <input
-                  type="date"
-                  value={amazonLaunchDate}
-                  onChange={e => setAmazonLaunchDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
-                />
               </div>
             </div>
           </div>
