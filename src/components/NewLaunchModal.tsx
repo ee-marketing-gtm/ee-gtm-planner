@@ -27,6 +27,12 @@ export function NewLaunchModal({ onClose }: Props) {
   const [productCategory, setProductCategory] = useState('');
   const [description, setDescription] = useState('');
 
+  // Configurable lead times (in business days)
+  const [sephoraAssetLead, setSephoraAssetLead] = useState(50);
+  const [d2cAssetLead, setD2cAssetLead] = useState(15);
+  const [d2cCopyLead, setD2cCopyLead] = useState(10);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   // External partner anchors
   const [anchors, setAnchors] = useState<ExternalAnchorConfig[]>([]);
   const [newAnchorTask, setNewAnchorTask] = useState('');
@@ -53,6 +59,9 @@ export function NewLaunchModal({ onClose }: Props) {
       dtcLaunchDate: launchDate,
       sephoraLaunchDate: sephoraLaunchDate || undefined,
       amazonLaunchDate: amazonLaunchDate || undefined,
+      sephoraAssetLeadBD: sephoraAssetLead,
+      d2cAssetLeadBD: d2cAssetLead,
+      d2cCopyLeadBD: d2cCopyLead,
       externalAnchors: anchors.length > 0 ? anchors : undefined,
     });
 
@@ -123,13 +132,17 @@ export function NewLaunchModal({ onClose }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-[#A8A29E] mb-1">Sephora</label>
+                <label className="block text-[11px] text-[#A8A29E] mb-1">Sephora <span className="text-[10px]">(auto: DTC + 4 wks)</span></label>
                 <input
                   type="date"
                   value={sephoraLaunchDate}
                   onChange={e => setSephoraLaunchDate(e.target.value)}
+                  placeholder="Auto: DTC + 4 weeks"
                   className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
                 />
+                {!sephoraLaunchDate && launchDate && (
+                  <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
+                )}
               </div>
               <div>
                 <label className="block text-[11px] text-[#A8A29E] mb-1">Amazon</label>
@@ -206,6 +219,50 @@ export function NewLaunchModal({ onClose }: Props) {
               <option value="none">No Content Production</option>
               <option value="landing_page">Landing Page Required</option>
             </select>
+          </div>
+
+          {/* Retail Lead Time Settings */}
+          <div className="border border-[#E7E5E4] rounded-lg p-3">
+            <button
+              type="button"
+              onClick={() => setShowAdvanced(!showAdvanced)}
+              className="flex items-center gap-1.5 w-full text-left"
+            >
+              <span className="text-[13px] font-medium text-[#57534E]">Retail Lead Times</span>
+              <span className="text-[11px] text-[#A8A29E] font-normal ml-1">(click to customize)</span>
+              <span className="ml-auto text-[#A8A29E] text-xs">{showAdvanced ? '▲' : '▼'}</span>
+            </button>
+            {showAdvanced && (
+              <div className="mt-3 grid grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">Sephora assets (BD before Sephora launch)</label>
+                  <input
+                    type="number"
+                    value={sephoraAssetLead}
+                    onChange={e => setSephoraAssetLead(parseInt(e.target.value) || 50)}
+                    className="w-full px-2 py-1.5 border border-[#D6D3D1] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">D2C assets (BD before D2C launch)</label>
+                  <input
+                    type="number"
+                    value={d2cAssetLead}
+                    onChange={e => setD2cAssetLead(parseInt(e.target.value) || 15)}
+                    className="w-full px-2 py-1.5 border border-[#D6D3D1] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 text-center"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">D2C copy (BD before D2C launch)</label>
+                  <input
+                    type="number"
+                    value={d2cCopyLead}
+                    onChange={e => setD2cCopyLead(parseInt(e.target.value) || 10)}
+                    className="w-full px-2 py-1.5 border border-[#D6D3D1] rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-purple-300 text-center"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           {/* External Partner Deadlines */}

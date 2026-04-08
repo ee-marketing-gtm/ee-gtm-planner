@@ -2,10 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Rocket, Target, Calendar, CalendarDays, PlusCircle, Archive, GanttChart, BookOpen, FileText, Video } from 'lucide-react';
+import { LayoutDashboard, Rocket, Target, Calendar, CalendarDays, PlusCircle, Archive, GanttChart, BookOpen, FileText, Video, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { NewLaunchModal } from './NewLaunchModal';
 import { StarLogo } from './StarLogo';
+import { useData } from './DataProvider';
 
 const NAV_ITEMS = [
   { href: '/', label: 'Command Center', icon: LayoutDashboard },
@@ -22,6 +23,17 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const pathname = usePathname();
   const [showNewLaunch, setShowNewLaunch] = useState(false);
+  const { saveLaunches } = useData();
+
+  const handleResetAll = () => {
+    if (window.confirm('This will permanently delete ALL existing launches and start fresh with the new task template. This cannot be undone.\n\nContinue?')) {
+      saveLaunches([]);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('ee-gtm-launches');
+      }
+      window.location.href = '/';
+    }
+  };
 
   if (pathname === '/login') return null;
 
@@ -59,13 +71,20 @@ export function Sidebar() {
           })}
         </nav>
 
-        <div className="p-3 border-t border-[#E7E5E4]">
+        <div className="p-3 border-t border-[#E7E5E4] space-y-2">
           <button
             onClick={() => setShowNewLaunch(true)}
             className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#FF1493] text-white text-[13px] font-medium hover:bg-[#D4117D] transition-colors"
           >
             <PlusCircle className="w-4 h-4" />
             New Launch
+          </button>
+          <button
+            onClick={handleResetAll}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] text-[#A8A29E] hover:text-red-500 hover:bg-red-50 transition-colors"
+          >
+            <Trash2 className="w-3 h-3" />
+            Reset all launches
           </button>
         </div>
       </aside>

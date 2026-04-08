@@ -2,7 +2,7 @@ export type LaunchType = 'new_product' | 'product_extension' | 'campaign' | 'sea
 export type LaunchTier = 'A' | 'B' | 'C';
 export type ContentProductionType = 'none' | 'no_tech' | 'with_tech' | 'landing_page';
 export type TaskStatus = 'not_started' | 'in_progress' | 'complete' | 'blocked' | 'skipped' | 'waiting_review';
-export type PhaseKey = 'content_planning' | 'finalize_mgmt' | 'content_production' | 'design_production' | 'packaging';
+export type PhaseKey = 'pre_planning' | 'content_planning' | 'cross_functional' | 'finalize_strategies' | 'finalize_mgmt' | 'content_production' | 'design_briefs' | 'design_production' | 'packaging' | 'launch';
 export type Owner = 'marketing' | 'channel_leads' | 'creative' | 'product' | 'retail' | 'influencer' | 'pr' | 'digital' | 'ops' | 'social' | 'external';
 
 export interface GTMTask {
@@ -24,64 +24,42 @@ export interface GTMTask {
   isMeeting?: boolean;
   isCompressed?: boolean;
   compressionDays?: number;
+  isBottleneck?: boolean;
   approvalStatus?: 'draft' | 'submitted' | 'approved' | 'revision_needed';
   submittedDate?: string | null;
   approvedDate?: string | null;
   meetingChecklist?: string[];
 }
 
-// Tasks that typically produce deliverables
+// Tasks that typically produce deliverables (each gets a link column)
 export const DELIVERABLE_TASKS: Record<string, string> = {
   'Product Sheet & Competitive Landscape': 'Product Sheet',
-  'Marketing Positioning': 'Positioning Doc',
-  'Tagline/Copy Brief': 'Copy Brief',
-  'Asset Request Form': 'Asset Request Form',
-  'Draft GTM Deck': 'GTM Deck Draft',
-  '1st Draft Marketing Deck': 'Marketing Deck Draft',
+  'Draft Product Positioning & Messaging': 'Positioning Draft',
   'Final GTM Deck': 'Final GTM Deck',
-  'Final Marketing Launch Deck': 'Final Marketing Deck',
-  'Asset Request Form Approval / AD Start': 'Approved Asset Request',
-  'Asset Design Briefs Due': 'Design Briefs',
+  'Submit Tagline + Campaign Copy Brief': 'Copy Brief',
+  'R1 Taglines & Copy Due': 'R1 Taglines',
+  'Final Taglines & Campaign Copy Due': 'Final Taglines & Copy',
+  'Draft Shoot & Content Capture Plan': 'Shoot Capture Plan Draft',
+  'Finalize Shoot & Content Capture Plan': 'Final Shoot Capture Plan',
+  'Draft PDP Gallery Asset Brief': 'PDP Gallery Brief',
+  'Draft Sephora/Amazon Gallery Asset Brief': 'Sephora/Amazon Gallery Brief',
+  'Draft Amazon A+ Content Brief': 'Amazon A+ Brief',
+  'Draft Email Brief': 'Email Brief',
+  'Draft Social Creative Brief': 'Social Brief',
+  'Draft Homepage Asset Brief': 'Homepage Brief',
+  'Draft PDP Copy Brief': 'PDP Copy Brief',
+  'Draft Bundle PDP Copy Brief': 'Bundle PDP Copy Brief',
+  'Draft Bundle PDP Gallery Asset Brief': 'Bundle Gallery Brief',
+  'Draft Bundle Sephora/Amazon Gallery Asset Brief': 'Bundle Sephora/Amazon Brief',
+  'Final Asset Design Briefs Due': 'Final Design Briefs',
   'R1 Assets Due (Email, Social, PDP, Homepage, Amazon A+)': 'R1 Assets Folder',
   'Sephora Final Assets Due': 'Sephora Assets',
-  'DTC Final Assets Due': 'DTC Assets',
-  'Sephora Catalog & PDP Copy Due': 'Sephora PDP Copy',
-  'DTC PDP Copy & Reviews Due': 'DTC PDP Copy',
+  'DTC & Amazon Final Assets Due': 'DTC/Amazon Assets',
+  'Draft Sephora Catalog & PDP Copy Due': 'Sephora Copy Draft',
+  'Final Sephora Catalog & PDP Copy': 'Final Sephora Copy',
+  'Final DTC PDP Copy & Reviews Due': 'Final DTC PDP Copy',
   'Briefs to Creators': 'Creator Briefs',
-  'Social Campaign Brief': 'Social Brief',
-};
-
-// Lead time in business days for each task type (used for smart alerts)
-export const TASK_LEAD_TIMES: Record<string, number> = {
-  'Product Sheet & Competitive Landscape': 5,
-  'Marketing Positioning': 5,
-  'Draft GTM Deck': 5,
-  'GTM Deck Review Meeting': 1,
-  'Tagline/Copy Brief': 5,
-  'R1 Taglines': 5,
-  'Final Taglines': 15,
-  'Brainstorm Meeting': 1,
-  'Brainstorm Concepts Approved': 3,
-  'Asset Request Form': 2,
-  'Final GTM Deck': 3,
-  'Asset Request Form Approval / AD Start': 2,
-  'Photo Sample Ready': 5,
-  'Lifestyle Shoot': 3,
-  'Product Shoot': 2,
-  'Start Sourcing Creators': 10,
-  'Creator Review Meeting': 1,
-  'Briefs to Creators': 3,
-  'Creator Content Delivered': 15,
-  'Brief Alignment Meeting': 1,
-  'Asset Design Briefs Due': 5,
-  'R1 Assets Due (Email, Social, PDP)': 10,
-  'Asset Feedback Due': 3,
-  'Sephora Final Assets Due': 5,
-  'DTC Final Assets Due': 5,
-  'Sephora Catalog & PDP Copy Due': 5,
-  'DTC PDP Copy & Reviews Due': 3,
-  'Social Campaign Brief': 3,
-  'Samples Available': 5,
+  'Creator Content Delivered': 'Creator Content',
 };
 
 export interface Phase {
@@ -153,11 +131,16 @@ export interface Launch {
 }
 
 export const PHASES: Phase[] = [
-  { key: 'content_planning', name: 'Content Planning', color: '#6366F1' },
+  { key: 'pre_planning', name: 'Pre-Planning', color: '#E8197D' },
+  { key: 'content_planning', name: 'Content Planning', color: '#3D4EDB' },
+  { key: 'cross_functional', name: 'Cross-Functional Alignment', color: '#9333ea' },
+  { key: 'finalize_strategies', name: 'Finalize Strategies', color: '#22c55e' },
   { key: 'finalize_mgmt', name: 'Finalize & Inform Mgmt', color: '#F59E0B' },
-  { key: 'content_production', name: 'Content Production', color: '#10B981' },
-  { key: 'design_production', name: 'Design Production', color: '#EC4899' },
+  { key: 'content_production', name: 'Content Production', color: '#f97316' },
+  { key: 'design_briefs', name: 'Design Briefs', color: '#e85d04' },
+  { key: 'design_production', name: 'Asset Production', color: '#EC4899' },
   { key: 'packaging', name: 'Packaging Development', color: '#7C3AED' },
+  { key: 'launch', name: 'Launch', color: '#455a64' },
 ];
 
 export const OWNER_LABELS: Record<Owner, string> = {

@@ -9,6 +9,20 @@
  *   - phase: which GTM phase this belongs to
  *
  * The scheduler walks backward from the launch date(s) to compute every due date.
+ *
+ * DEPENDENCY FLOW OVERVIEW:
+ *   Phase 0: RSP → Bundle Finalization (pre-planning, NPD-dependent)
+ *   Phase 1: Product Sheet → Positioning → GTM Brainstorm
+ *            → [6 cross-functional alignment tracks in parallel]
+ *            → Finalize strategies (social, influencer, email)
+ *            → Finalize 360 GTM Plan (after ALL alignment + strategies + taglines)
+ *   Phase 2: Final GTM Deck
+ *   Phase 3: Shoot & Content Capture → Shoots → Photo Selects
+ *            Creator sourcing → Creator content (needs finished goods)
+ *   Phase 4: 9 design briefs (product + bundle) → Brief Alignment Meeting
+ *            → Final briefs → R1 Assets → Feedback
+ *            → Sephora track (50 BD retail lead) | D2C track (15 BD asset / 10 BD copy lead)
+ *   Phase 5: Social campaign → D2C Launch → Sephora Launch (+4 weeks default)
  */
 
 import { PhaseKey, Owner } from './types';
@@ -23,46 +37,60 @@ export interface TaskTemplate {
   owner: TemplateOwner;
   support?: string;             // secondary owner / team
   phase: PhaseKey;
-  isMeeting?: boolean;          // lead time = scheduling window, actual duration = 1 day
-  meetingChecklist?: string[];   // for meetings: items to align on / discuss
-  isOptional?: boolean;         // only included if user enables it (e.g., events, OOH)
+  isMeeting?: boolean;
+  meetingChecklist?: string[];
+  isOptional?: boolean;         // only included if user enables it
   isManualDate?: boolean;       // date set manually, not auto-scheduled
-  channelAnchor?: 'sephora';   // if set, anchors to that channel's launch date instead of DTC
-  dueDateOffset?: number;       // extra BD offset subtracted from computed due (e.g., -10 for Samples)
+  channelAnchor?: 'sephora';   // anchors to Sephora launch date instead of DTC
+  sephoraLeadTime?: number;     // BD before Sephora launch this must be done (e.g., 50)
+  d2cAssetLeadTime?: number;    // BD before D2C launch for asset deadline
+  d2cCopyLeadTime?: number;     // BD before D2C launch for copy deadline
+  dueDateOffset?: number;       // extra BD offset subtracted from computed due
   notes?: string;
+  deliverableUrl?: string;      // permanent link to the deliverable template/form
 }
 
 /**
- * Master task template — ordered by typical execution flow.
+ * Master task template — ordered by execution flow.
  *
  * DEPENDENCY RULE: when a task has multiple dependsOn entries,
  * it can only START after ALL of them are complete. The scheduler
  * uses the LATEST dependency due date as the starting point.
- *
- * FLOW OVERVIEW:
- *   GTM Planning → Brainstorm → [4 parallel tracks from brainstorm]:
- *     Track 1: Positioning → Copy Brief → Taglines → Final Taglines
- *     Track 2: GTM Deck → Asset Requests → Finalize Assets → Shoots → Photo Selects
- *     Track 3: Social Strategy → Sourcing Creators → Creator Content
- *     Track 4: Finalize Email Plan
- *   Then converges:
- *     Draft Briefs (email, PDP, social) → Brief Alignment → Asset Design Briefs
- *     Photo Selects + Asset Design Briefs → R1 Assets → Feedback → Final Assets → Copy → Launch
  */
 export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 0: PRE-PLANNING (NPD-dependent, timing works backward)
+  // ═══════════════════════════════════════════════════════════════════
+
+  {
+    name: 'RSP Finalization',
+    leadTime: 3,
+    dependsOn: [],
+    owner: 'growth',
+    phase: 'pre_planning',
+    notes: 'Requires final COGS from Operations. Timing backward from when Bundle Finalization needs it.',
+  },
+  {
+    name: 'Bundle Finalization',
+    leadTime: 3,
+    dependsOn: ['RSP Finalization'],
+    owner: 'growth',
+    phase: 'pre_planning',
+    notes: 'Cannot finalize bundles without confirmed RSP.',
+  },
 
   // ═══════════════════════════════════════════════════════════════════
   // PHASE 1: CONTENT PLANNING
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── GTM Planning ──────────────────────────────────────────────────
   {
     name: 'Product Sheet & Competitive Landscape',
     leadTime: 3,
     dependsOn: [],
     owner: 'marketing',
     phase: 'content_planning',
-    notes: 'First task — start date computed backward from launch date',
+    notes: 'First task — start date computed backward from launch date.',
   },
   {
     name: 'Draft Product Positioning & Messaging',
@@ -71,8 +99,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'content_planning',
   },
-
-  // ── Cross-functional Alignment ────────────────────────────────────
   {
     name: 'GTM Brainstorm Meeting',
     leadTime: 3,
@@ -88,10 +114,10 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
       'Discuss retail channel presence (Sephora, Amazon, DTC)',
       'Identify key campaign moments & tentpole dates',
     ],
-    notes: 'Align on: positioning, marketing pillars, creative concepts, bundle assortment, retail channel presence',
+    notes: 'Align on: positioning, marketing pillars, creative concepts, bundle assortment, retail channel presence.',
   },
 
-  // ── Brainstorm Outputs (4 parallel tracks) ────────────────────────
+  // ── Brainstorm Outputs (parallel tracks) ──
   {
     name: 'Finalize Product Positioning & Messaging',
     leadTime: 3,
@@ -109,27 +135,12 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Finalize Bundle Assortment',
     leadTime: 3,
-    dependsOn: ['GTM Brainstorm Meeting'],
-    owner: 'growth',
-    phase: 'content_planning',
-  },
-  {
-    name: 'Finalize 360 GTM Plan & Retail Channels',
-    leadTime: 3,
-    dependsOn: ['GTM Brainstorm Meeting'],
-    owner: 'leadership',
-    phase: 'content_planning',
-    notes: 'Includes homepage alignment — confirm homepage hero, modules, and timing.',
-  },
-  {
-    name: 'Finalize Email Plan',
-    leadTime: 3,
-    dependsOn: ['GTM Brainstorm Meeting'],
+    dependsOn: ['GTM Brainstorm Meeting', 'Bundle Finalization'],
     owner: 'growth',
     phase: 'content_planning',
   },
 
-  // ── Copy Track ────────────────────────────────────────────────────
+  // ── Copy Track ──
   {
     name: 'Submit Tagline + Campaign Copy Brief',
     leadTime: 3,
@@ -147,10 +158,11 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
   {
     name: 'Tagline / Copy Iteration',
-    leadTime: 5,
+    leadTime: 10,
     dependsOn: ['R1 Taglines & Copy Due'],
     owner: 'copywriter',
     phase: 'content_planning',
+    notes: 'Includes back-and-forth iterations with copywriter.',
   },
   {
     name: 'Final Taglines & Campaign Copy Due',
@@ -162,26 +174,124 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
 
   // ═══════════════════════════════════════════════════════════════════
-  // PHASE 2: FINALIZE & INFORM MGMT
+  // PHASE 1b: CROSS-FUNCTIONAL ALIGNMENT
+  // All happen in parallel after brainstorm, all same duration (5 BD)
+  // ═══════════════════════════════════════════════════════════════════
+
+  {
+    name: 'Align on Paid Influencer Strategy',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'influencer',
+    phase: 'cross_functional',
+    notes: 'Must align before brief drafting begins.',
+  },
+  {
+    name: 'Align on Social Strategy',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'social',
+    phase: 'cross_functional',
+    notes: 'Must align before brief drafting begins.',
+  },
+  {
+    name: 'Align on Paid Ads Strategy',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'growth',
+    phase: 'cross_functional',
+    notes: 'Must align before brief drafting begins.',
+  },
+  {
+    name: 'Align on Email Plan',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'growth',
+    phase: 'cross_functional',
+    notes: 'Must align before brief drafting begins.',
+  },
+  {
+    name: 'Align on Homepage Plan',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'growth',
+    support: 'creative',
+    phase: 'cross_functional',
+    notes: 'Must align before brief drafting begins.',
+  },
+  {
+    name: 'Align on Early Access Decision',
+    leadTime: 5,
+    dependsOn: ['GTM Brainstorm Meeting'],
+    owner: 'growth',
+    phase: 'cross_functional',
+    notes: 'Decide if launch includes early access window.',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // FINALIZE STRATEGIES (after alignment)
+  // ═══════════════════════════════════════════════════════════════════
+
+  {
+    name: 'Finalize Email Plan',
+    leadTime: 3,
+    dependsOn: ['Align on Email Plan'],
+    owner: 'growth',
+    phase: 'finalize_strategies',
+    notes: 'After email plan alignment is complete.',
+  },
+  {
+    name: 'Finalize Social Strategy',
+    leadTime: 5,
+    dependsOn: ['Align on Social Strategy'],
+    owner: 'social',
+    phase: 'finalize_strategies',
+  },
+  {
+    name: 'Finalize Influencer Strategy',
+    leadTime: 5,
+    dependsOn: ['Align on Paid Influencer Strategy'],
+    owner: 'influencer',
+    phase: 'finalize_strategies',
+  },
+
+  // ── Finalize 360 GTM Plan (after ALL alignment + strategies + taglines) ──
+  {
+    name: 'Finalize 360 GTM Plan & Retail Channels',
+    leadTime: 3,
+    dependsOn: [
+      'Finalize Product Positioning & Messaging',
+      'Finalize Creative Shoot Plan',
+      'Finalize Bundle Assortment',
+      'Finalize Email Plan',
+      'Finalize Social Strategy',
+      'Finalize Influencer Strategy',
+      'Final Taglines & Campaign Copy Due',
+      'Align on Paid Ads Strategy',
+      'Align on Homepage Plan',
+      'Align on Early Access Decision',
+    ],
+    owner: 'leadership',
+    phase: 'finalize_strategies',
+    notes: 'Requires ALL alignment outcomes, finalized strategies, and final taglines.',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 2: FINALIZE & INFORM MANAGEMENT
   // ═══════════════════════════════════════════════════════════════════
 
   {
     name: 'Final GTM Deck',
     leadTime: 3,
-    dependsOn: [
-      'Finalize Product Positioning & Messaging',
-      'Finalize Bundle Assortment',
-      'Finalize 360 GTM Plan & Retail Channels',
-      'Final Taglines & Campaign Copy Due',
-    ],
+    dependsOn: ['Finalize 360 GTM Plan & Retail Channels'],
     owner: 'marketing',
     support: 'cross-functional',
     phase: 'finalize_mgmt',
-    notes: 'Align on: final taglines, final 360 GTM plan, bundle assortment. Requires all brainstorm outputs + final taglines.',
+    notes: '360 plan captures all inputs; this is the presentation deck.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
-  // PACKAGING DEVELOPMENT (parallel track after management approval)
+  // PACKAGING DEVELOPMENT (parallel track)
   // ═══════════════════════════════════════════════════════════════════
 
   {
@@ -204,7 +314,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['Creative Sources & Develops Packaging Options'],
     owner: 'marketing',
     phase: 'packaging',
-    notes: 'Marketing + Kim (founder) refine concepts, finalize structure/shape/colors',
+    notes: 'Marketing + founder refine concepts, finalize structure/shape/colors.',
   },
   {
     name: 'Packaging Copy Sheet',
@@ -220,77 +330,75 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['Packaging Design Refinement & Finalization', 'Packaging Copy Sheet'],
     owner: 'creative',
     phase: 'packaging',
-    notes: 'Gate: packaging finalized before product photoshoot samples',
+    notes: 'Gate: packaging finalized before product photoshoots. Shoots need packaging samples, NOT finished goods.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
   // PHASE 3: CONTENT PRODUCTION
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── Asset Requests Track ──────────────────────────────────────────
+  // ── Shoot & Content Capture Track ──
   {
-    name: 'Draft Asset Request Form',
+    name: 'Draft Shoot & Content Capture Plan',
     leadTime: 3,
-    dependsOn: ['Final GTM Deck'],
+    dependsOn: ['GTM Brainstorm Meeting'],
     owner: 'marketing',
     support: 'creative',
     phase: 'content_production',
+    notes: 'What content to capture in shoots (not finished creative assets).',
+    deliverableUrl: 'https://netorgft3648903.sharepoint.com/:x:/r/sites/EveredenGlobal/_layouts/15/Doc.aspx?sourcedoc=%7B8E824468-31FA-4050-9E86-D6DED103C9C5%7D&file=2026%20Asset%20Form%20.xlsx&action=default&mobileredirect=true',
   },
   {
-    name: 'Finalize Social Strategy',
-    leadTime: 5,
-    dependsOn: ['Final GTM Deck'],
-    owner: 'social',
-    phase: 'content_production',
-  },
-  {
-    name: 'Finalize Asset Requests',
+    name: 'Finalize Shoot & Content Capture Plan',
     leadTime: 10,
-    dependsOn: ['Draft Asset Request Form'],
+    dependsOn: [
+      'Draft Shoot & Content Capture Plan',
+      'Align on Paid Influencer Strategy',
+      'Align on Social Strategy',
+      'Align on Paid Ads Strategy',
+      'Align on Email Plan',
+      'Align on Homepage Plan',
+      'Align on Early Access Decision',
+    ],
     owner: 'marketing',
     support: 'creative',
     phase: 'content_production',
-    notes: 'Meet with creative during this time to align on all assets needed',
+    notes: 'All cross-functional alignment must be complete. Determines what gets shot.',
+    deliverableUrl: 'https://netorgft3648903.sharepoint.com/:x:/r/sites/EveredenGlobal/_layouts/15/Doc.aspx?sourcedoc=%7B8E824468-31FA-4050-9E86-D6DED103C9C5%7D&file=2026%20Asset%20Form%20.xlsx&action=default&mobileredirect=true',
   },
 
-  // ── Photography Track ─────────────────────────────────────────────
-  //    Flow: Finalize Asset Requests + Creative Shoot Plan + Samples
-  //          → Shoots → Photo Selects Ready (~2 wks)
-  //          → feeds into R1 Assets (in Design Production)
+  // ── Photography Track ──
   {
-    name: 'Samples Available',
+    name: 'Finished Good Marketing Units Available',
     leadTime: 10,
     dependsOn: [],
     owner: 'ops',
     phase: 'content_production',
-    dueDateOffset: -10,
-    notes: 'Product samples must be physically available 2 weeks (10 BD) before shoots. Due date auto-computed from shoot dates.',
+    notes: 'Must be available before creator content & seeding. NOT required for photoshoots (those need packaging samples). Due date auto-computed backward from creator content dates.',
   },
   {
     name: 'Lifestyle Shoot',
     leadTime: 5,
     dependsOn: [
-      'Finalize Asset Requests',
+      'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Samples Available',
       'Packaging Samples Ready',
     ],
     owner: 'creative',
     phase: 'content_production',
-    notes: 'Week-long scheduling window. Depends on: asset requests finalized (what to shoot), creative shoot plan (how to shoot), product samples (what to shoot with).',
+    notes: '1-week scheduling window. Needs packaging samples, NOT finished goods. If date changed manually, downstream dates shift.',
   },
   {
     name: 'Product Shoot',
     leadTime: 5,
     dependsOn: [
-      'Finalize Asset Requests',
+      'Finalize Shoot & Content Capture Plan',
       'Finalize Creative Shoot Plan',
-      'Samples Available',
       'Packaging Samples Ready',
     ],
     owner: 'creative',
     phase: 'content_production',
-    notes: 'Week-long scheduling window. Can run in parallel with or right after Lifestyle Shoot.',
+    notes: '1-week scheduling window. Can run parallel with Lifestyle Shoot. Needs packaging samples.',
   },
   {
     name: 'Photo Selects Ready',
@@ -298,17 +406,17 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['Lifestyle Shoot', 'Product Shoot'],
     owner: 'creative',
     phase: 'content_production',
-    notes: '~2 weeks for photo selects/retouching from both shoots. These feed into R1 Assets.',
+    notes: '~2 weeks for photo selects/retouching from both shoots. Feed into R1 Assets.',
   },
 
-  // ── Creator Track ─────────────────────────────────────────────────
+  // ── Creator Track ──
   {
     name: 'Start Sourcing Creators',
     leadTime: 15,
-    dependsOn: ['Finalize Social Strategy'],
+    dependsOn: ['Finalize Influencer Strategy'],
     owner: 'influencer',
     phase: 'content_production',
-    notes: 'Sourcing begins after social strategy is set.',
+    notes: 'Sourcing begins after influencer strategy is finalized.',
   },
   {
     name: 'Creator Review Meeting',
@@ -318,7 +426,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     phase: 'content_production',
     isMeeting: true,
     meetingChecklist: [
-      'Review shortlisted creators & their content samples',
+      'Review shortlisted creators & content samples',
       'Confirm creator tiers & budget allocation',
       'Align on content deliverables per creator',
       'Set timelines for briefs & content delivery',
@@ -327,10 +435,10 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Briefs to Creators',
     leadTime: 5,
-    dependsOn: ['Creator Review Meeting', 'Samples Available'],
+    dependsOn: ['Creator Review Meeting', 'Finished Good Marketing Units Available'],
     owner: 'influencer',
     phase: 'content_production',
-    notes: 'Needs BOTH: creator list confirmed (from review meeting) AND product samples ready (to send with briefs).',
+    notes: 'Needs BOTH: confirmed creator list AND finished good marketing units ready to send.',
   },
   {
     name: 'Creator Content Delivered',
@@ -338,102 +446,167 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['Briefs to Creators'],
     owner: 'influencer',
     phase: 'content_production',
-    dueDateOffset: -10,
-    notes: 'Anchored to 2 weeks (10 BD) before launch. Entire creator track works backward from this anchor.',
+    notes: 'Must be delivered ~1 week (5 BD) before D2C launch.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
-  // PHASE 4: DESIGN PRODUCTION
+  // PHASE 4a: DESIGN BRIEFS — PRODUCT
+  // Each is a separate deliverable with its own link
   // ═══════════════════════════════════════════════════════════════════
 
-  // ── Draft Briefs (3 parallel briefs before alignment meeting) ─────
   {
-    name: 'Draft Email Briefs',
-    leadTime: 3,
-    dependsOn: ['Finalize Email Plan'],
+    name: 'Draft PDP Gallery Asset Brief',
+    leadTime: 5,
+    dependsOn: [
+      'Final Taglines & Campaign Copy Due',
+      'Finalize 360 GTM Plan & Retail Channels',
+      'Finalize Bundle Assortment',
+    ],
     owner: 'marketing',
-    phase: 'design_production',
-    notes: 'Email campaign briefs based on finalized email plan from Growth.',
+    phase: 'design_briefs',
+    notes: 'Product PDP gallery images.',
   },
   {
-    name: 'Draft PDP Gallery Asset Briefs',
-    leadTime: 3,
-    dependsOn: ['Final Taglines & Campaign Copy Due'],
+    name: 'Draft Sephora/Amazon Gallery Asset Brief',
+    leadTime: 5,
+    dependsOn: [
+      'Final Taglines & Campaign Copy Due',
+      'Finalize 360 GTM Plan & Retail Channels',
+      'Finalize Bundle Assortment',
+    ],
     owner: 'marketing',
-    phase: 'design_production',
-    notes: 'PDP gallery image & asset briefs based on final approved taglines/copy.',
+    phase: 'design_briefs',
+    notes: 'If different/additional from DTC PDP assets.',
   },
   {
-    name: 'Draft Social Creative Briefs',
+    name: 'Draft Amazon A+ Content Brief',
+    leadTime: 5,
+    dependsOn: [
+      'Final Taglines & Campaign Copy Due',
+      'Finalize 360 GTM Plan & Retail Channels',
+    ],
+    owner: 'marketing',
+    phase: 'design_briefs',
+  },
+  {
+    name: 'Draft Email Brief',
     leadTime: 3,
-    dependsOn: ['Finalize Social Strategy'],
+    dependsOn: ['Finalize Email Plan', 'Align on Email Plan'],
+    owner: 'marketing',
+    phase: 'design_briefs',
+    notes: 'Email campaign briefs based on finalized email plan.',
+  },
+  {
+    name: 'Draft Social Creative Brief',
+    leadTime: 4,
+    dependsOn: ['Finalize Social Strategy', 'Align on Social Strategy'],
     owner: 'social',
-    phase: 'design_production',
-    notes: 'Social creative direction briefs based on finalized social strategy.',
+    phase: 'design_briefs',
+    notes: 'Social creative direction briefs.',
   },
-
-  // ── Homepage Asset Briefs ──────────────────────────────────────────
   {
-    name: 'Draft Homepage Asset Briefs',
+    name: 'Draft Homepage Asset Brief',
     leadTime: 3,
-    dependsOn: ['Final Taglines & Campaign Copy Due'],
+    dependsOn: [
+      'Final Taglines & Campaign Copy Due',
+      'Align on Homepage Plan',
+      'Finalize 360 GTM Plan & Retail Channels',
+    ],
     owner: 'marketing',
-    phase: 'design_production',
-    notes: 'Homepage hero, module, and banner asset briefs based on final copy.',
+    phase: 'design_briefs',
+    notes: 'Homepage hero, module, and banner asset briefs.',
   },
 
-  // ── Brief Alignment & Asset Production ────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 4b: DESIGN BRIEFS — BUNDLE
+  // ═══════════════════════════════════════════════════════════════════
+
+  {
+    name: 'Draft Bundle PDP Copy Brief',
+    leadTime: 3,
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    owner: 'marketing',
+    phase: 'design_briefs',
+  },
+  {
+    name: 'Draft Bundle PDP Gallery Asset Brief',
+    leadTime: 5,
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    owner: 'marketing',
+    phase: 'design_briefs',
+    notes: 'If any new assets needed for bundle.',
+  },
+  {
+    name: 'Draft Bundle Sephora/Amazon Gallery Asset Brief',
+    leadTime: 5,
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    owner: 'marketing',
+    phase: 'design_briefs',
+    notes: 'If different/additional from DTC.',
+  },
+
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 4c: BRIEF ALIGNMENT & ASSET PRODUCTION
+  // ═══════════════════════════════════════════════════════════════════
+
   {
     name: 'Brief Alignment Meeting',
     leadTime: 3,
     dependsOn: [
-      'Draft Email Briefs',
-      'Draft PDP Gallery Asset Briefs',
-      'Draft Social Creative Briefs',
-      'Draft Homepage Asset Briefs',
+      'Final GTM Deck',
+      'Draft PDP Gallery Asset Brief',
+      'Draft Sephora/Amazon Gallery Asset Brief',
+      'Draft Amazon A+ Content Brief',
+      'Draft Email Brief',
+      'Draft Social Creative Brief',
+      'Draft Homepage Asset Brief',
+      'Draft Bundle PDP Copy Brief',
+      'Draft Bundle PDP Gallery Asset Brief',
+      'Draft Bundle Sephora/Amazon Gallery Asset Brief',
+      'Align on Paid Influencer Strategy',
+      'Align on Social Strategy',
+      'Align on Paid Ads Strategy',
+      'Align on Email Plan',
+      'Align on Homepage Plan',
+      'Align on Early Access Decision',
     ],
     owner: 'marketing',
     phase: 'design_production',
     isMeeting: true,
     meetingChecklist: [
-      'Review all draft briefs (email, PDP, social, homepage, Amazon A+)',
+      'Review ALL draft briefs (product + bundle)',
       'Align on creative direction across channels',
-      'Align on homepage placement & hero asset direction',
       'Confirm asset specs & dimensions per channel',
       'Review timeline for R1 assets & feedback rounds',
       'Assign final brief owners & deadlines',
     ],
-    notes: 'Requires ALL 4 draft briefs (email, PDP, social, homepage) to be complete before meeting can be scheduled.',
+    notes: 'ALL draft briefs (product + bundle), ALL cross-functional alignments, and Final GTM Deck must be complete.',
   },
   {
-    name: 'Asset Design Briefs Due',
-    leadTime: 5,
+    name: 'Final Asset Design Briefs Due',
+    leadTime: 2,
     dependsOn: ['Brief Alignment Meeting'],
     owner: 'marketing',
     phase: 'design_production',
     notes: 'Finalized design briefs incorporating alignment meeting feedback.',
-    meetingChecklist: [
-      'Email asset briefs',
-      'Social asset briefs',
-      'PDP gallery asset briefs',
-      'Amazon A+ asset briefs',
-      'Homepage asset briefs',
-    ],
   },
+  {
+    name: 'Draft PDP Copy Brief',
+    leadTime: 3,
+    dependsOn: ['Brief Alignment Meeting'],
+    owner: 'marketing',
+    phase: 'design_production',
+    notes: 'Drafted AFTER brief alignment meeting. Requires 2-3 BD for legal review before finalization.',
+  },
+
+  // ── Asset Production Pipeline ──
   {
     name: 'R1 Assets Due (Email, Social, PDP, Homepage, Amazon A+)',
     leadTime: 10,
-    dependsOn: ['Asset Design Briefs Due', 'Photo Selects Ready'],
+    dependsOn: ['Final Asset Design Briefs Due', 'Photo Selects Ready'],
     owner: 'creative',
     phase: 'design_production',
-    notes: 'First round of all design assets. Requires BOTH: finalized briefs AND photo selects from shoots. ~2 weeks for creative to produce.',
-    meetingChecklist: [
-      'Email assets',
-      'Social assets',
-      'PDP gallery assets',
-      'Amazon A+ content assets',
-      'Homepage hero & module assets',
-    ],
+    notes: 'First round of all design assets. Requires BOTH: finalized briefs AND photo selects. ~2 weeks for creative.',
   },
   {
     name: 'Asset Feedback Due',
@@ -442,6 +615,8 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'design_production',
   },
+
+  // ── SEPHORA TRACK ──
   {
     name: 'Sephora Final Assets Due',
     leadTime: 5,
@@ -449,93 +624,122 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'creative',
     phase: 'design_production',
     channelAnchor: 'sephora',
+    sephoraLeadTime: 50,
+    notes: 'Sephora final assets due 10 weeks (50 BD) before Sephora launch date.',
   },
+  {
+    name: 'Draft Sephora Catalog & PDP Copy Due',
+    leadTime: 3,
+    dependsOn: ['Sephora Final Assets Due'],
+    owner: 'marketing',
+    phase: 'design_production',
+    channelAnchor: 'sephora',
+  },
+  {
+    name: 'Sephora Catalog & PDP Copy Review',
+    leadTime: 3,
+    dependsOn: ['Draft Sephora Catalog & PDP Copy Due'],
+    owner: 'marketing',
+    phase: 'design_production',
+    channelAnchor: 'sephora',
+    notes: 'Internal review before finalization.',
+  },
+  {
+    name: 'Final Sephora Catalog & PDP Copy',
+    leadTime: 3,
+    dependsOn: ['Sephora Catalog & PDP Copy Review'],
+    owner: 'marketing',
+    phase: 'design_production',
+    channelAnchor: 'sephora',
+    sephoraLeadTime: 50,
+    notes: 'Incorporate review feedback, finalize copy for Sephora submission. Due 10 weeks before Sephora launch.',
+  },
+
+  // ── D2C / AMAZON TRACK ──
   {
     name: 'DTC & Amazon Final Assets Due',
     leadTime: 5,
     dependsOn: ['Asset Feedback Due'],
     owner: 'creative',
     phase: 'design_production',
-  },
-  {
-    name: 'Draft Sephora Catalog & PDP Copy Due',
-    leadTime: 5,
-    dependsOn: ['DTC & Amazon Final Assets Due'],
-    owner: 'marketing',
-    phase: 'design_production',
+    d2cAssetLeadTime: 15,
+    notes: 'DTC & Amazon final assets due 3 weeks (15 BD) before D2C launch date.',
   },
   {
     name: 'Final DTC PDP Copy & Reviews Due',
-    leadTime: 3,
-    dependsOn: ['Draft Sephora Catalog & PDP Copy Due'],
+    leadTime: 5,
+    dependsOn: ['Draft PDP Copy Brief', 'Final Sephora Catalog & PDP Copy'],
     owner: 'marketing',
     phase: 'design_production',
+    d2cCopyLeadTime: 10,
+    notes: 'Legal review (2-3 BD) + cross-functional internal review. Due 2 weeks (10 BD) before D2C launch.',
   },
 
-  // ── Optional Planning Tasks ───────────────────────────────────────
+  // ═══════════════════════════════════════════════════════════════════
+  // PHASE 5: LAUNCH
+  // ═══════════════════════════════════════════════════════════════════
+
+  // ── Optional Planning Tasks ──
   {
     name: 'Set Up Event Planning Meeting',
     leadTime: 10,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'content_planning',
+    phase: 'launch',
     isOptional: true,
-    notes: 'Giving 2 weeks to plan launch event. Anchored to Launch Event date.',
+    notes: '2 weeks to plan launch event. Anchored to Launch Event date.',
   },
   {
     name: 'Set Up OOH Planning',
     leadTime: 10,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'content_planning',
+    phase: 'launch',
     isOptional: true,
-    notes: 'Giving 2 weeks to plan OOH campaign. Anchored to OOH Campaign date.',
+    notes: '2 weeks to plan OOH. Anchored to launch date.',
   },
 
-  // ── Manual-Date Tasks ─────────────────────────────────────────────
+  // ── Launch Milestones ──
   {
-    name: 'Social Campaign',
-    leadTime: 0,
-    dependsOn: ['Finalize Asset Requests'],
+    name: 'Social Campaign Start',
+    leadTime: 10,
+    dependsOn: ['DTC & Amazon Final Assets Due'],
     owner: 'social',
-    phase: 'design_production',
-    isManualDate: true,
-    notes: 'Date range added manually once campaign dates are finalized',
+    phase: 'launch',
+    notes: 'Starts ~2 weeks before D2C launch. Needs final DTC/Amazon assets.',
   },
   {
     name: 'Launch Event',
     leadTime: 0,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'design_production',
+    phase: 'launch',
     isManualDate: true,
-    notes: 'Date added manually when event is confirmed',
+    isOptional: true,
+    notes: 'Date added manually when event is confirmed.',
   },
   {
     name: 'OOH Campaign',
     leadTime: 0,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'design_production',
+    phase: 'launch',
     isManualDate: true,
-    notes: 'Date added manually when OOH is confirmed',
+    isOptional: true,
+    notes: 'Date added manually when OOH is confirmed.',
   },
-
-  // ── Launch Completion ─────────────────────────────────────────────
   {
     name: 'Confirm Launch Complete',
     leadTime: 0,
-    dependsOn: ['Launch!'],
+    dependsOn: [],
     owner: 'marketing',
-    phase: 'design_production',
-    isMeeting: false,
-    notes: 'Confirm all channels are live and launch is complete.',
+    phase: 'launch',
+    notes: 'Final confirmation all channels are live. Nothing depends on this — terminal task.',
   },
 ];
 
 /**
  * Map template owners back to app Owner type.
- * New template roles (copywriter, growth, leadership) get mapped to closest existing owner.
  */
 export function toAppOwner(templateOwner: TemplateOwner): Owner {
   switch (templateOwner) {
@@ -545,23 +749,3 @@ export function toAppOwner(templateOwner: TemplateOwner): Owner {
     default: return templateOwner as Owner;
   }
 }
-
-/**
- * Friendly labels for template-only owners (for spreadsheet / preview display).
- */
-export const TEMPLATE_OWNER_LABELS: Record<TemplateOwner, string> = {
-  marketing: 'Marketing',
-  channel_leads: 'Channel Leads',
-  creative: 'Creative',
-  product: 'Product',
-  retail: 'Retail',
-  influencer: 'Influencer',
-  social: 'Social',
-  pr: 'PR',
-  digital: 'Digital',
-  ops: 'Operations',
-  external: 'External Partner',
-  copywriter: 'Copywriter',
-  growth: 'Growth',
-  leadership: 'Leadership',
-};

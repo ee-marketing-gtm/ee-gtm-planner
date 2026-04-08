@@ -9,7 +9,7 @@ import {
   CalendarDays, ChevronRight, Circle, Download, List, LayoutGrid,
   ChevronDown, Eye, Pause, Plus, Undo2, RefreshCw, Archive
 } from 'lucide-react';
-import { Launch, GTMTask, TaskStatus, PHASES, TIER_CONFIG, LAUNCH_TYPE_LABELS, OWNER_LABELS, OWNER_COLORS, DELIVERABLE_TASKS, TASK_LEAD_TIMES } from '@/lib/types';
+import { Launch, GTMTask, TaskStatus, PHASES, TIER_CONFIG, LAUNCH_TYPE_LABELS, OWNER_LABELS, OWNER_COLORS, DELIVERABLE_TASKS } from '@/lib/types';
 import { differenceInBusinessDays } from 'date-fns';
 import { ExternalLink, Link2 as LinkIcon } from 'lucide-react';
 import { useData } from '@/components/DataProvider';
@@ -97,14 +97,14 @@ export default function Dashboard() {
           if (t.status === 'complete' || t.status === 'skipped' || t.status === 'in_progress' || !t.dueDate) return false;
           const dueDate = parseISO(t.dueDate);
           const daysUntilDue = differenceInBusinessDays(dueDate, today);
-          const leadTime = t.durationDays || TASK_LEAD_TIMES[t.name] || 3;
+          const leadTime = t.durationDays || 3;
           // Alert if days remaining <= lead time and task hasn't started (include tasks due today)
           return daysUntilDue >= 0 && daysUntilDue <= leadTime && t.status === 'not_started';
         })
         .map(t => {
           const dueDate = parseISO(t.dueDate!);
           const daysUntilDue = differenceInBusinessDays(dueDate, today);
-          const leadTime = t.durationDays || TASK_LEAD_TIMES[t.name] || 3;
+          const leadTime = t.durationDays || 3;
           return { task: t, launch: l, daysUntilDue, leadTime };
         })
     ).sort((a, b) => a.daysUntilDue - b.daysUntilDue);

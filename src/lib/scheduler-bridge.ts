@@ -38,5 +38,7 @@ export function scheduledTasksToGTMTasks(scheduledTasks: ScheduledTask[]): GTMTa
     meetingChecklist: st.meetingChecklist || undefined,
     isCompressed: st.isCompressed || undefined,
     compressionDays: st.compressionDays || undefined,
+    isBottleneck: st.isBottleneck || undefined,
+    deliverableUrl: st.deliverableUrl || undefined,
   }));
 }
