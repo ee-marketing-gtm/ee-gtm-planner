@@ -434,6 +434,8 @@ export default function LaunchDetail() {
                     'Photo Selects Ready': ['Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
                     'Sephora Final Assets Due': ['Sephora Final Assets Ready'],
                     'Draft Sephora Catalog & PDP Copy Due': ['Draft Sephora Catalog & PDP Copy Ready'],
+                    'Finalize Influencer Strategy': ['Finalize Influencer Strategy & Start Sourcing Creators'],
+                    'Start Sourcing Creators': ['Finalize Influencer Strategy & Start Sourcing Creators'],
                   };
                   // Build reverse: new name → old name
                   const renameReverse = new Map<string, string>();

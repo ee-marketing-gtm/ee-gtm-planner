@@ -241,11 +241,12 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     phase: 'finalize_strategies',
   },
   {
-    name: 'Finalize Influencer Strategy',
-    leadTime: 5,
+    name: 'Finalize Influencer Strategy & Start Sourcing Creators',
+    leadTime: 15,
     dependsOn: ['Align on Paid Influencer Strategy'],
     owner: 'influencer',
     phase: 'finalize_strategies',
+    notes: 'Finalize strategy and begin sourcing creators ahead of creator review meeting.',
   },
 
   // ── Finalize 360 GTM Plan (after ALL alignment + strategies + taglines) ──
@@ -258,7 +259,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
       'Finalize Bundle Assortment',
       'Finalize Email Strategy',
       'Finalize Social Strategy',
-      'Finalize Influencer Strategy',
+      'Finalize Influencer Strategy & Start Sourcing Creators',
       'Final Taglines & Campaign Copy Due',
       'Align on Paid Ads Strategy',
       'Align on Homepage Plan',
@@ -377,17 +378,9 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
 
   // ── Creator Track ──
   {
-    name: 'Start Sourcing Creators',
-    leadTime: 15,
-    dependsOn: ['Finalize Influencer Strategy'],
-    owner: 'influencer',
-    phase: 'content_production',
-    notes: 'Sourcing begins after influencer strategy is finalized.',
-  },
-  {
     name: 'Creator Review Meeting',
     leadTime: 3,
-    dependsOn: ['Start Sourcing Creators'],
+    dependsOn: ['Finalize Influencer Strategy & Start Sourcing Creators'],
     owner: 'influencer',
     phase: 'content_production',
     isMeeting: true,
