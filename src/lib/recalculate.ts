@@ -106,11 +106,17 @@ export function recalculateTimeline(launch: Launch): RecalcResult {
     if (task.status === 'complete' || task.status === 'skipped' || !task.dueDate) continue;
     if (task.dependencies.length === 0) continue;
 
-    // Find the latest dependency due date
+    // Find the latest dependency end date
+    // For completed deps, use completedDate (they're done — don't block on original dueDate)
+    // For incomplete deps, use dueDate
     let latestDepDue = '';
     for (const depId of task.dependencies) {
       const dep = taskMap.get(depId);
-      if (dep?.dueDate && dep.dueDate > latestDepDue) latestDepDue = dep.dueDate;
+      if (!dep) continue;
+      const depEndDate = (dep.status === 'complete' || dep.status === 'skipped')
+        ? (dep.completedDate?.split('T')[0] || dep.dueDate || '')
+        : (dep.dueDate || '');
+      if (depEndDate > latestDepDue) latestDepDue = depEndDate;
     }
     if (!latestDepDue) continue;
 

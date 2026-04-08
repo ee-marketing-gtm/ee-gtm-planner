@@ -172,10 +172,15 @@ export default function LaunchDetail() {
         const depTask = taskMap.get(depTaskId)!;
         if (!depTask.dueDate) continue;
 
-        // Find the latest dependency due date for this task
+        // Find the latest dependency end date for this task
+        // For completed deps, use completedDate so they don't block on original dueDate
         const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
           const d = taskMap.get(dId);
-          if (d?.dueDate && d.dueDate > latest) return d.dueDate;
+          if (!d) return latest;
+          const endDate = (d.status === 'complete' || d.status === 'skipped')
+            ? (d.completedDate?.split('T')[0] || d.dueDate || '')
+            : (d.dueDate || '');
+          if (endDate > latest) return endDate;
           return latest;
         }, '');
 

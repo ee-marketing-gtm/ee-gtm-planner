@@ -358,12 +358,20 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     notes: '1-week scheduling window. Can run parallel with Lifestyle Shoot. Needs packaging samples.',
   },
   {
-    name: 'Photo Selects Ready',
+    name: 'Lifestyle Photo Selects Ready',
     leadTime: 10,
-    dependsOn: ['Lifestyle Shoot', 'Product Shoot'],
+    dependsOn: ['Lifestyle Shoot'],
     owner: 'creative',
     phase: 'content_production',
-    notes: '~2 weeks for photo selects/retouching from both shoots. Feed into R1 Assets.',
+    notes: '~2 weeks for photo selects/retouching from lifestyle shoot. Feeds into R1 Assets.',
+  },
+  {
+    name: 'Product Photo Selects Ready',
+    leadTime: 10,
+    dependsOn: ['Product Shoot'],
+    owner: 'creative',
+    phase: 'content_production',
+    notes: '~2 weeks for photo selects/retouching from product shoot. Feeds into R1 Assets.',
   },
 
   // ── Creator Track ──
@@ -481,14 +489,14 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Bundle PDP Copy Brief',
     leadTime: 3,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
     owner: 'marketing',
     phase: 'design_briefs',
   },
   {
     name: 'Draft Bundle PDP Gallery Asset Brief',
     leadTime: 5,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
     owner: 'marketing',
     phase: 'design_briefs',
     notes: 'If any new assets needed for bundle.',
@@ -496,7 +504,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Bundle Sephora/Amazon Gallery Asset Brief',
     leadTime: 5,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
     owner: 'marketing',
     phase: 'design_briefs',
     notes: 'If different/additional from DTC.',
@@ -560,7 +568,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'R1 Assets Due (Email, Social, PDP, Homepage, Amazon A+)',
     leadTime: 10,
-    dependsOn: ['Final Asset Design Briefs Due', 'Photo Selects Ready'],
+    dependsOn: ['Final Asset Design Briefs Due', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
     owner: 'creative',
     phase: 'design_production',
     notes: 'First round of all design assets. Requires BOTH: finalized briefs AND photo selects. ~2 weeks for creative.',
