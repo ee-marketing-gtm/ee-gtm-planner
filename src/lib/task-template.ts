@@ -583,28 +583,29 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
 
   // ── SEPHORA TRACK ──
+  // Work tasks (dates computed from dependencies)
   {
-    name: 'Sephora Final Assets Due',
+    name: 'Sephora Final Assets Ready',
     leadTime: 5,
     dependsOn: ['Asset Feedback Due'],
     owner: 'creative',
     phase: 'design_production',
     channelAnchor: 'sephora',
-    sephoraLeadTime: 50,
-    notes: 'Sephora final assets due 10 weeks (50 BD) before Sephora launch date.',
+    notes: 'Finalized Sephora assets after feedback round.',
   },
   {
-    name: 'Draft Sephora Catalog & PDP Copy Due',
+    name: 'Draft Sephora Catalog & PDP Copy Ready',
     leadTime: 3,
-    dependsOn: ['Sephora Final Assets Due'],
+    dependsOn: ['Brief Alignment Meeting'],
     owner: 'marketing',
     phase: 'design_production',
     channelAnchor: 'sephora',
+    notes: 'Drafted after brief alignment meeting.',
   },
   {
     name: 'Sephora Catalog & PDP Copy Review',
     leadTime: 3,
-    dependsOn: ['Draft Sephora Catalog & PDP Copy Due'],
+    dependsOn: ['Draft Sephora Catalog & PDP Copy Ready'],
     owner: 'marketing',
     phase: 'design_production',
     channelAnchor: 'sephora',
@@ -617,8 +618,29 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'design_production',
     channelAnchor: 'sephora',
+    notes: 'Incorporate review feedback, finalize copy for Sephora submission.',
+  },
+
+  // Sephora submission deadlines (pinned to 10 weeks before Sephora launch)
+  {
+    name: 'Sephora Final Assets Due',
+    leadTime: 0,
+    dependsOn: [],
+    owner: 'retail',
+    phase: 'design_production',
+    channelAnchor: 'sephora',
     sephoraLeadTime: 50,
-    notes: 'Incorporate review feedback, finalize copy for Sephora submission. Due 10 weeks before Sephora launch.',
+    notes: 'Submission deadline: 10 weeks (50 BD) before Sephora launch date.',
+  },
+  {
+    name: 'Sephora Catalog & PDP Copy Due',
+    leadTime: 0,
+    dependsOn: [],
+    owner: 'retail',
+    phase: 'design_production',
+    channelAnchor: 'sephora',
+    sephoraLeadTime: 50,
+    notes: 'Submission deadline: 10 weeks (50 BD) before Sephora launch date.',
   },
 
   // ── D2C / AMAZON TRACK ──
@@ -707,7 +729,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Sephora Launch Complete',
     leadTime: 0,
-    dependsOn: ['Sephora Final Assets Due', 'Final Sephora Catalog & PDP Copy'],
+    dependsOn: ['Sephora Final Assets Due', 'Sephora Catalog & PDP Copy Due'],
     owner: 'marketing',
     phase: 'launch',
     channelAnchor: 'sephora',

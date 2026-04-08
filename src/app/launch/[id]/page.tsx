@@ -407,6 +407,8 @@ export default function LaunchDetail() {
                   // Rename mappings: old task name → new task names that should inherit its state
                   const renameMappings: Record<string, string[]> = {
                     'Photo Selects Ready': ['Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
+                    'Sephora Final Assets Due': ['Sephora Final Assets Ready'],
+                    'Draft Sephora Catalog & PDP Copy Due': ['Draft Sephora Catalog & PDP Copy Ready'],
                   };
                   // Build reverse: new name → old name
                   const renameReverse = new Map<string, string>();
