@@ -16,6 +16,8 @@ import { useData } from '@/components/DataProvider';
 import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName } from '@/lib/utils';
 import GanttChart from '@/components/GanttChart';
 import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
+import { scheduleLaunch } from '@/lib/scheduler';
+import { scheduledTasksToGTMTasks } from '@/lib/scheduler-bridge';
 import { RefreshCw, AlertCircle, X } from 'lucide-react';
 
 function getDisplayLabel(task: GTMTask): string {
@@ -374,6 +376,45 @@ export default function LaunchDetail() {
                   </button>
                 )}
               </div>
+            </div>
+
+            {/* Regenerate Tasks from Template */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Task Template</label>
+              <p className="text-[11px] text-[#A8A29E] mb-2">
+                Re-run the scheduler with the latest task template. Preserves status, notes, and links on tasks that still exist. Adds new tasks, removes deleted ones.
+              </p>
+              <button
+                onClick={() => {
+                  if (!confirm('Regenerate all tasks from the latest template? Your status, notes, and links on matching tasks will be preserved.')) return;
+                  const result = scheduleLaunch({
+                    dtcLaunchDate: launch.launchDate,
+                    sephoraLaunchDate: launch.sephoraLaunchDate || undefined,
+                    amazonLaunchDate: launch.amazonLaunchDate || undefined,
+                    externalAnchors: launch.externalAnchors || undefined,
+                  });
+                  const freshTasks = scheduledTasksToGTMTasks(result.tasks);
+                  // Merge: preserve status/notes/links from old tasks by matching on name
+                  const oldByName = new Map(launch.tasks.map(t => [t.name, t]));
+                  const mergedTasks = freshTasks.map(ft => {
+                    const old = oldByName.get(ft.name);
+                    if (!old) return ft;
+                    return {
+                      ...ft,
+                      status: old.status,
+                      completedDate: old.completedDate,
+                      notes: old.notes || ft.notes,
+                      deliverableUrl: old.deliverableUrl || ft.deliverableUrl,
+                      deliverableLabel: old.deliverableLabel,
+                    };
+                  });
+                  updateLaunch({ ...launch, tasks: mergedTasks, updatedAt: new Date().toISOString() });
+                }}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#3D4EDB] text-white rounded-lg text-xs font-medium hover:bg-[#3040c0] transition-colors"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                Regenerate Tasks from Template
+              </button>
             </div>
 
             {/* Product Image */}
