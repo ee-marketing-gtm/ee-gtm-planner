@@ -619,6 +619,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [hideCompleted, setHideCompleted] = useState(false);
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
@@ -798,21 +799,35 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
         </div>
       )}
 
-      {/* Search bar */}
-      <div className="relative">
-        <input
-          type="text"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          placeholder="Search tasks by name, notes, or owner..."
-          className="w-full px-4 py-2.5 pl-10 border border-[#E7E5E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] bg-white"
-        />
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-        {searchQuery && (
-          <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8A29E] hover:text-[#57534E]">
-            <X className="w-4 h-4" />
-          </button>
-        )}
+      {/* Search bar + filters */}
+      <div className="flex gap-2 items-center">
+        <div className="relative flex-1">
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            placeholder="Search tasks by name, notes, or owner..."
+            className="w-full px-4 py-2.5 pl-10 border border-[#E7E5E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] bg-white"
+          />
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          {searchQuery && (
+            <button onClick={() => setSearchQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#A8A29E] hover:text-[#57534E]">
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+        <button
+          onClick={() => setHideCompleted(!hideCompleted)}
+          className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-medium border transition-colors whitespace-nowrap ${
+            hideCompleted
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+              : 'bg-white text-[#A8A29E] border-[#E7E5E4] hover:border-[#D6D3D1]'
+          }`}
+          title={hideCompleted ? 'Show completed tasks' : 'Hide completed tasks'}
+        >
+          <CheckCircle2 className="w-3.5 h-3.5" />
+          {hideCompleted ? 'Show done' : 'Hide done'}
+        </button>
       </div>
 
       {/* Chronological task list */}
@@ -825,7 +840,14 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               (OWNER_LABELS[t.owner] && OWNER_LABELS[t.owner].toLowerCase().includes(q))
             )
           : launch.tasks;
-        const sortedTasks = [...filteredTasks].sort((a, b) => {
+        const visibleTasks = hideCompleted
+          ? filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')
+          : filteredTasks;
+        const sortedTasks = [...visibleTasks].sort((a, b) => {
+          // Push completed/skipped to bottom
+          const aDone = a.status === 'complete' || a.status === 'skipped' ? 1 : 0;
+          const bDone = b.status === 'complete' || b.status === 'skipped' ? 1 : 0;
+          if (aDone !== bDone) return aDone - bDone;
           const aDate = a.dueDate || a.startDate || '9999';
           const bDate = b.dueDate || b.startDate || '9999';
           if (aDate !== bDate) return aDate.localeCompare(bDate);
