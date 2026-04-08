@@ -705,7 +705,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [hideCompleted, setHideCompleted] = useState(false);
+  const [hideCompleted, setHideCompleted] = useState(true);
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
