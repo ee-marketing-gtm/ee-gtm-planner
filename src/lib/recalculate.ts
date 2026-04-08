@@ -134,7 +134,29 @@ export function recalculateTimeline(launch: Launch): RecalcResult {
     }
   }
 
-  const impossible = false; // With forward-push, we always produce a valid schedule
+  // Check if any tasks now exceed the launch date
+  const launchDateStr = launch.launchDate;
+  const launchDateParsed = launchDateStr ? parseISO(launchDateStr) : null;
+  let impossible = false;
+  let daysOverLaunch = 0;
+
+  if (launchDateParsed) {
+    for (const task of taskMap.values()) {
+      if (task.status === 'complete' || task.status === 'skipped' || !task.dueDate) continue;
+      if (task.name.includes('Launch Complete') || task.name.includes('D2C Launch')) continue;
+      const taskDue = parseISO(task.dueDate);
+      if (isAfter(taskDue, launchDateParsed)) {
+        const over = differenceInBusinessDays(taskDue, launchDateParsed);
+        if (over > daysOverLaunch) daysOverLaunch = over;
+        impossible = true;
+      }
+    }
+  }
+
+  if (impossible) {
+    warnings.push(`${daysOverLaunch} business day${daysOverLaunch !== 1 ? 's' : ''} past the launch date — consider extending the launch date or reducing task durations.`);
+  }
+
   const daysAbsorbed = daysLate;
 
   if (changes.length === 0) {
@@ -143,7 +165,7 @@ export function recalculateTimeline(launch: Launch): RecalcResult {
 
   return {
     tasks: Array.from(taskMap.values()),
-    daysLate,
+    daysLate: impossible ? daysOverLaunch : daysLate,
     daysAbsorbed,
     impossible,
     warnings,

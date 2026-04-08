@@ -3,13 +3,14 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import Link from 'next/link';
 import { format, parseISO, isBefore, isToday, addDays } from 'date-fns';
-import { Calendar, Filter, ChevronDown } from 'lucide-react';
+import { Calendar, Filter, ChevronDown, ArrowUpDown } from 'lucide-react';
 import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, Owner, TaskStatus, TIER_CONFIG } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
 import { getPhaseName, getLaunchColor } from '@/lib/utils';
 
 type ViewMode = 'by_launch' | 'by_date' | 'by_owner';
 type TimeFilter = 'overdue' | 'this_week' | 'next_2_weeks' | 'all';
+type SortDir = 'asc' | 'desc';
 
 interface TaskWithLaunch {
   task: GTMTask;
@@ -102,6 +103,7 @@ export default function TrackerPage() {
   const [ownerFilter, setOwnerFilter] = useState<Owner | 'all'>('all');
   const [phaseFilter, setPhaseFilter] = useState<PhaseKey | 'all'>('all');
   const [hideComplete, setHideComplete] = useState(true);
+  const [sortDir, setSortDir] = useState<SortDir>('asc');
 
   useEffect(() => {
     setMounted(true);
@@ -147,8 +149,9 @@ export default function TrackerPage() {
         tasks.push({ task, launch });
       }
     }
-    return tasks.sort((a, b) => (a.task.dueDate || '9999').localeCompare(b.task.dueDate || '9999'));
-  }, [launches, hideComplete, ownerFilter, phaseFilter, timeFilter]);
+    const sorted = tasks.sort((a, b) => (a.task.dueDate || '9999').localeCompare(b.task.dueDate || '9999'));
+    return sortDir === 'desc' ? sorted.reverse() : sorted;
+  }, [launches, hideComplete, ownerFilter, phaseFilter, timeFilter, sortDir]);
 
   if (!mounted || loading) return <div className="p-8" />;
 
@@ -186,7 +189,7 @@ export default function TrackerPage() {
     : groupedByLaunch();
 
   return (
-    <div className="p-8 max-w-[1400px]">
+    <div className="p-8 max-w-[1500px]">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-[#1B1464]">Cross-Functional Tracker</h1>
         <p className="text-sm text-[#A8A29E] mt-1">
@@ -253,12 +256,20 @@ export default function TrackerPage() {
 
       {/* Column headers */}
       {allTasks.length > 0 && (
-        <div className="grid grid-cols-[140px_1fr_160px_140px_80px_130px] gap-3 px-4 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#A8A29E]">
+        <div className="grid grid-cols-[140px_1fr_160px_140px_80px_80px_130px] gap-3 px-4 py-2 mb-1 text-[10px] font-semibold uppercase tracking-wider text-[#A8A29E]">
           <span>Status</span>
           <span>Task</span>
           <span>Launch</span>
           <span>Owner</span>
-          <span>Due</span>
+          <span>Start</span>
+          <button
+            onClick={() => setSortDir(d => d === 'asc' ? 'desc' : 'asc')}
+            className="flex items-center gap-0.5 hover:text-[#57534E] transition-colors"
+          >
+            Due
+            <ArrowUpDown className="w-3 h-3" />
+            <span className="text-[9px] font-normal normal-case">({sortDir === 'asc' ? 'earliest' : 'latest'})</span>
+          </button>
           <span>Phase</span>
         </div>
       )}
@@ -288,7 +299,7 @@ export default function TrackerPage() {
                       key={task.id}
                       className={`border-t border-[#E7E5E4] first:border-t-0 ${isOverdue ? 'bg-red-50/30' : ''}`}
                     >
-                      <div className="grid grid-cols-[140px_1fr_160px_140px_80px_130px] gap-3 px-4 py-3 items-center">
+                      <div className="grid grid-cols-[140px_1fr_160px_140px_80px_80px_130px] gap-3 px-4 py-3 items-center">
                         {/* Status pill - inline dropdown */}
                         <StatusDropdown
                           status={task.status}
@@ -303,6 +314,26 @@ export default function TrackerPage() {
                           <p className={`text-sm truncate ${task.status === 'complete' ? 'line-through text-[#A8A29E]' : 'text-[#1B1464]'}`}>
                             {task.name}
                           </p>
+                          {task.dependencies.length > 0 && (() => {
+                            const depNames = task.dependencies.map(depId => {
+                              const dep = launch.tasks.find(t => t.id === depId);
+                              return dep?.name || '';
+                            }).filter(Boolean);
+                            const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                              const dep = launch.tasks.find(t => t.id === depId);
+                              if (!dep?.dueDate) return latest;
+                              if (!latest?.dueDate) return dep;
+                              return dep.dueDate > latest.dueDate ? dep : latest;
+                            }, null);
+                            return (
+                              <p className="text-[10px] text-[#A8A29E] truncate mt-0.5">
+                                {task.dependencies.length === 1
+                                  ? <>After: {depNames[0]}</>
+                                  : <>After {task.dependencies.length} deps{drivingDep ? <> — driven by: <span className="text-[#57534E]">{drivingDep.name}</span></> : null}</>
+                                }
+                              </p>
+                            );
+                          })()}
                         </Link>
 
                         {/* Launch name with tier dot */}
@@ -320,6 +351,11 @@ export default function TrackerPage() {
                           style={{ background: OWNER_COLORS[task.owner] + '15', color: OWNER_COLORS[task.owner] }}
                         >
                           {OWNER_LABELS[task.owner]}
+                        </span>
+
+                        {/* Start date */}
+                        <span className="text-xs text-[#A8A29E]">
+                          {task.startDate ? format(parseISO(task.startDate), 'MMM d') : '—'}
                         </span>
 
                         {/* Due date */}

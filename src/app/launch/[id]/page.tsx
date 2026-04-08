@@ -54,6 +54,7 @@ export default function LaunchDetail() {
   const [expandedPhases, setExpandedPhases] = useState<Set<PhaseKey>>(new Set(PHASES.map(p => p.key)));
   const [mounted, setMounted] = useState(false);
   const [recalcResult, setRecalcResult] = useState<{ daysLate: number; daysAbsorbed: number; impossible: boolean; warnings: string[]; changes: TaskDateChange[] } | null>(null);
+  const [preRecalcTasks, setPreRecalcTasks] = useState<import('@/lib/types').GTMTask[] | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [customHex, setCustomHex] = useState(launch?.brandColor || '');
   const [imageUrlInput, setImageUrlInput] = useState(launch?.productImageUrl || '');
@@ -504,49 +505,60 @@ export default function LaunchDetail() {
           if (overdueTasks.length === 0 && !recalcResult) return null;
 
           return recalcResult ? (() => {
-            // Only show major changes: shifts > 25% of the task's typical duration (min 2 days)
-            const majorChanges = recalcResult.changes.filter(c => {
-              const task = launch.tasks.find(t => t.name === c.taskName);
-              const duration = task?.durationDays || 5;
-              const threshold = Math.max(2, Math.ceil(duration * 0.25));
-              return Math.abs(c.daysMoved) >= threshold;
-            });
-            const largestShift = recalcResult.changes.reduce((max, c) => Math.abs(c.daysMoved) > Math.abs(max.daysMoved) ? c : max, recalcResult.changes[0]);
+            const largestShift = recalcResult.changes.length > 0
+              ? recalcResult.changes.reduce((max, c) => Math.abs(c.daysMoved) > Math.abs(max.daysMoved) ? c : max, recalcResult.changes[0])
+              : null;
 
             return (
             <div className={`mt-3 rounded-xl border p-4 ${recalcResult.impossible ? 'bg-red-50 border-red-200' : 'bg-[#FFF0F7] border-[#FF1493]/20'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <RefreshCw className="w-4 h-4 text-[#FF1493] shrink-0" />
-                  <p className="text-sm text-[#1B1464]">
-                    <span className="font-medium text-[#FF1493]">Timeline recalculated</span>
-                    {' — '}
-                    {majorChanges.length > 0 ? (
-                      <span className="text-[#57534E]">
-                        {majorChanges.map((c, i) => (
-                          <span key={i}>
-                            {i > 0 && ', '}
-                            <span className="font-medium text-[#1B1464]">{c.taskName}</span>
-                            {' '}
-                            <span className={c.daysMoved > 0 ? 'text-[#F59E0B]' : 'text-[#10B981]'}>
-                              {c.daysMoved > 0 ? '+' : ''}{c.daysMoved}d
-                            </span>
-                          </span>
-                        ))}
-                        {recalcResult.changes.length > majorChanges.length && (
-                          <span className="text-[#A8A29E]"> + {recalcResult.changes.length - majorChanges.length} minor shifts</span>
-                        )}
-                      </span>
+                  {recalcResult.impossible ? (
+                    <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
+                  ) : (
+                    <RefreshCw className="w-4 h-4 text-[#FF1493] shrink-0" />
+                  )}
+                  <div>
+                    {recalcResult.impossible ? (
+                      <p className="text-sm font-medium text-[#DC2626]">
+                        Cannot fit timeline before launch date
+                      </p>
                     ) : (
-                      <span className="text-[#57534E]">
-                        {recalcResult.changes.length} task{recalcResult.changes.length !== 1 ? 's' : ''} shifted (largest: {largestShift?.taskName} {largestShift?.daysMoved > 0 ? '+' : ''}{largestShift?.daysMoved}d)
-                      </span>
+                      <p className="text-sm text-[#1B1464]">
+                        <span className="font-medium text-[#FF1493]">Timeline recalculated</span>
+                        {' — '}
+                        <span className="text-[#57534E]">
+                          {recalcResult.changes.length} task{recalcResult.changes.length !== 1 ? 's' : ''} shifted
+                          {largestShift && (
+                            <>, largest move: <span className="font-medium">{largestShift.taskName}</span> <span className="text-[#F59E0B]">+{largestShift.daysMoved}d</span></>
+                          )}
+                        </span>
+                      </p>
                     )}
-                  </p>
+                    {recalcResult.impossible && (
+                      <p className="text-xs text-[#92400E] mt-0.5">
+                        Tasks would need to extend {recalcResult.daysLate} business day{recalcResult.daysLate !== 1 ? 's' : ''} past the launch date. Consider extending the launch date or reducing task durations.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <button onClick={() => setRecalcResult(null)} className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors shrink-0 ml-3">
-                  OK
-                </button>
+                <div className="flex items-center gap-2 shrink-0 ml-3">
+                  {preRecalcTasks && !recalcResult.impossible && (
+                    <button
+                      onClick={() => {
+                        updateLaunch({ ...launch, tasks: preRecalcTasks });
+                        setPreRecalcTasks(null);
+                        setRecalcResult(null);
+                      }}
+                      className="px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] text-xs font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors"
+                    >
+                      Undo
+                    </button>
+                  )}
+                  <button onClick={() => { setRecalcResult(null); if (!recalcResult.impossible) setPreRecalcTasks(null); }} className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors">
+                    {recalcResult.impossible ? 'Dismiss' : 'OK'}
+                  </button>
+                </div>
               </div>
 
               {/* Warnings — only show if critical */}
@@ -578,7 +590,12 @@ export default function LaunchDetail() {
                 </div>
                 <button
                   onClick={() => {
+                    setPreRecalcTasks([...launch.tasks]);
                     const result = recalculateTimeline(launch);
+                    if (result.impossible) {
+                      setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes });
+                      return;
+                    }
                     updateLaunch({ ...launch, tasks: result.tasks });
                     setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes });
                   }}
