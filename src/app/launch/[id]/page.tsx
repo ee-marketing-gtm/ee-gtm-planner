@@ -1144,7 +1144,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               </div>
             )}
             {/* Column headers */}
-            <div className="grid grid-cols-[20px_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-2 bg-[#FAFAF9] text-[11px] font-medium text-[#A8A29E] uppercase tracking-wider border-b border-[#E7E5E4]">
+            <div className="grid grid-cols-[20px_1fr_120px_80px_120px_140px_40px] gap-x-3 px-4 py-2 bg-[#FAFAF9] text-[11px] font-medium text-[#A8A29E] uppercase tracking-wider border-b border-[#E7E5E4]">
               <input
                 type="checkbox"
                 checked={selectedTaskIds.size === launch.tasks.length && launch.tasks.length > 0}
@@ -1153,6 +1153,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               />
               <span>Task</span>
               <span>Owner</span>
+              <span>Lead</span>
               <span>Due Date</span>
               <span>Status</span>
               <span />
@@ -1383,7 +1384,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
 
   return (
     <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
-      <div className="grid grid-cols-[20px_1fr_120px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
+      <div className="grid grid-cols-[20px_1fr_120px_80px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
         {/* Selection checkbox */}
         <input
           type="checkbox"
@@ -1468,6 +1469,52 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
             <option key={key} value={key}>{label}</option>
           ))}
         </select>
+
+        {/* Lead time stepper */}
+        <div className="inline-flex items-center border border-[#E7E5E4] rounded-lg overflow-hidden h-[26px]">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const current = task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : 3);
+              if (current <= 1) return;
+              const newDuration = current - 1;
+              const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
+              if (startDate) {
+                const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
+                updateTaskField(task.id, { durationDays: newDuration });
+                updateTaskDateWithCascade(task.id, newDueDate);
+              } else {
+                updateTaskField(task.id, { durationDays: newDuration });
+              }
+            }}
+            className="px-1.5 text-[11px] text-[#57534E] hover:bg-[#F5F5F4] transition-colors font-medium h-full"
+            title="Reduce lead time"
+          >
+            −
+          </button>
+          <span className="px-1 text-[11px] font-semibold text-[#1B1464] bg-[#FAFAF9] border-x border-[#E7E5E4] min-w-[32px] text-center h-full flex items-center justify-center">
+            {task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : '—')}
+          </span>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              const current = task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : 3);
+              const newDuration = current + 1;
+              const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
+              if (startDate) {
+                const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
+                updateTaskField(task.id, { durationDays: newDuration });
+                updateTaskDateWithCascade(task.id, newDueDate);
+              } else {
+                updateTaskField(task.id, { durationDays: newDuration });
+              }
+            }}
+            className="px-1.5 text-[11px] text-[#57534E] hover:bg-[#F5F5F4] transition-colors font-medium h-full"
+            title="Increase lead time"
+          >
+            +
+          </button>
+        </div>
 
         {/* Due Date — inline editable */}
         {editingDate ? (
