@@ -9,10 +9,10 @@ export const metadata: Metadata = {
   description: "Go-to-market strategy, planning, and execution hub",
   icons: {
     icon: [
-      { url: '/favicon.svg', type: 'image/svg+xml' },
-      { url: '/favicon-32.png', sizes: '32x32', type: 'image/png' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon.png', sizes: '32x32', type: 'image/png' },
     ],
-    apple: '/favicon-180.png',
+    apple: '/apple-icon.png',
   },
 };
 
