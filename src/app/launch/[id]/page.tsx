@@ -1308,6 +1308,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [sortAsc, setSortAsc] = useState(true);
   const [showFullChain, setShowFullChain] = useState(false);
   const [showCascadeDetails, setShowCascadeDetails] = useState(false);
+  const [traceTaskId, setTraceTaskId] = useState<string | null>(null);
+  const sortedOrderRef = useRef<string[]>([]); // locked sort order while editing
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
@@ -1531,13 +1533,53 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
       {/* Chronological task list */}
       {(() => {
         const q = searchQuery.toLowerCase().trim();
-        const filteredTasks = q
-          ? launch.tasks.filter(t =>
+
+        // Dependency trace: compute full upstream + downstream chain for a task
+        const traceIds = (() => {
+          if (!traceTaskId) return null;
+          const ids = new Set<string>([traceTaskId]);
+          const taskById = new Map(launch.tasks.map(t => [t.id, t]));
+          // Walk upstream: all dependencies recursively
+          const upQueue = [traceTaskId];
+          while (upQueue.length > 0) {
+            const cur = upQueue.shift()!;
+            const t = taskById.get(cur);
+            if (!t) continue;
+            for (const depId of t.dependencies) {
+              if (!ids.has(depId)) {
+                ids.add(depId);
+                upQueue.push(depId);
+              }
+            }
+          }
+          // Walk downstream: all tasks that depend on this (directly or indirectly)
+          const downQueue = [traceTaskId];
+          while (downQueue.length > 0) {
+            const cur = downQueue.shift()!;
+            for (const t of launch.tasks) {
+              if (!ids.has(t.id) && t.dependencies.includes(cur)) {
+                ids.add(t.id);
+                downQueue.push(t.id);
+              }
+            }
+          }
+          return ids;
+        })();
+
+        const filteredTasks = (() => {
+          let tasks = launch.tasks;
+          if (traceIds) {
+            tasks = tasks.filter(t => traceIds.has(t.id));
+          }
+          if (q) {
+            tasks = tasks.filter(t =>
               t.name.toLowerCase().includes(q) ||
               (t.notes && t.notes.toLowerCase().includes(q)) ||
               (OWNER_LABELS[t.owner] && OWNER_LABELS[t.owner].toLowerCase().includes(q))
-            )
-          : launch.tasks;
+            );
+          }
+          return tasks;
+        })();
         const phaseOrder = Object.fromEntries(PHASES.map((p, i) => [p.key, i]));
         const ownerOrder = Object.fromEntries(Object.keys(OWNER_LABELS).map((k, i) => [k, i]));
         const taskSort = (a: GTMTask, b: GTMTask) => {
@@ -1557,9 +1599,25 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
           const bDate = b.dueDate || '9999';
           return aDate.localeCompare(bDate) || a.sortOrder - b.sortOrder;
         };
-        const activeTasks = [...filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')].sort(taskSort);
+        const activeTasksUnsorted = filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped');
         const doneTasks = [...filteredTasks.filter(t => t.status === 'complete' || t.status === 'skipped')].sort(taskSort);
-        const sortedTasks = activeTasks;
+
+        // Lock sort order while a task is expanded (prevents jumping while editing)
+        let sortedTasks: GTMTask[];
+        if (expandedTaskId && sortedOrderRef.current.length > 0) {
+          // Use locked order, but include any new tasks and remove deleted ones
+          const activeById = new Map(activeTasksUnsorted.map(t => [t.id, t]));
+          const locked = sortedOrderRef.current
+            .filter(id => activeById.has(id))
+            .map(id => activeById.get(id)!);
+          // Add any tasks not in the locked order (newly added)
+          const lockedIds = new Set(locked.map(t => t.id));
+          const newTasks = activeTasksUnsorted.filter(t => !lockedIds.has(t.id)).sort(taskSort);
+          sortedTasks = [...locked, ...newTasks];
+        } else {
+          sortedTasks = [...activeTasksUnsorted].sort(taskSort);
+          sortedOrderRef.current = sortedTasks.map(t => t.id);
+        }
         const phaseMap = Object.fromEntries(PHASES.map(p => [p.key, p]));
 
         return (
@@ -1638,6 +1696,34 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               <span />
             </div>
             </div>{/* end sticky header */}
+            {/* Dependency trace banner */}
+            {traceTaskId && (() => {
+              const traceTask = launch.tasks.find(t => t.id === traceTaskId);
+              const upstreamCount = traceIds ? Array.from(traceIds).filter(id => {
+                // Count tasks upstream of the trace target
+                const t = launch.tasks.find(tt => tt.id === id);
+                return t && t.dueDate && traceTask?.dueDate && t.dueDate <= traceTask.dueDate && id !== traceTaskId;
+              }).length : 0;
+              const downstreamCount = traceIds ? traceIds.size - upstreamCount - 1 : 0;
+              return (
+                <div className="flex items-center gap-2 px-4 py-2 bg-indigo-50 border-b border-indigo-200">
+                  <Eye className="w-3.5 h-3.5 text-[#1B1464] shrink-0" />
+                  <span className="text-[11px] font-medium text-[#1B1464] truncate">
+                    Dependency chain for {traceTask?.name || 'task'}
+                  </span>
+                  <span className="text-[10px] text-[#57534E]">
+                    {upstreamCount} upstream · {downstreamCount} downstream
+                  </span>
+                  <button
+                    onClick={() => setTraceTaskId(null)}
+                    className="ml-auto text-[11px] text-[#1B1464] font-medium hover:text-[#FF1493] transition-colors flex items-center gap-1"
+                  >
+                    <X className="w-3 h-3" />
+                    Clear
+                  </button>
+                </div>
+              );
+            })()}
             {sortedTasks.map(task => {
               const phase = phaseMap[task.phase] || PHASES[0];
               return (
@@ -1671,6 +1757,10 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                       const el = document.getElementById(`task-${targetId}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     }, 150);
+                  }}
+                  onTrace={(taskId) => {
+                    setTraceTaskId(taskId);
+                    setExpandedTaskId(taskId);
                   }}
                 />
                 {cascadeWarning && cascadeWarning.triggerTaskId === task.id && (
@@ -1955,7 +2045,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               );
             })}
             {/* Done section */}
-            {doneTasks.length > 0 && !hideCompleted && (
+            {doneTasks.length > 0 && (!hideCompleted || traceTaskId) && (
               <>
                 <button
                   onClick={() => setHideCompleted(true)}
@@ -1997,6 +2087,10 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                           const el = document.getElementById(`task-${targetId}`);
                           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
                         }, 150);
+                      }}
+                      onTrace={(taskId) => {
+                        setTraceTaskId(taskId);
+                        setExpandedTaskId(taskId);
                       }}
                     />
                   );
@@ -2044,7 +2138,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   );
 }
 
-function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, onToggleSelect, onToggleExpand, onMarkComplete, updateTaskStatus, updateTaskNotes, updateDeliverableUrl, updateTaskField, updateTaskDateWithCascade, onDeleteTask, onNavigateToTask }: {
+function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, onToggleSelect, onToggleExpand, onMarkComplete, updateTaskStatus, updateTaskNotes, updateDeliverableUrl, updateTaskField, updateTaskDateWithCascade, onDeleteTask, onNavigateToTask, onTrace }: {
   task: GTMTask;
   launch: Launch;
   phase: { key: PhaseKey; color: string };
@@ -2061,6 +2155,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   updateTaskDateWithCascade: (taskId: string, newDate: string, extraUpdates?: Partial<GTMTask>) => void;
   onDeleteTask: (taskId: string) => void;
   onNavigateToTask?: (taskId: string) => void;
+  onTrace?: (taskId: string) => void;
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
@@ -2234,9 +2329,26 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
           >
             −
           </button>
-          <span className="px-1 text-[11px] font-semibold text-[#1B1464] bg-[#FAFAF9] border-x border-[#E7E5E4] min-w-[32px] text-center h-full flex items-center justify-center">
-            {task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : '—')}
-          </span>
+          <input
+            type="number"
+            min="0"
+            value={task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : '')}
+            onClick={(e) => { e.stopPropagation(); (e.target as HTMLInputElement).select(); }}
+            onChange={(e) => {
+              e.stopPropagation();
+              const val = parseInt(e.target.value);
+              if (isNaN(val) || val < 0) return;
+              const current = task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : 3);
+              const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
+              if (startDate) {
+                const newDueDate = format(addBusinessDays(parseISO(startDate), val), 'yyyy-MM-dd');
+                updateTaskDateWithCascade(task.id, newDueDate, { durationDays: val });
+              } else {
+                updateTaskField(task.id, { durationDays: val });
+              }
+            }}
+            className="w-[32px] text-[11px] font-semibold text-[#1B1464] bg-[#FAFAF9] border-x border-[#E7E5E4] text-center h-full focus:outline-none focus:bg-white [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+          />
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -2822,7 +2934,20 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             )}
           </div>
 
-          {/* 7. Delete task — danger zone */}
+          {/* 7. Trace dependencies */}
+          {onTrace && (task.dependencies.length > 0 || launch.tasks.some(t => t.dependencies.includes(task.id))) && (
+            <div className="pt-2 border-t border-[#E7E5E4]">
+              <button
+                onClick={() => onTrace(task.id)}
+                className="inline-flex items-center gap-1.5 text-[11px] text-[#1B1464] hover:bg-indigo-50 px-2 py-1 rounded transition-colors"
+              >
+                <Eye className="w-3 h-3" />
+                Trace dependency chain
+              </button>
+            </div>
+          )}
+
+          {/* 8. Delete task — danger zone */}
           <div className="pt-2 border-t border-[#E7E5E4]">
             <button
               onClick={() => {
