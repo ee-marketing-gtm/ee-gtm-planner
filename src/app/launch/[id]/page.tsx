@@ -2729,35 +2729,42 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                       <label className="text-[11px] font-medium text-[#57534E]">Blocks ({blockedTasks.length})</label>
                     </div>
                     <div className="space-y-1">
-                      {blockedTasks.map(bt => (
-                        <div
-                          key={bt.id}
-                          className="flex items-center gap-2 group/block"
-                        >
-                          <button
-                            onClick={() => {
-                              const newDeps = bt.dependencies.filter(d => d !== task.id);
-                              updateTaskField(bt.id, { dependencies: newDeps });
-                            }}
-                            className="w-4 h-4 rounded border border-amber-300 bg-amber-50 flex items-center justify-center shrink-0 hover:bg-red-100 hover:border-red-300 transition-colors group/cb"
-                            title={`Unblock — remove ${bt.name}'s dependency on this task`}
+                      {blockedTasks.map(bt => {
+                        const isDone = bt.status === 'complete' || bt.status === 'skipped';
+                        return (
+                          <div
+                            key={bt.id}
+                            className="flex items-center gap-2 group/block"
                           >
-                            <X className="w-2.5 h-2.5 text-amber-400 group-hover/cb:text-red-500 transition-colors" />
-                          </button>
-                          <button
-                            onClick={() => onNavigateToTask?.(bt.id)}
-                            className={`text-[11px] truncate cursor-pointer hover:text-[#FF1493] transition-colors ${
-                              bt.status === 'complete' || bt.status === 'skipped' ? 'text-[#A8A29E] line-through' : 'text-[#44403C]'
-                            }`}
-                            title={`Go to ${bt.name}`}
-                          >
-                            {bt.name}
-                          </button>
-                          <span className="text-[9px] text-[#A8A29E] shrink-0">
-                            {bt.dueDate ? format(parseISO(bt.dueDate), 'MMM d') : ''}
-                          </span>
-                        </div>
-                      ))}
+                            {isDone ? (
+                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                            ) : (
+                              <button
+                                onClick={() => {
+                                  const newDeps = bt.dependencies.filter(d => d !== task.id);
+                                  updateTaskField(bt.id, { dependencies: newDeps });
+                                }}
+                                className="w-4 h-4 rounded border border-amber-300 bg-amber-50 flex items-center justify-center shrink-0 hover:bg-red-100 hover:border-red-300 transition-colors group/cb"
+                                title={`Unblock — remove ${bt.name}'s dependency on this task`}
+                              >
+                                <X className="w-2.5 h-2.5 text-amber-400 group-hover/cb:text-red-500 transition-colors" />
+                              </button>
+                            )}
+                            <button
+                              onClick={() => onNavigateToTask?.(bt.id)}
+                              className={`text-[11px] truncate cursor-pointer hover:text-[#FF1493] transition-colors ${
+                                isDone ? 'text-[#A8A29E]' : 'text-[#44403C]'
+                              }`}
+                              title={`Go to ${bt.name}`}
+                            >
+                              {bt.name}
+                            </button>
+                            <span className="text-[9px] text-[#A8A29E] shrink-0">
+                              {bt.dueDate ? format(parseISO(bt.dueDate), 'MMM d') : ''}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 );
