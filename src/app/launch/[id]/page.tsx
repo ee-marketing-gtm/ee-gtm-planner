@@ -2026,24 +2026,37 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                       if (!dep) return null;
                       const isComplete = dep.status === 'complete';
                       return (
-                        <button
+                        <div
                           key={depId}
-                          onClick={() => {
-                            if (onNavigateToTask) onNavigateToTask(dep.id);
-                          }}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium cursor-pointer hover:ring-2 hover:ring-[#FF1493]/30 transition-all ${
+                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border group/dep ${
                             isComplete
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-[#F5F5F4] text-[#57534E] border border-[#E7E5E4]'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-[#F5F5F4] text-[#57534E] border-[#E7E5E4]'
                           }`}
-                          title={`Go to ${dep.name}`}
                         >
-                          {isComplete
-                            ? <CheckCircle2 className="w-3 h-3" />
-                            : <Circle className="w-3 h-3" />
-                          }
-                          {dep.name}
-                        </button>
+                          <button
+                            onClick={() => onNavigateToTask?.(dep.id)}
+                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#FF1493] transition-colors"
+                            title={`Go to ${dep.name}`}
+                          >
+                            {isComplete
+                              ? <CheckCircle2 className="w-3 h-3" />
+                              : <Circle className="w-3 h-3" />
+                            }
+                            {dep.name}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newDeps = task.dependencies.filter(d => d !== depId);
+                              updateTaskField(task.id, { dependencies: newDeps });
+                            }}
+                            className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover/dep:opacity-100 hover:bg-red-100 hover:text-red-500 text-[#A8A29E] transition-all"
+                            title={`Remove dependency on ${dep.name}`}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
@@ -2121,14 +2134,29 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Blocks</label>
                     <div className="flex flex-wrap gap-1.5">
                       {blockedTasks.map(bt => (
-                        <button
+                        <div
                           key={bt.id}
-                          onClick={() => onNavigateToTask?.(bt.id)}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 cursor-pointer hover:ring-2 hover:ring-amber-300/30 transition-all"
-                          title={`Go to ${bt.name}`}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 group/block"
                         >
-                          {bt.name}
-                        </button>
+                          <button
+                            onClick={() => onNavigateToTask?.(bt.id)}
+                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#FF1493] transition-colors"
+                            title={`Go to ${bt.name}`}
+                          >
+                            {bt.name}
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const newDeps = bt.dependencies.filter(d => d !== task.id);
+                              updateTaskField(bt.id, { dependencies: newDeps });
+                            }}
+                            className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover/block:opacity-100 hover:bg-red-100 hover:text-red-500 text-amber-400 transition-all"
+                            title={`Remove ${bt.name}'s dependency on this task`}
+                          >
+                            <X className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
                       ))}
                     </div>
                   </div>
