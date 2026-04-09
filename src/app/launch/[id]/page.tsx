@@ -185,7 +185,8 @@ export default function LaunchDetail() {
   }, []);
 
   // Cascade due dates through dependency graph when a task's date changes
-  const updateTaskDateWithCascade = useCallback((taskId: string, newDate: string) => {
+  // extraUpdates: optional additional field changes to apply to the source task (e.g. durationDays from lead time stepper)
+  const updateTaskDateWithCascade = useCallback((taskId: string, newDate: string, extraUpdates?: Partial<GTMTask>) => {
     if (!launch) return;
     const task = launch.tasks.find(t => t.id === taskId);
     if (!task) return;
@@ -212,6 +213,8 @@ export default function LaunchDetail() {
     if (sourceTask.startDate) {
       sourceTask.startDate = format(addBusinessDays(parseISO(sourceTask.startDate), daysDiff), 'yyyy-MM-dd');
     }
+    // Apply any extra field updates (e.g. durationDays from lead time stepper)
+    if (extraUpdates) Object.assign(sourceTask, extraUpdates);
 
     // BFS: propagate through dependency graph
     const queue = [taskId];
@@ -268,9 +271,10 @@ export default function LaunchDetail() {
       }
     }
 
-    // Check if any tasks now exceed launch dates
+    // Check if any tasks NEWLY exceed launch dates (ignore ones already over before this change)
     const newTasks = Array.from(taskMap.values());
     const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+    const oldTaskMap = new Map(launch.tasks.map(t => [t.id, t]));
 
     const overTasks: { name: string; dueDate: string; daysOver: number }[] = [];
     for (const t of newTasks) {
@@ -278,7 +282,13 @@ export default function LaunchDetail() {
       if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
       const due = parseISO(t.dueDate);
       if (dtcLaunch && isAfter(due, dtcLaunch)) {
-        overTasks.push({ name: t.name, dueDate: t.dueDate, daysOver: differenceInBusinessDays(due, dtcLaunch) });
+        // Only warn if this task wasn't already past launch, or got pushed further
+        const oldTask = oldTaskMap.get(t.id);
+        const wasAlreadyOver = oldTask?.dueDate && isAfter(parseISO(oldTask.dueDate), dtcLaunch);
+        const gotWorse = oldTask?.dueDate && t.dueDate > oldTask.dueDate;
+        if (!wasAlreadyOver || gotWorse) {
+          overTasks.push({ name: t.name, dueDate: t.dueDate, daysOver: differenceInBusinessDays(due, dtcLaunch) });
+        }
       }
     }
 
@@ -942,7 +952,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   updateTaskNotes: (taskId: string, notes: string) => void;
   onUpdateLaunch: (launch: Launch) => void;
   updateTaskField: (taskId: string, updates: Partial<GTMTask>) => void;
-  updateTaskDateWithCascade: (taskId: string, newDate: string) => void;
+  updateTaskDateWithCascade: (taskId: string, newDate: string, extraUpdates?: Partial<GTMTask>) => void;
   initialTaskId?: string | null;
   cascadeWarning: {
     triggerTaskId: string;
@@ -1453,7 +1463,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   updateTaskNotes: (taskId: string, notes: string) => void;
   updateDeliverableUrl: (taskId: string, url: string) => void;
   updateTaskField: (taskId: string, updates: Partial<GTMTask>) => void;
-  updateTaskDateWithCascade: (taskId: string, newDate: string) => void;
+  updateTaskDateWithCascade: (taskId: string, newDate: string, extraUpdates?: Partial<GTMTask>) => void;
   onDeleteTask: (taskId: string) => void;
   onNavigateToTask?: (taskId: string) => void;
 }) {
@@ -1619,8 +1629,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
               if (startDate) {
                 const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
-                updateTaskField(task.id, { durationDays: newDuration });
-                updateTaskDateWithCascade(task.id, newDueDate);
+                updateTaskDateWithCascade(task.id, newDueDate, { durationDays: newDuration });
               } else {
                 updateTaskField(task.id, { durationDays: newDuration });
               }
@@ -1641,8 +1650,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
               if (startDate) {
                 const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
-                updateTaskField(task.id, { durationDays: newDuration });
-                updateTaskDateWithCascade(task.id, newDueDate);
+                updateTaskDateWithCascade(task.id, newDueDate, { durationDays: newDuration });
               } else {
                 updateTaskField(task.id, { durationDays: newDuration });
               }
@@ -1769,8 +1777,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -newDuration), 'yyyy-MM-dd') : null);
                     if (startDate) {
                       const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
-                      updateTaskField(task.id, { durationDays: newDuration });
-                      updateTaskDateWithCascade(task.id, newDueDate);
+                      updateTaskDateWithCascade(task.id, newDueDate, { durationDays: newDuration });
                     } else {
                       updateTaskField(task.id, { durationDays: newDuration });
                     }
@@ -1790,8 +1797,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
                     if (startDate) {
                       const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
-                      updateTaskField(task.id, { durationDays: newDuration });
-                      updateTaskDateWithCascade(task.id, newDueDate);
+                      updateTaskDateWithCascade(task.id, newDueDate, { durationDays: newDuration });
                     } else {
                       updateTaskField(task.id, { durationDays: newDuration });
                     }
