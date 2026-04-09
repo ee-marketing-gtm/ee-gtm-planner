@@ -488,19 +488,10 @@ export default function LaunchDetail() {
     updateLaunch({ ...launch, tasks: newTasks });
 
     // Flash highlight on cascaded tasks (exclude the source task the user just edited)
+    // Don't scroll — keep the user at their current position
     const cascadedIds = new Set(Array.from(visited).filter(id => id !== taskId));
     if (cascadedIds.size > 0) {
-      // Find the task that ended up with the latest due date among cascaded tasks
-      let furthestId = '';
-      let furthestDate = '';
-      for (const id of cascadedIds) {
-        const t = taskMap.get(id);
-        if (t?.dueDate && t.dueDate > furthestDate) {
-          furthestDate = t.dueDate;
-          furthestId = id;
-        }
-      }
-      flashChangedTasks(cascadedIds, furthestId || undefined);
+      flashChangedTasks(cascadedIds);
     }
   }, [launch, updateLaunch, updateTaskField, flashChangedTasks]);
 
@@ -1689,205 +1680,209 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                     {(() => {
                       const pendingMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, t]));
                       const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
-                      const originalOverSet = new Set(cascadeWarning.originalOverTaskIds);
                       const allResolved = cascadeWarning.overCount === 0 && cascadeWarning.hasFixes;
 
-                      // Find tasks currently over launch
-                      const currentOverTasks = cascadeWarning.pendingTasks.filter(t => {
-                        if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) return false;
-                        if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') return false;
-                        return dtcLaunch && isAfter(parseISO(t.dueDate), dtcLaunch);
-                      });
-                      const currentOverIds = new Set(currentOverTasks.map(t => t.id));
+                      // Current over tasks
+                      const currentOverIds = new Set(
+                        cascadeWarning.pendingTasks
+                          .filter(t => {
+                            if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) return false;
+                            if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') return false;
+                            return dtcLaunch && isAfter(parseISO(t.dueDate), dtcLaunch);
+                          })
+                          .map(t => t.id)
+                      );
 
-                      // Build list: originally-over tasks, showing resolved vs still-over
+                      // Originally-over tasks for the list
                       const originalOverTasks = cascadeWarning.originalOverTaskIds
                         .map(id => pendingMap.get(id))
                         .filter((t): t is GTMTask => !!t);
 
-                      // For critical path tracing
-                      const getCriticalPath = (taskId: string): string[] => {
-                        const path: string[] = [taskId];
-                        let current = taskId;
-                        const seen = new Set<string>([taskId]);
-                        while (current !== cascadeWarning.triggerTaskId) {
-                          const t = pendingMap.get(current);
-                          if (!t) break;
-                          let drivingDep: string | null = null;
+                      // Find the ROOT bottleneck — the earliest task in the chain that's driving delays
+                      // Instead of per-task fixes, find the key upstream tasks that, if unblocked, fix the most
+                      const unblockFixes: { taskId: string; taskName: string; depId: string; depName: string; fixesCount: number }[] = [];
+
+                      // For each still-over task, trace back to find the real bottleneck dependency
+                      // The bottleneck is the task closest to the trigger that's causing the cascade
+                      const bottleneckCounts = new Map<string, { taskId: string; depId: string; count: number }>();
+                      for (const overTask of originalOverTasks) {
+                        if (!currentOverIds.has(overTask.id)) continue;
+                        // Walk back from over task to find the first task that depends on the trigger (or near it)
+                        let current = overTask;
+                        const walked = new Set<string>([overTask.id]);
+                        while (current) {
+                          // Find this task's driving dep in the chain
+                          let drivingDepId: string | null = null;
                           let latestDue = '';
-                          for (const depId of t.dependencies) {
-                            if (seen.has(depId)) continue;
-                            const dep = pendingMap.get(depId);
-                            if (!dep?.dueDate) continue;
-                            if (dep.dueDate > latestDue) { latestDue = dep.dueDate; drivingDep = depId; }
+                          for (const depId of current.dependencies) {
+                            const d = pendingMap.get(depId);
+                            if (!d?.dueDate) continue;
+                            const endDate = (d.status === 'complete' || d.status === 'skipped')
+                              ? (d.completedDate?.split('T')[0] || d.dueDate) : d.dueDate;
+                            if (endDate > latestDue) { latestDue = endDate; drivingDepId = depId; }
                           }
+                          if (!drivingDepId) break;
+                          const drivingDep = pendingMap.get(drivingDepId);
                           if (!drivingDep) break;
-                          seen.add(drivingDep);
-                          path.unshift(drivingDep);
+                          // Is the driving dep over launch? If so, the bottleneck is further upstream
+                          const depOver = dtcLaunch && drivingDep.dueDate && isAfter(parseISO(drivingDep.dueDate), dtcLaunch);
+                          if (!depOver || walked.has(drivingDepId)) {
+                            // This is the bottleneck link — current task depends on something that's on-time (or we're at the trigger)
+                            // Removing current's dep on drivingDep would let current schedule earlier
+                            const key = `${current.id}-${drivingDepId}`;
+                            const existing = bottleneckCounts.get(key);
+                            if (existing) {
+                              existing.count++;
+                            } else {
+                              bottleneckCounts.set(key, { taskId: current.id, depId: drivingDepId, count: 1 });
+                            }
+                            break;
+                          }
+                          walked.add(drivingDepId);
                           current = drivingDep;
                         }
-                        return path;
-                      };
+                      }
+
+                      // Sort by how many over-tasks each fix would help
+                      const sortedBottlenecks = Array.from(bottleneckCounts.values())
+                        .sort((a, b) => b.count - a.count);
+
+                      for (const bn of sortedBottlenecks.slice(0, 3)) {
+                        const task = pendingMap.get(bn.taskId);
+                        const dep = pendingMap.get(bn.depId);
+                        if (task && dep) {
+                          unblockFixes.push({
+                            taskId: bn.taskId,
+                            taskName: task.name,
+                            depId: bn.depId,
+                            depName: dep.name,
+                            fixesCount: bn.count,
+                          });
+                        }
+                      }
 
                       return (
                         <>
-                          {/* Collapsed header bar — always visible */}
-                          <button
-                            onClick={() => setShowCascadeDetails(!showCascadeDetails)}
-                            className={`w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors ${
-                              allResolved
-                                ? 'bg-emerald-50 hover:bg-emerald-100'
-                                : 'bg-red-50 hover:bg-red-100'
-                            }`}
-                          >
-                            {allResolved ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                            ) : (
-                              <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
-                            )}
-                            <div className="flex-1 min-w-0">
+                          {/* Header bar — always visible, clearly clickable */}
+                          <div className={`flex items-center gap-0 ${allResolved ? 'bg-emerald-50' : 'bg-red-50'}`}>
+                            <button
+                              onClick={() => setShowCascadeDetails(!showCascadeDetails)}
+                              className={`flex-1 flex items-center gap-2 px-4 py-2.5 text-left transition-colors rounded-none ${
+                                allResolved ? 'hover:bg-emerald-100' : 'hover:bg-red-100'
+                              }`}
+                            >
                               {allResolved ? (
-                                <p className="text-xs font-medium text-emerald-700">
-                                  All delays resolved — ready to save
-                                </p>
+                                <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
                               ) : (
-                                <p className="text-xs font-medium text-[#DC2626]">
-                                  {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} pushed past launch ({cascadeWarning.maxDaysOver} BD over)
-                                </p>
+                                <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                               )}
+                              <div className="flex-1 min-w-0">
+                                {allResolved ? (
+                                  <span className="text-xs font-medium text-emerald-700">All delays resolved</span>
+                                ) : (
+                                  <span className="text-xs font-medium text-[#DC2626]">
+                                    {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} past launch ({cascadeWarning.maxDaysOver} BD over)
+                                  </span>
+                                )}
+                              </div>
+                              <span className={`text-[10px] ${allResolved ? 'text-emerald-600' : 'text-[#DC2626]'} shrink-0`}>
+                                {showCascadeDetails ? 'Hide' : 'Resolve'}
+                              </span>
+                              {showCascadeDetails ? (
+                                <ChevronDown className={`w-3.5 h-3.5 shrink-0 ${allResolved ? 'text-emerald-500' : 'text-[#DC2626]'}`} />
+                              ) : (
+                                <ChevronRight className={`w-3.5 h-3.5 shrink-0 ${allResolved ? 'text-emerald-500' : 'text-[#DC2626]'}`} />
+                              )}
+                            </button>
+                            {/* Inline action buttons */}
+                            <div className="flex items-center gap-1.5 px-3 shrink-0">
+                              {allResolved ? (
+                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-emerald-600 text-white text-[11px] font-medium rounded-md hover:bg-emerald-700 transition-colors">
+                                  Save
+                                </button>
+                              ) : (
+                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626]/10 text-[#DC2626] text-[11px] font-medium rounded-md hover:bg-[#DC2626]/20 transition-colors">
+                                  Keep
+                                </button>
+                              )}
+                              <button onClick={onCascadeDismiss} className="px-2.5 py-1 text-[#A8A29E] text-[11px] font-medium hover:text-[#57534E] transition-colors">
+                                Undo
+                              </button>
                             </div>
-                            {showCascadeDetails ? (
-                              <ChevronDown className="w-4 h-4 text-[#A8A29E] shrink-0" />
-                            ) : (
-                              <ChevronRight className="w-4 h-4 text-[#A8A29E] shrink-0" />
-                            )}
-                          </button>
+                          </div>
 
                           {/* Expandable details */}
                           {showCascadeDetails && (
-                            <div className={`px-4 py-3 ${allResolved ? 'bg-emerald-50/50' : 'bg-red-50/50'}`}>
-                              {/* Task status list */}
-                              <div className="space-y-1.5 ml-6 mb-3">
+                            <div className={`px-4 py-3 border-t ${allResolved ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100'}`}>
+                              {/* Simple task list */}
+                              <div className="space-y-0 rounded-lg border border-[#E7E5E4] overflow-hidden mb-3">
+                                <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+                                  <span />
+                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
+                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Due</span>
+                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Status</span>
+                                </div>
                                 {originalOverTasks.map(overTask => {
                                   const isResolved = !currentOverIds.has(overTask.id);
                                   const daysOver = dtcLaunch && overTask.dueDate
                                     ? differenceInBusinessDays(parseISO(overTask.dueDate), dtcLaunch) : 0;
-                                  const criticalPath = getCriticalPath(overTask.id);
-
-                                  // Find driving dependency for quick fix
-                                  const drivingDepId = overTask.dependencies.reduce<string | null>((best, depId) => {
-                                    const d = pendingMap.get(depId);
-                                    if (!d?.dueDate) return best;
-                                    if (!best) return depId;
-                                    const bestTask = pendingMap.get(best);
-                                    return d.dueDate > (bestTask?.dueDate || '') ? depId : best;
-                                  }, null);
-                                  const drivingDep = drivingDepId ? pendingMap.get(drivingDepId) : null;
-
                                   return (
-                                    <div key={overTask.id} className={`rounded-lg border overflow-hidden ${
-                                      isResolved ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-white'
+                                    <div key={overTask.id} className={`grid grid-cols-[auto_1fr_auto_auto] gap-x-3 px-3 py-2 items-center border-b border-[#F5F5F4] last:border-b-0 ${
+                                      isResolved ? 'bg-emerald-50/50' : 'bg-white'
                                     }`}>
-                                      {/* Task row */}
-                                      <div className="px-3 py-2 flex items-center gap-2">
-                                        {isResolved ? (
-                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
-                                        ) : (
-                                          <AlertCircle className="w-3.5 h-3.5 text-[#DC2626] shrink-0" />
-                                        )}
-                                        <span className={`text-[11px] font-medium truncate flex-1 ${
-                                          isResolved ? 'text-emerald-700' : 'text-[#DC2626]'
-                                        }`}>
-                                          {overTask.name}
-                                        </span>
-                                        {isResolved ? (
-                                          <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
-                                            Resolved
-                                          </span>
-                                        ) : (
-                                          <span className="text-[10px] font-medium text-[#DC2626] bg-red-100 px-1.5 py-0.5 rounded shrink-0">
-                                            {daysOver} BD over
-                                          </span>
-                                        )}
-                                      </div>
-
-                                      {/* Show fixes only for unresolved tasks */}
-                                      {!isResolved && (
-                                        <div className="px-3 py-2 border-t border-red-100">
-                                          {/* Delay chain breadcrumb */}
-                                          {criticalPath.length > 1 && (
-                                            <div className="mb-2">
-                                              <div className="flex items-center gap-0.5 flex-wrap">
-                                                {criticalPath.map((pathId, i) => {
-                                                  const pathTask = pendingMap.get(pathId);
-                                                  if (!pathTask) return null;
-                                                  const isLast = i === criticalPath.length - 1;
-                                                  const pathTaskOver = dtcLaunch && pathTask.dueDate ? isAfter(parseISO(pathTask.dueDate), dtcLaunch) : false;
-                                                  return (
-                                                    <React.Fragment key={pathId}>
-                                                      <span className={`text-[10px] px-1 py-0.5 rounded ${
-                                                        pathTaskOver ? 'text-[#DC2626] bg-red-50 font-medium' :
-                                                        pathId === cascadeWarning.triggerTaskId ? 'text-[#1B1464] bg-indigo-50 font-medium' :
-                                                        'text-[#57534E] bg-[#F5F5F4]'
-                                                      }`}>
-                                                        {pathTask.name.length > 20 ? pathTask.name.substring(0, 20) + '…' : pathTask.name}
-                                                        <span className="text-[8px] ml-0.5 opacity-60">{pathTask.durationDays}d</span>
-                                                      </span>
-                                                      {!isLast && <span className="text-[10px] text-[#D6D3D1]">→</span>}
-                                                    </React.Fragment>
-                                                  );
-                                                })}
-                                              </div>
-                                            </div>
-                                          )}
-                                          {/* Quick fix buttons */}
-                                          <div className="space-y-1">
-                                            {drivingDep && (
-                                              <button
-                                                onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
-                                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left"
-                                              >
-                                                <span className="text-[11px]">🔓</span>
-                                                <span className="text-[10px] text-[#92400E]">
-                                                  Remove dependency on <span className="font-medium">{drivingDep.name}</span>
-                                                </span>
-                                              </button>
-                                            )}
-                                            {criticalPath.filter(id => {
-                                              const t = pendingMap.get(id);
-                                              return t && t.durationDays > 1 && id !== overTask.id;
-                                            }).slice(0, 2).map(pathId => {
-                                              const pathTask = pendingMap.get(pathId)!;
-                                              const reduceTo = Math.max(0, pathTask.durationDays - daysOver);
-                                              return (
-                                                <button
-                                                  key={pathId}
-                                                  onClick={() => onCascadeAdjustLeadTime(pathId, reduceTo)}
-                                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors text-left"
-                                                >
-                                                  <span className="text-[11px]">⏱</span>
-                                                  <span className="text-[10px] text-[#1E40AF]">
-                                                    Reduce <span className="font-medium">{pathTask.name}</span> lead time {pathTask.durationDays} → {reduceTo} BD
-                                                  </span>
-                                                </button>
-                                              );
-                                            })}
-                                          </div>
-                                        </div>
+                                      {isResolved ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                                      ) : (
+                                        <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
+                                      )}
+                                      <span className={`text-[11px] truncate ${isResolved ? 'text-emerald-700' : 'text-[#44403C]'}`}>
+                                        {overTask.name}
+                                      </span>
+                                      <span className={`text-[11px] ${isResolved ? 'text-emerald-600' : 'text-[#57534E]'}`}>
+                                        {overTask.dueDate ? format(parseISO(overTask.dueDate), 'MMM d') : '—'}
+                                      </span>
+                                      {isResolved ? (
+                                        <span className="text-[10px] font-medium text-emerald-600">Fixed</span>
+                                      ) : (
+                                        <span className="text-[10px] font-medium text-[#DC2626]">+{daysOver} BD</span>
                                       )}
                                     </div>
                                   );
                                 })}
                               </div>
 
-                              {/* Full chain (collapsible) */}
-                              <div className="ml-6 mb-3">
+                              {/* Quick fixes — consolidated, not per-task */}
+                              {unblockFixes.length > 0 && (
+                                <div className="mb-3">
+                                  <p className="text-[10px] font-semibold text-[#78716C] uppercase tracking-wide mb-1.5 ml-1">Quick fixes</p>
+                                  <div className="space-y-1">
+                                    {unblockFixes.map(fix => (
+                                      <button
+                                        key={`${fix.taskId}-${fix.depId}`}
+                                        onClick={() => onCascadeRemoveDep(fix.taskId, fix.depId)}
+                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-[#E7E5E4] hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
+                                      >
+                                        <span className="text-[10px] text-amber-600 font-medium shrink-0">Unblock</span>
+                                        <span className="text-[11px] text-[#44403C] truncate flex-1">
+                                          {fix.taskName} <span className="text-[#A8A29E]">from</span> {fix.depName}
+                                        </span>
+                                        {fix.fixesCount > 1 && (
+                                          <span className="text-[9px] text-[#A8A29E] shrink-0">fixes {fix.fixesCount}</span>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Full chain toggle */}
+                              <div className="mb-3">
                                 <button
                                   onClick={() => setShowFullChain(!showFullChain)}
-                                  className="text-[10px] text-[#A8A29E] hover:text-[#57534E] transition-colors flex items-center gap-1"
+                                  className="text-[10px] text-[#A8A29E] hover:text-[#57534E] transition-colors flex items-center gap-1 ml-1"
                                 >
                                   {showFullChain ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                  <span>Full chain — adjust lead times manually ({cascadeWarning.chainTaskIds.length} tasks)</span>
+                                  <span>Adjust lead times manually ({cascadeWarning.chainTaskIds.length} tasks)</span>
                                 </button>
                                 {showFullChain && (
                                   <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mt-1.5">
@@ -1931,8 +1926,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                 )}
                               </div>
 
-                              {/* Action buttons */}
-                              <div className="flex items-center gap-2 ml-6">
+                              {/* Bottom action buttons */}
+                              <div className="flex items-center gap-2">
                                 {allResolved ? (
                                   <button onClick={onCascadeApply} className="px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors">
                                     Save with Fixes
@@ -1951,29 +1946,6 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                   Undo Change
                                 </button>
                               </div>
-                            </div>
-                          )}
-
-                          {/* Compact action buttons when collapsed */}
-                          {!showCascadeDetails && (
-                            <div className={`flex items-center gap-2 px-4 py-2 border-t ${allResolved ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100'}`}>
-                              {allResolved ? (
-                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors">
-                                  Save with Fixes
-                                </button>
-                              ) : (
-                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
-                                  Keep with Delays
-                                </button>
-                              )}
-                              {cascadeWarning.hasFixes && (
-                                <button onClick={onCascadeApplyOriginal} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
-                                  Save without Fixes
-                                </button>
-                              )}
-                              <button onClick={onCascadeDismiss} className="px-2.5 py-1 text-[#A8A29E] text-[11px] font-medium hover:text-[#57534E] transition-colors">
-                                Undo Change
-                              </button>
                             </div>
                           )}
                         </>
