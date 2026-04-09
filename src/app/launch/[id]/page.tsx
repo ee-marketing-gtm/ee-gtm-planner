@@ -2776,71 +2776,44 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             </button>
           )}
 
-          {/* 2. Deliverable — compact link preview or inline add */}
+          {/* 2. Links section */}
           <div>
-            <div className="flex items-center gap-1.5 mb-1">
+            <div className="flex items-center gap-1.5 mb-1.5">
               <LinkIcon className="w-3 h-3 text-[#57534E]" />
-              <label className="text-[11px] font-medium text-[#57534E]">
-                {deliverableLabel || 'Deliverable'}
-              </label>
-              {hasLink && (
+              <label className="text-[11px] font-medium text-[#57534E]">Links</label>
+            </div>
+
+            {/* Existing link display */}
+            {hasLink && !editingLink && (
+              <div className="flex items-center gap-2 mb-1.5">
+                <a
+                  href={task.deliverableUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors"
+                >
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  <span className="truncate max-w-[300px]">{getDisplayLabel(task)}</span>
+                </a>
                 <button
-                  onClick={() => setEditingLink(!editingLink)}
-                  className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
+                  onClick={() => setEditingLink(true)}
+                  className="p-1 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
                   title="Edit link"
                 >
                   <Pencil className="w-3 h-3" />
                 </button>
-              )}
-            </div>
-            {hasLink && !editingLink ? (
-              <a
-                href={task.deliverableUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors"
-              >
-                <ExternalLink className="w-3 h-3 shrink-0" />
-                <span className="truncate max-w-[300px]">{getDisplayLabel(task)}</span>
-              </a>
-            ) : hasLink && editingLink ? (
-              <div className="flex gap-2 items-center">
-                <input
-                  type="url"
-                  value={task.deliverableUrl || ''}
-                  onChange={e => updateDeliverableUrl(task.id, e.target.value)}
-                  placeholder="Paste link..."
-                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
-                />
-                <input
-                  type="text"
-                  value={linkLabel}
-                  onChange={e => { setLinkLabel(e.target.value); updateTaskField(task.id, { deliverableLabel: e.target.value }); }}
-                  placeholder="Label (optional)"
-                  className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
-                />
-                <button
-                  onClick={() => setEditingLink(false)}
-                  className="text-[#A8A29E] hover:text-[#57534E] p-1 rounded hover:bg-[#F5F5F4] transition-colors"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
               </div>
-            ) : !editingLink ? (
-              <button
-                onClick={() => setEditingLink(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#FF1493] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                Add link
-              </button>
-            ) : (
+            )}
+
+            {/* Edit / add link form */}
+            {editingLink ? (
               <div className="flex gap-2 items-center">
                 <input
                   type="url"
                   value={task.deliverableUrl || ''}
                   onChange={e => updateDeliverableUrl(task.id, e.target.value)}
-                  placeholder="Paste Google Drive, Dropbox, or other link..."
+                  onKeyDown={e => { if (e.key === 'Enter') setEditingLink(false); if (e.key === 'Escape') setEditingLink(false); }}
+                  placeholder="Paste link..."
                   className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
                   autoFocus
                 />
@@ -2848,6 +2821,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   type="text"
                   value={linkLabel}
                   onChange={e => { setLinkLabel(e.target.value); updateTaskField(task.id, { deliverableLabel: e.target.value }); }}
+                  onKeyDown={e => { if (e.key === 'Enter') setEditingLink(false); if (e.key === 'Escape') setEditingLink(false); }}
                   placeholder="Label (optional)"
                   className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
                 />
@@ -2858,6 +2832,14 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   <X className="w-3.5 h-3.5" />
                 </button>
               </div>
+            ) : !hasLink && (
+              <button
+                onClick={() => setEditingLink(true)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#FF1493] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors"
+              >
+                <Plus className="w-3 h-3" />
+                Add link
+              </button>
             )}
           </div>
 
