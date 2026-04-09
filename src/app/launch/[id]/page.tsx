@@ -2267,25 +2267,40 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
           {/* Subtitle — dependency status or notes */}
           {!isExpanded && task.status !== 'complete' && task.status !== 'skipped' && (() => {
             if (task.dependencies.length > 0) {
+              // Find the driving dep (latest due date, regardless of status)
+              const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                const dep = launch.tasks.find(t => t.id === depId);
+                if (!dep?.dueDate) return latest;
+                if (!latest?.dueDate) return dep;
+                return dep.dueDate > latest.dueDate ? dep : latest;
+              }, null);
               const allComplete = task.dependencies.every(depId => {
                 const d = launch.tasks.find(t => t.id === depId);
                 return d && (d.status === 'complete' || d.status === 'skipped');
               });
-              if (allComplete) {
-                return <p className="text-[11px] text-emerald-500 mt-0.5">Ready</p>;
-              }
-              const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+              // Find driving INCOMPLETE dep for "waiting on" display
+              const drivingIncompleteDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
                 const dep = launch.tasks.find(t => t.id === depId);
                 if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
                 if (!latest?.dueDate) return dep;
                 return dep.dueDate > latest.dueDate ? dep : latest;
               }, null);
-              if (drivingDep) {
+              if (drivingIncompleteDep) {
                 return (
                   <p className="text-[11px] text-[#78716C] mt-0.5 truncate">
-                    waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                    waiting on <button onClick={() => onNavigateToTask?.(drivingIncompleteDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingIncompleteDep.name}</button>
                   </p>
                 );
+              }
+              if (allComplete && drivingDep && task.dependencies.length > 1) {
+                return (
+                  <p className="text-[11px] text-[#78716C] mt-0.5 truncate">
+                    start from <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                  </p>
+                );
+              }
+              if (allComplete) {
+                return <p className="text-[11px] text-emerald-500 mt-0.5">Ready</p>;
               }
             }
             // No dependencies — show note preview if any
@@ -2579,29 +2594,48 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   <p className="text-[10px] text-[#A8A29E]">No dependencies</p>
                 ) : null}
                 {task.dependencies.length > 0 && !editingDeps && (() => {
+                  // Find the driving dependency (latest due date among all deps)
+                  const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                    const dep = launch.tasks.find(t => t.id === depId);
+                    if (!dep?.dueDate) return latest;
+                    if (!latest?.dueDate) return dep;
+                    return dep.dueDate > latest.dueDate ? dep : latest;
+                  }, null);
+
                   const allDepsComplete = task.dependencies.every(depId => {
                     const dep = launch.tasks.find(t => t.id === depId);
                     return dep && (dep.status === 'complete' || dep.status === 'skipped');
                   });
-                  if (allDepsComplete) {
-                    return <p className="text-[10px] text-emerald-600 mt-1">All dependencies complete</p>;
-                  }
-                  // Find the driving dep among INCOMPLETE deps only
-                  const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
-                    const dep = launch.tasks.find(t => t.id === depId);
-                    if (!dep?.dueDate) return latest;
-                    if (dep.status === 'complete' || dep.status === 'skipped') return latest;
-                    if (!latest?.dueDate) return dep;
-                    return dep.dueDate > latest.dueDate ? dep : latest;
-                  }, null);
-                  return drivingDep ? (
-                    <p className="text-[10px] text-[#A8A29E] mt-1">
-                      Waiting on incomplete dependencies
-                      {task.dependencies.length > 1 && (
-                        <span className="text-[#FF1493]"> — driven by: {drivingDep.name} ({drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : 'no date'})</span>
+
+                  const incompleteDeps = task.dependencies
+                    .map(depId => launch.tasks.find(t => t.id === depId))
+                    .filter(d => d && d.status !== 'complete' && d.status !== 'skipped');
+
+                  return (
+                    <div className="mt-1.5 space-y-0.5">
+                      {/* Always show which dep drives the start date */}
+                      {drivingDep && task.dependencies.length > 1 && (
+                        <p className="text-[10px] text-[#78716C]">
+                          Start date set by{' '}
+                          <button
+                            onClick={() => onNavigateToTask?.(drivingDep.id)}
+                            className="font-medium text-[#1B1464] underline decoration-dotted hover:text-[#FF1493] transition-colors"
+                          >
+                            {drivingDep.name}
+                          </button>
+                          <span className="text-[#A8A29E]"> (due {drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : '—'})</span>
+                        </p>
                       )}
-                    </p>
-                  ) : null;
+                      {/* Status line */}
+                      {allDepsComplete ? (
+                        <p className="text-[10px] text-emerald-600">All dependencies complete</p>
+                      ) : incompleteDeps.length > 0 ? (
+                        <p className="text-[10px] text-amber-600">
+                          Waiting on {incompleteDeps.length} incomplete: {incompleteDeps.map(d => d!.name).join(', ')}
+                        </p>
+                      ) : null}
+                    </div>
+                  );
                 })()}
                 {editingDeps && (
                   <div className="mt-2">
