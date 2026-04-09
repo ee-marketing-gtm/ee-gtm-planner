@@ -573,6 +573,14 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'design_production',
   },
+  {
+    name: 'Social Assets Ready',
+    leadTime: 5,
+    dependsOn: ['Draft Social Creative Brief', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
+    owner: 'social',
+    phase: 'design_production',
+    notes: 'Final social assets. Requires social brief and photo selects.',
+  },
 
   // ── SEPHORA TRACK ──
   // Work tasks (dates computed from dependencies)
