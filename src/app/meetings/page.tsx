@@ -90,7 +90,7 @@ export default function MeetingsPage() {
       <div className="bg-white rounded-xl border border-[#E7E5E4] p-4 mb-6">
         <div className="flex items-center gap-3 flex-wrap">
           <span className="text-xs font-medium text-[#57534E]">Filter by launch:</span>
-          <button onClick={selectAll} className="text-[11px] text-[#FF1493] hover:underline">All</button>
+          <button onClick={selectAll} className="text-[11px] text-[#3538CD] hover:underline">All</button>
           <button onClick={selectNone} className="text-[11px] text-[#A8A29E] hover:underline">None</button>
           <div className="w-px h-4 bg-[#E7E5E4]" />
           {launches.map(l => (
@@ -99,7 +99,7 @@ export default function MeetingsPage() {
               onClick={() => toggleLaunch(l.id)}
               className={`px-3 py-1 rounded-full text-[11px] font-medium border transition-colors ${
                 selectedLaunches.has(l.id)
-                  ? 'bg-[#FFF0F7] border-[#FF1493] text-[#FF1493]'
+                  ? 'bg-[#EEF0FF] border-[#3538CD] text-[#3538CD]'
                   : 'bg-white border-[#E7E5E4] text-[#A8A29E] hover:border-[#D6D3D1]'
               }`}
             >
@@ -136,7 +136,7 @@ export default function MeetingsPage() {
                   <div>
                     <Link
                       href={`/launch/${launch.id}?task=${task.id}`}
-                      className="text-sm font-medium text-[#1B1464] hover:text-[#FF1493] transition-colors"
+                      className="text-sm font-medium text-[#1B1464] hover:text-[#3538CD] transition-colors"
                     >
                       {task.name}
                     </Link>
@@ -147,7 +147,7 @@ export default function MeetingsPage() {
                   <div>
                     {task.startDate && task.dueDate ? (
                       <div className="flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-[#FF1493]" />
+                        <CalendarDays className="w-3.5 h-3.5 text-[#3538CD]" />
                         <span className="text-xs text-[#57534E]">
                           {format(parseISO(task.startDate), 'MMM d')} &rarr; {format(parseISO(task.dueDate), 'MMM d')}
                         </span>

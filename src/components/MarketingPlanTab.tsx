@@ -53,12 +53,12 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="bg-[#FFF0F7] rounded-xl p-4 border border-[#FF1493]/10">
+      <div className="bg-[#EEF0FF] rounded-xl p-4 border border-[#3538CD]/10">
         <div className="flex items-start gap-2">
-          <Target className="w-4 h-4 text-[#FF1493] mt-0.5" />
+          <Target className="w-4 h-4 text-[#3538CD] mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-[#FF1493]">360 Marketing Plan</p>
-            <p className="text-xs text-[#FF1493]/70 mt-0.5">
+            <p className="text-sm font-medium text-[#3538CD]">360 Marketing Plan</p>
+            <p className="text-xs text-[#3538CD]/70 mt-0.5">
               Build your full-funnel marketing plan. Define tactics, timing, budget, and KPIs for every channel.
             </p>
           </div>
@@ -81,14 +81,14 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                   updatePlan({ objectives: list });
                 }}
                 placeholder="e.g., Drive 500 units in first 30 days"
-                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
               />
               {plan.objectives.length > 1 && (
                 <button onClick={() => updatePlan({ objectives: plan.objectives.filter((_, j) => j !== i) })} className="text-xs text-[#D6D3D1] hover:text-[#DC2626]">×</button>
               )}
             </div>
           ))}
-          <button onClick={() => updatePlan({ objectives: [...plan.objectives, ''] })} className="text-xs text-[#FF1493] hover:underline">+ Add objective</button>
+          <button onClick={() => updatePlan({ objectives: [...plan.objectives, ''] })} className="text-xs text-[#3538CD] hover:underline">+ Add objective</button>
         </div>
       </div>
 
@@ -107,7 +107,7 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                   updatePlan({ keyMetrics: list });
                 }}
                 placeholder="Metric (e.g., Revenue)"
-                className="px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                className="px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
               />
               <input
                 type="text"
@@ -118,21 +118,21 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                   updatePlan({ keyMetrics: list });
                 }}
                 placeholder="Target (e.g., $50K first month)"
-                className="px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                className="px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
               />
               {plan.keyMetrics.length > 1 && (
                 <button onClick={() => updatePlan({ keyMetrics: plan.keyMetrics.filter((_, j) => j !== i) })} className="text-xs text-[#D6D3D1] hover:text-[#DC2626] px-1">×</button>
               )}
             </div>
           ))}
-          <button onClick={() => updatePlan({ keyMetrics: [...plan.keyMetrics, { metric: '', target: '' }] })} className="text-xs text-[#FF1493] hover:underline">+ Add metric</button>
+          <button onClick={() => updatePlan({ keyMetrics: [...plan.keyMetrics, { metric: '', target: '' }] })} className="text-xs text-[#3538CD] hover:underline">+ Add metric</button>
         </div>
       </div>
 
       {/* Budget Summary */}
       <div className="bg-white rounded-xl border border-[#E7E5E4] p-5">
         <div className="flex items-center gap-2 mb-2">
-          <DollarSign className="w-4 h-4 text-[#FF1493]" />
+          <DollarSign className="w-4 h-4 text-[#3538CD]" />
           <h3 className="text-sm font-semibold text-[#1C1917]">Budget Summary</h3>
         </div>
         <p className="text-2xl font-bold text-[#1C1917]">
@@ -158,7 +158,7 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                 <h3 className="text-sm font-semibold text-[#1C1917]">{section.label}</h3>
                 <span className="text-xs text-[#A8A29E]">{channels.length} channels</span>
                 {sectionBudget > 0 && (
-                  <span className="text-xs text-[#FF1493] font-medium">${sectionBudget.toLocaleString()}</span>
+                  <span className="text-xs text-[#3538CD] font-medium">${sectionBudget.toLocaleString()}</span>
                 )}
               </div>
               {isExpanded ? <ChevronDown className="w-4 h-4 text-[#A8A29E]" /> : <ChevronRight className="w-4 h-4 text-[#A8A29E]" />}
@@ -184,35 +184,35 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                       value={channel.channel}
                       onChange={e => updateChannel(sectionKey, i, { channel: e.target.value })}
                       placeholder="Channel"
-                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#FF1493]/20"
+                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3538CD]/20"
                     />
                     <input
                       type="text"
                       value={channel.tactic}
                       onChange={e => updateChannel(sectionKey, i, { tactic: e.target.value })}
                       placeholder="Tactic details"
-                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#FF1493]/20"
+                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3538CD]/20"
                     />
                     <input
                       type="text"
                       value={channel.timing}
                       onChange={e => updateChannel(sectionKey, i, { timing: e.target.value })}
                       placeholder="Timing"
-                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#FF1493]/20"
+                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3538CD]/20"
                     />
                     <input
                       type="number"
                       value={channel.budget ?? ''}
                       onChange={e => updateChannel(sectionKey, i, { budget: e.target.value ? Number(e.target.value) : null })}
                       placeholder="$0"
-                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#FF1493]/20"
+                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3538CD]/20"
                     />
                     <input
                       type="text"
                       value={channel.kpiTarget}
                       onChange={e => updateChannel(sectionKey, i, { kpiTarget: e.target.value })}
                       placeholder="Target"
-                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#FF1493]/20"
+                      className="px-2 py-1.5 border border-[#E7E5E4] rounded text-xs focus:outline-none focus:ring-1 focus:ring-[#3538CD]/20"
                     />
                     <select
                       value={channel.owner}
@@ -229,7 +229,7 @@ export function MarketingPlanTab({ launch, onUpdate }: Props) {
                   </div>
                 ))}
                 <div className="px-4 py-3 border-t border-[#E7E5E4]">
-                  <button onClick={() => addChannel(sectionKey)} className="flex items-center gap-1.5 text-xs text-[#FF1493] hover:underline">
+                  <button onClick={() => addChannel(sectionKey)} className="flex items-center gap-1.5 text-xs text-[#3538CD] hover:underline">
                     <Plus className="w-3 h-3" /> Add channel
                   </button>
                 </div>

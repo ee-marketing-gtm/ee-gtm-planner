@@ -245,7 +245,7 @@ export default function TrackerPage() {
             type="checkbox"
             checked={hideComplete}
             onChange={e => setHideComplete(e.target.checked)}
-            className="rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]"
+            className="rounded border-[#D6D3D1] text-[#3538CD] focus:ring-[#3538CD]"
           />
           Hide completed
         </label>
@@ -309,7 +309,7 @@ export default function TrackerPage() {
                         {/* Task name - clickable link */}
                         <Link
                           href={`/launch/${launch.id}?task=${task.id}`}
-                          className="hover:text-[#FF1493] transition-colors min-w-0"
+                          className="hover:text-[#3538CD] transition-colors min-w-0"
                         >
                           <p className={`text-sm truncate ${task.status === 'complete' ? 'line-through text-[#A8A29E]' : 'text-[#1B1464]'}`}>
                             {task.name}

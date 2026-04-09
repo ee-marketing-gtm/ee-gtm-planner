@@ -109,7 +109,7 @@ export default function LaunchesPage() {
                   </div>
                   <div>
                     <div className="h-1.5 bg-[#F5F5F4] rounded-full overflow-hidden w-20">
-                      <div className="h-full rounded-full bg-[#FF1493] progress-fill" style={{ width: `${progress}%` }} />
+                      <div className="h-full rounded-full bg-[#3538CD] progress-fill" style={{ width: `${progress}%` }} />
                     </div>
                     <p className="text-[11px] text-[#A8A29E] mt-0.5">{progress}%</p>
                   </div>

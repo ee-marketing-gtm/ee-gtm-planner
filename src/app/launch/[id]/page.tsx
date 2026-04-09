@@ -74,6 +74,11 @@ export default function LaunchDetail() {
   const [showSettings, setShowSettings] = useState(false);
   const [customHex, setCustomHex] = useState(launch?.brandColor || '');
   const [imageUrlInput, setImageUrlInput] = useState(launch?.productImageUrl || '');
+  const [cropImage, setCropImage] = useState<string | null>(null);
+  const [cropZoom, setCropZoom] = useState(1);
+  const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const cropDragging = useRef(false);
+  const cropStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
 
   const foundLaunch = launches.find(l => l.id === params.id);
 
@@ -567,7 +572,7 @@ export default function LaunchDetail() {
   if (!launch) return (
     <div className="p-8 text-center">
       <p className="text-[#A8A29E]">Launch not found.</p>
-      <Link href="/" className="text-[#FF1493] text-sm mt-2 inline-block">Back to dashboard</Link>
+      <Link href="/" className="text-[#3538CD] text-sm mt-2 inline-block">Back to dashboard</Link>
     </div>
   );
 
@@ -576,7 +581,7 @@ export default function LaunchDetail() {
   const accentColor = launch.brandColor || TIER_CONFIG[launch.tier].color;
 
   const PRESET_COLORS = [
-    '#FF1493', '#EF4444', '#F59E0B', '#10B981', '#3B82F6',
+    '#3538CD', '#EF4444', '#F59E0B', '#10B981', '#3B82F6',
     '#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#1B1464',
   ];
 
@@ -592,6 +597,96 @@ export default function LaunchDetail() {
 
   return (
     <div className="p-8 max-w-[1200px]">
+      {/* Image Crop Modal */}
+      {cropImage && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setCropImage(null)}>
+          <div className="bg-white rounded-2xl p-6 w-[400px] shadow-xl" onClick={e => e.stopPropagation()}>
+            <h3 className="text-sm font-semibold text-[#1B1464] mb-4">Crop & Resize Image</h3>
+            <div
+              className="relative w-[200px] h-[200px] mx-auto rounded-xl overflow-hidden bg-[#F5F5F4] cursor-move"
+              style={{ backgroundImage: 'linear-gradient(45deg, #E7E5E4 25%, transparent 25%, transparent 75%, #E7E5E4 75%), linear-gradient(45deg, #E7E5E4 25%, transparent 25%, transparent 75%, #E7E5E4 75%)', backgroundSize: '16px 16px', backgroundPosition: '0 0, 8px 8px' }}
+              onMouseDown={e => {
+                cropDragging.current = true;
+                cropStart.current = { x: e.clientX, y: e.clientY, ox: cropOffset.x, oy: cropOffset.y };
+              }}
+              onMouseMove={e => {
+                if (!cropDragging.current) return;
+                setCropOffset({
+                  x: cropStart.current.ox + (e.clientX - cropStart.current.x),
+                  y: cropStart.current.oy + (e.clientY - cropStart.current.y),
+                });
+              }}
+              onMouseUp={() => { cropDragging.current = false; }}
+              onMouseLeave={() => { cropDragging.current = false; }}
+            >
+              <img
+                src={cropImage}
+                alt="Crop preview"
+                className="absolute select-none pointer-events-none"
+                draggable={false}
+                style={{
+                  transform: `translate(${cropOffset.x}px, ${cropOffset.y}px) scale(${cropZoom})`,
+                  transformOrigin: 'center center',
+                  left: '50%', top: '50%',
+                  marginLeft: '-100px', marginTop: '-100px',
+                  width: '200px', height: '200px',
+                  objectFit: 'contain',
+                }}
+              />
+            </div>
+            <div className="mt-4 flex items-center gap-3">
+              <span className="text-[11px] text-[#78716C] shrink-0">Zoom</span>
+              <input
+                type="range"
+                min="0.5"
+                max="3"
+                step="0.05"
+                value={cropZoom}
+                onChange={e => setCropZoom(parseFloat(e.target.value))}
+                className="flex-1 accent-[#3538CD]"
+              />
+              <span className="text-[11px] text-[#78716C] w-8 text-right">{Math.round(cropZoom * 100)}%</span>
+            </div>
+            <div className="flex gap-2 mt-5">
+              <button
+                onClick={() => setCropImage(null)}
+                className="flex-1 px-3 py-2 text-xs font-medium text-[#57534E] bg-[#F5F5F4] rounded-lg hover:bg-[#E7E5E4] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  // Render cropped image to canvas
+                  const canvas = document.createElement('canvas');
+                  canvas.width = 400;
+                  canvas.height = 400;
+                  const ctx = canvas.getContext('2d')!;
+                  const img = new Image();
+                  img.crossOrigin = 'anonymous';
+                  img.onload = () => {
+                    ctx.clearRect(0, 0, 400, 400);
+                    const scale = cropZoom;
+                    const imgW = 400 * (img.width / Math.max(img.width, img.height));
+                    const imgH = 400 * (img.height / Math.max(img.width, img.height));
+                    const dx = (400 - imgW * scale) / 2 + cropOffset.x * 2;
+                    const dy = (400 - imgH * scale) / 2 + cropOffset.y * 2;
+                    ctx.drawImage(img, dx, dy, imgW * scale, imgH * scale);
+                    const dataUrl = canvas.toDataURL('image/png');
+                    setImageUrlInput(dataUrl);
+                    updateLaunch({ ...launch, productImageUrl: dataUrl });
+                    setCropImage(null);
+                  };
+                  img.src = cropImage;
+                }}
+                className="flex-1 px-3 py-2 text-xs font-medium text-white bg-[#3538CD] rounded-lg hover:bg-[#2D31B3] transition-colors"
+              >
+                Save
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-xs text-[#A8A29E] hover:text-[#57534E] mb-4">
@@ -605,7 +700,7 @@ export default function LaunchDetail() {
                 <img
                   src={launch.productImageUrl}
                   alt={launch.name}
-                  className="w-12 h-12 rounded-lg object-cover border border-[#E7E5E4] shrink-0"
+                  className="w-12 h-12 rounded-lg object-contain shrink-0"
                 />
               ) : (
                 <div
@@ -713,8 +808,8 @@ export default function LaunchDetail() {
                       updateLaunch({ ...launch, brandColor: customHex });
                     }
                   }}
-                  placeholder="#FF1493"
-                  className="w-24 px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 font-mono"
+                  placeholder="#3538CD"
+                  className="w-24 px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 font-mono"
                 />
                 {customHex && /^#[0-9A-Fa-f]{6}$/.test(customHex) && (
                   <div className="w-5 h-5 rounded-full border border-[#E7E5E4]" style={{ background: customHex }} />
@@ -809,10 +904,20 @@ export default function LaunchDetail() {
                   <img
                     src={launch.productImageUrl}
                     alt="Product preview"
-                    className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4]"
+                    className="w-16 h-16 rounded-lg object-contain shrink-0"
                   />
                   <div className="flex flex-col gap-1">
-                    <label className="text-[11px] text-[#6366F1] hover:text-[#4F46E5] cursor-pointer transition-colors font-medium">
+                    <button
+                      onClick={() => {
+                        setCropImage(launch.productImageUrl!);
+                        setCropZoom(1);
+                        setCropOffset({ x: 0, y: 0 });
+                      }}
+                      className="text-[11px] text-[#3538CD] hover:text-[#2D31B3] cursor-pointer transition-colors font-medium text-left"
+                    >
+                      Crop / Resize
+                    </button>
+                    <label className="text-[11px] text-[#3538CD] hover:text-[#2D31B3] cursor-pointer transition-colors font-medium">
                       Replace
                       <input
                         type="file"
@@ -824,8 +929,9 @@ export default function LaunchDetail() {
                           const reader = new FileReader();
                           reader.onload = () => {
                             const dataUrl = reader.result as string;
-                            setImageUrlInput(dataUrl);
-                            updateLaunch({ ...launch, productImageUrl: dataUrl });
+                            setCropImage(dataUrl);
+                            setCropZoom(1);
+                            setCropOffset({ x: 0, y: 0 });
                           };
                           reader.readAsDataURL(file);
                           e.target.value = '';
@@ -845,7 +951,7 @@ export default function LaunchDetail() {
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
-                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-[#D6D3D1] rounded-lg cursor-pointer hover:border-[#FF1493]/40 hover:bg-[#FF1493]/5 transition-colors">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-[#D6D3D1] rounded-lg cursor-pointer hover:border-[#3538CD]/40 hover:bg-[#3538CD]/5 transition-colors">
                     <ImagePlus className="w-4 h-4 text-[#A8A29E]" />
                     <span className="text-xs text-[#78716C]">Upload image</span>
                     <input
@@ -858,8 +964,9 @@ export default function LaunchDetail() {
                         const reader = new FileReader();
                         reader.onload = () => {
                           const dataUrl = reader.result as string;
-                          setImageUrlInput(dataUrl);
-                          updateLaunch({ ...launch, productImageUrl: dataUrl });
+                          setCropImage(dataUrl);
+                          setCropZoom(1);
+                          setCropOffset({ x: 0, y: 0 });
                         };
                         reader.readAsDataURL(file);
                         e.target.value = '';
@@ -882,7 +989,7 @@ export default function LaunchDetail() {
                       }
                     }}
                     placeholder="Paste URL"
-                    className="w-28 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                    className="w-28 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
                   />
                 </div>
               )}
@@ -936,13 +1043,13 @@ export default function LaunchDetail() {
               : null;
 
             return (
-            <div className={`mt-3 rounded-xl border p-4 ${recalcResult.impossible ? 'bg-red-50 border-red-200' : 'bg-[#FFF0F7] border-[#FF1493]/20'}`}>
+            <div className={`mt-3 rounded-xl border p-4 ${recalcResult.impossible ? 'bg-red-50 border-red-200' : 'bg-[#EEF0FF] border-[#3538CD]/20'}`}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   {recalcResult.impossible ? (
                     <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
                   ) : (
-                    <RefreshCw className="w-4 h-4 text-[#FF1493] shrink-0" />
+                    <RefreshCw className="w-4 h-4 text-[#3538CD] shrink-0" />
                   )}
                   <div>
                     {recalcResult.impossible ? (
@@ -951,7 +1058,7 @@ export default function LaunchDetail() {
                       </p>
                     ) : (
                       <p className="text-sm text-[#1B1464]">
-                        <span className="font-medium text-[#FF1493]">Timeline recalculated</span>
+                        <span className="font-medium text-[#3538CD]">Timeline recalculated</span>
                         {' — '}
                         <span className="text-[#57534E]">
                           {recalcResult.changes.length} task{recalcResult.changes.length !== 1 ? 's' : ''} shifted
@@ -992,7 +1099,7 @@ export default function LaunchDetail() {
                       Undo
                     </button>
                   )}
-                  <button onClick={() => { setRecalcResult(null); if (!recalcResult.impossible) setPreRecalcTasks(null); }} className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors">
+                  <button onClick={() => { setRecalcResult(null); if (!recalcResult.impossible) setPreRecalcTasks(null); }} className="px-3 py-1.5 bg-[#3538CD] text-white text-xs font-medium rounded-lg hover:bg-[#2D31B3] transition-colors">
                     {recalcResult.impossible ? 'Dismiss' : 'OK'}
                   </button>
                 </div>
@@ -1000,7 +1107,7 @@ export default function LaunchDetail() {
 
               {/* Warnings — only show if critical */}
               {recalcResult.warnings.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-[#FF1493]/10 space-y-1">
+                <div className="mt-2 pt-2 border-t border-[#3538CD]/10 space-y-1">
                   {recalcResult.warnings.map((w, i) => (
                     <p key={i} className="text-[11px] text-[#57534E] flex items-start gap-1.5">
                       <span className="text-[#F59E0B] mt-0.5 shrink-0">&#9679;</span>
@@ -1036,7 +1143,7 @@ export default function LaunchDetail() {
                     updateLaunch({ ...launch, tasks: result.tasks });
                     setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes });
                   }}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-[#3538CD] text-white text-xs font-medium rounded-lg hover:bg-[#2D31B3] transition-colors"
                 >
                   <RefreshCw className="w-3.5 h-3.5" />
                   Recalculate Timeline
@@ -1609,11 +1716,11 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
     <div className="space-y-4">
       {/* Early finish prompt */}
       {earlyFinishPrompt && (
-        <div className="bg-[#FFF0F7] rounded-xl border border-[#FF1493]/20 p-4 animate-fade-in">
+        <div className="bg-[#EEF0FF] rounded-xl border border-[#3538CD]/20 p-4 animate-fade-in">
           <div className="flex items-start gap-2 mb-3">
-            <Sparkles className="w-4 h-4 text-[#FF1493] mt-0.5 shrink-0" />
+            <Sparkles className="w-4 h-4 text-[#3538CD] mt-0.5 shrink-0" />
             <div>
-              <p className="text-sm font-medium text-[#FF1493]">
+              <p className="text-sm font-medium text-[#3538CD]">
                 Nice! You finished {earlyFinishPrompt.daysSaved} day{earlyFinishPrompt.daysSaved !== 1 ? 's' : ''} early
               </p>
               <p className="text-xs text-[#57534E] mt-0.5">
@@ -1625,7 +1732,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
             {earlyFinishPrompt.redistributions.map((r, i) => (
               <div key={i} className="flex items-center justify-between px-3 py-2">
                 <span className="text-xs text-[#1B1464]">{r.taskName}</span>
-                <span className="text-xs text-[#FF1493] font-medium">
+                <span className="text-xs text-[#3538CD] font-medium">
                   {r.currentGap}d → {r.newGap}d (+{r.newGap - r.currentGap})
                 </span>
               </div>
@@ -1634,7 +1741,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
           <div className="flex items-center gap-2">
             <button
               onClick={handleAcceptRedistribution}
-              className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+              className="px-3 py-1.5 bg-[#3538CD] text-white text-xs font-medium rounded-lg hover:bg-[#2D31B3] transition-colors"
             >
               Add buffer to tight tasks
             </button>
@@ -1656,7 +1763,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
             value={searchQuery}
             onChange={e => setSearchQuery(e.target.value)}
             placeholder="Search tasks by name, notes, or owner..."
-            className="w-full px-4 py-2.5 pl-10 border border-[#E7E5E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] bg-white"
+            className="w-full px-4 py-2.5 pl-10 border border-[#E7E5E4] rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD] bg-white"
           />
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A8A29E]" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
           {searchQuery && (
@@ -1802,8 +1909,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
             </div>
             {/* Bulk action bar */}
             {selectedTaskIds.size > 0 && (
-              <div className="flex items-center gap-3 px-4 py-2 bg-[#FF1493]/5 border-b border-[#FF1493]/20">
-                <span className="text-xs font-medium text-[#FF1493]">
+              <div className="flex items-center gap-3 px-4 py-2 bg-[#3538CD]/5 border-b border-[#3538CD]/20">
+                <span className="text-xs font-medium text-[#3538CD]">
                   {selectedTaskIds.size} selected
                 </span>
                 <div className="relative" ref={bulkRef}>
@@ -1843,7 +1950,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 type="checkbox"
                 checked={selectedTaskIds.size === launch.tasks.length && launch.tasks.length > 0}
                 onChange={selectAllTasks}
-                className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
+                className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#3538CD] focus:ring-[#3538CD]/20 cursor-pointer"
               />
               <button onClick={() => { if (sortBy === 'phase') setSortAsc(!sortAsc); else { setSortBy('phase'); setSortAsc(true); } }} className={`text-left hover:text-[#57534E] transition-colors ${sortBy === 'phase' ? 'text-[#57534E]' : ''}`}>
                 Task {sortBy === 'phase' && (sortAsc ? '↑' : '↓')}
@@ -2228,7 +2335,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 onUpdateLaunch({ ...launch, tasks: [...launch.tasks, newTask] });
                 setExpandedTaskId(newTask.id);
               }}
-              className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-[#A8A29E] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors border-t border-[#E7E5E4]"
+              className="w-full flex items-center gap-2 px-4 py-2.5 text-xs text-[#A8A29E] hover:text-[#3538CD] hover:bg-[#EEF0FF] transition-colors border-t border-[#E7E5E4]"
             >
               <Plus className="w-3.5 h-3.5" />
               Add task
@@ -2305,7 +2412,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   }
 
   return (
-    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] transition-colors duration-1000 ${isHighlighted ? 'bg-blue-50 ring-1 ring-blue-200' : isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
+    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] transition-colors duration-1000 ${isHighlighted ? 'bg-blue-50 ring-1 ring-blue-200' : isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#3538CD]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
       <div className="grid grid-cols-[20px_1fr_120px_80px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
         {/* Selection checkbox */}
         <input
@@ -2313,7 +2420,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
           checked={!!isSelected}
           onChange={() => {}}
           onClick={e => { e.stopPropagation(); onToggleSelect?.(e.shiftKey); }}
-          className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
+          className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#3538CD] focus:ring-[#3538CD]/20 cursor-pointer"
         />
         {/* Task name — inline editable */}
         <div className="min-w-0">
@@ -2324,14 +2431,14 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 onChange={(e) => setNameValue(e.target.value)}
                 onBlur={() => { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); } if (e.key === 'Escape') { setNameValue(task.name); setEditingName(false); } }}
-                className="text-sm text-[#1B1464] border-b border-[#FF1493] outline-none bg-transparent w-full"
+                className="text-sm text-[#1B1464] border-b border-[#3538CD] outline-none bg-transparent w-full"
                 autoFocus
               />
             ) : (
               <div className="flex items-center gap-1.5 min-w-0">
                 <div className="w-2 h-2 rounded-full shrink-0" style={{ background: phase.color }} title={PHASES.find(p => p.key === task.phase)?.name || task.phase} />
                 <p
-                  className={`text-sm truncate cursor-pointer hover:text-[#FF1493] transition-colors ${task.status === 'complete' ? 'line-through text-[#A8A29E]' : 'text-[#1B1464]'}`}
+                  className={`text-sm truncate cursor-pointer hover:text-[#3538CD] transition-colors ${task.status === 'complete' ? 'line-through text-[#A8A29E]' : 'text-[#1B1464]'}`}
                   onClick={onToggleExpand}
                   title="Click to view details"
                 >
@@ -2352,7 +2459,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#FFF0F7] text-[#FF1493] rounded-md text-[10px] font-medium hover:bg-[#FF1493] hover:text-white transition-colors shrink-0 cursor-pointer max-w-[160px]"
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EEF0FF] text-[#3538CD] rounded-md text-[10px] font-medium hover:bg-[#3538CD] hover:text-white transition-colors shrink-0 cursor-pointer max-w-[160px]"
                 title={`Open ${getDisplayLabel(task)}`}
               >
                 <ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -2362,7 +2469,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             {deliverableLabel && !hasLink && (
               <button
                 onClick={onToggleExpand}
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded-md text-[10px] font-medium hover:bg-[#FFF0F7] hover:text-[#FF1493] transition-colors shrink-0"
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded-md text-[10px] font-medium hover:bg-[#EEF0FF] hover:text-[#3538CD] transition-colors shrink-0"
                 title="Add link"
               >
                 <Plus className="w-2.5 h-2.5" />
@@ -2394,14 +2501,14 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               if (drivingIncompleteDep) {
                 return (
                   <p className="text-[11px] text-[#78716C] mt-0.5 truncate">
-                    waiting on <button onClick={() => onNavigateToTask?.(drivingIncompleteDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingIncompleteDep.name}</button>
+                    waiting on <button onClick={() => onNavigateToTask?.(drivingIncompleteDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#3538CD] transition-colors">{drivingIncompleteDep.name}</button>
                   </p>
                 );
               }
               if (allComplete && drivingDep && task.dependencies.length > 1) {
                 return (
                   <p className="text-[11px] text-[#78716C] mt-0.5 truncate">
-                    start from <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                    start from <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#3538CD] transition-colors">{drivingDep.name}</button>
                   </p>
                 );
               }
@@ -2515,13 +2622,13 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 setEditingDate(false);
               }
             }}
-            className="text-xs px-1 py-0.5 border border-[#FF1493] rounded bg-white focus:outline-none"
+            className="text-xs px-1 py-0.5 border border-[#3538CD] rounded bg-white focus:outline-none"
             autoFocus
           />
         ) : (
           <button
             onClick={() => { setLocalDateValue(task.dueDate || ''); setEditingDate(true); }}
-            className={`text-xs text-left hover:text-[#FF1493] transition-colors ${isOverdue || isPastLaunch ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
+            className={`text-xs text-left hover:text-[#3538CD] transition-colors ${isOverdue || isPastLaunch ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
             title={isPastLaunch ? 'Past launch date! Click to edit (cascades to downstream tasks)' : 'Click to edit due date (cascades to downstream tasks)'}
           >
             {task.dueDate ? format(parseISO(task.dueDate), 'MMM d, yyyy') : '+ Set date'}
@@ -2554,7 +2661,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 >
                   <span style={{ color: s.color }}>{s.icon}</span>
                   <span className="text-[#1B1464]">{s.label}</span>
-                  {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#FF1493]" />}
+                  {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#3538CD]" />}
                 </button>
               ))}
             </div>
@@ -2582,7 +2689,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 onChange={(e) => setNameValue(e.target.value)}
                 onBlur={() => { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); }}
                 onKeyDown={(e) => { if (e.key === 'Enter') { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); } if (e.key === 'Escape') { setNameValue(task.name); setEditingName(false); } }}
-                className="text-sm font-medium text-[#1B1464] border-b border-[#FF1493] outline-none bg-transparent flex-1"
+                className="text-sm font-medium text-[#1B1464] border-b border-[#3538CD] outline-none bg-transparent flex-1"
                 autoFocus
               />
             ) : (
@@ -2686,7 +2793,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                         >
                           <button
                             onClick={() => onNavigateToTask?.(dep.id)}
-                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#FF1493] transition-colors"
+                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#3538CD] transition-colors"
                             title={`Go to ${dep.name}`}
                           >
                             {isComplete
@@ -2739,7 +2846,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                           Start date set by{' '}
                           <button
                             onClick={() => onNavigateToTask?.(drivingDep.id)}
-                            className="font-medium text-[#1B1464] underline decoration-dotted hover:text-[#FF1493] transition-colors"
+                            className="font-medium text-[#1B1464] underline decoration-dotted hover:text-[#3538CD] transition-colors"
                           >
                             {drivingDep.name}
                           </button>
@@ -2767,7 +2874,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                         const selected = Array.from(e.target.selectedOptions).map(o => o.value);
                         updateTaskField(task.id, { dependencies: selected });
                       }}
-                      className="w-[280px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 max-h-[100px]"
+                      className="w-[280px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 max-h-[100px]"
                     >
                       {launch.tasks
                         .filter(t => t.id !== task.id)
@@ -2781,7 +2888,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     <div className="flex items-center gap-2 mt-2">
                       <button
                         onClick={() => setEditingDeps(false)}
-                        className="px-3 py-1 bg-[#FF1493] text-white text-[11px] font-medium rounded-lg hover:bg-[#D4117D] transition-colors"
+                        className="px-3 py-1 bg-[#3538CD] text-white text-[11px] font-medium rounded-lg hover:bg-[#2D31B3] transition-colors"
                       >
                         Done
                       </button>
@@ -2827,7 +2934,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                             )}
                             <button
                               onClick={() => onNavigateToTask?.(bt.id)}
-                              className={`text-[11px] truncate cursor-pointer hover:text-[#FF1493] transition-colors ${
+                              className={`text-[11px] truncate cursor-pointer hover:text-[#3538CD] transition-colors ${
                                 isDone ? 'text-[#A8A29E]' : 'text-[#44403C]'
                               }`}
                               title={`Go to ${bt.name}`}
@@ -2872,7 +2979,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   href={task.deliverableUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EEF0FF] text-[#3538CD] rounded-lg text-xs font-medium hover:bg-[#3538CD] hover:text-white transition-colors"
                 >
                   <ExternalLink className="w-3 h-3 shrink-0" />
                   <span className="truncate max-w-[300px]">{getDisplayLabel(task)}</span>
@@ -2896,7 +3003,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   onChange={e => updateDeliverableUrl(task.id, e.target.value)}
                   onKeyDown={e => { if (e.key === 'Enter') setEditingLink(false); if (e.key === 'Escape') setEditingLink(false); }}
                   placeholder="Paste link..."
-                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
                   autoFocus
                 />
                 <input
@@ -2905,7 +3012,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   onChange={e => { setLinkLabel(e.target.value); updateTaskField(task.id, { deliverableLabel: e.target.value }); }}
                   onKeyDown={e => { if (e.key === 'Enter') setEditingLink(false); if (e.key === 'Escape') setEditingLink(false); }}
                   placeholder="Label (optional)"
-                  className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                  className="w-[180px] px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
                 />
                 <button
                   onClick={() => setEditingLink(false)}
@@ -2917,7 +3024,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             ) : !hasLink && (
               <button
                 onClick={() => setEditingLink(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#FF1493] hover:text-[#FF1493] hover:bg-[#FFF0F7] transition-colors"
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#3538CD] hover:text-[#3538CD] hover:bg-[#EEF0FF] transition-colors"
               >
                 <Plus className="w-3 h-3" />
                 Add link
@@ -3027,7 +3134,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               {notesOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
               Notes & Updates
               {task.notes && task.notes.trim() && !notesOpen && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-[#FF1493] shrink-0" />
+                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-[#3538CD] shrink-0" />
               )}
             </button>
             {notesOpen && (
@@ -3036,7 +3143,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 onChange={e => updateTaskNotes(task.id, e.target.value)}
                 placeholder="Add notes or status updates..."
                 rows={3}
-                className="w-full mt-1.5 px-3 py-2 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+                className="w-full mt-1.5 px-3 py-2 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
               />
             )}
           </div>
@@ -3060,7 +3167,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     min={1}
                     value={task.durationDays}
                     onChange={e => updateTaskField(task.id, { durationDays: parseInt(e.target.value) || 1 })}
-                    className="w-20 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                    className="w-20 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
                   />
                 </div>
                 <div>
@@ -3072,7 +3179,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                       const selected = Array.from(e.target.selectedOptions).map(o => o.value);
                       updateTaskField(task.id, { dependencies: selected });
                     }}
-                    className="w-[240px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 max-h-[80px]"
+                    className="w-[240px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 max-h-[80px]"
                   >
                     {launch.tasks
                       .filter(t => t.id !== task.id)
@@ -3138,7 +3245,7 @@ function DeliverablesView({ launch }: { launch: Launch }) {
                     href={task.deliverableUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#FFF0F7] text-[#FF1493] rounded-lg text-xs font-medium hover:bg-[#FF1493] hover:text-white transition-colors shrink-0"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#EEF0FF] text-[#3538CD] rounded-lg text-xs font-medium hover:bg-[#3538CD] hover:text-white transition-colors shrink-0"
                   >
                     <ExternalLink className="w-3 h-3" />
                     {getDisplayLabel(task)}

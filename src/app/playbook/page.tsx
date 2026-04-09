@@ -390,7 +390,7 @@ function StepByStepTab() {
             { key: 'none', label: 'No Content Production' },
           ].map(opt => (
             <button key={opt.key} onClick={() => setSelectedType(opt.key as ContentProductionType)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedType === opt.key ? 'bg-[#FF1493] text-white' : 'bg-[#F5F5F4] text-[#57534E] hover:bg-[#E7E5E4]'}`}>
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${selectedType === opt.key ? 'bg-[#3538CD] text-white' : 'bg-[#F5F5F4] text-[#57534E] hover:bg-[#E7E5E4]'}`}>
               {opt.label}
             </button>
           ))}
@@ -438,10 +438,10 @@ function StepByStepTab() {
                       </div>
                     )}
                     <div>
-                      <h4 className="text-xs font-semibold text-[#1B1464] mb-2 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5 text-[#FF1493]" /> Key Deliverables</h4>
+                      <h4 className="text-xs font-semibold text-[#1B1464] mb-2 flex items-center gap-1.5"><CheckSquare className="w-3.5 h-3.5 text-[#3538CD]" /> Key Deliverables</h4>
                       <ul className="space-y-1">
                         {step.keyDeliverables.map((d, j) => (
-                          <li key={j} className="text-xs text-[#57534E] flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#FF1493]" /> {d}</li>
+                          <li key={j} className="text-xs text-[#57534E] flex items-center gap-2"><span className="w-1 h-1 rounded-full bg-[#3538CD]" /> {d}</li>
                         ))}
                       </ul>
                     </div>
@@ -634,7 +634,7 @@ function TemplatesTab() {
         </div>
         <button
           onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#FF1493] text-white text-xs font-medium hover:bg-[#D4117D] transition-colors shrink-0 ml-4"
+          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#3538CD] text-white text-xs font-medium hover:bg-[#2D31B3] transition-colors shrink-0 ml-4"
         >
           <Plus className="w-3.5 h-3.5" />
           Add Template
@@ -652,25 +652,25 @@ function TemplatesTab() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="block text-xs font-medium text-[#57534E] mb-1">Template Name *</label>
-                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., GTM Marketing Deck Template" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]" />
+                <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g., GTM Marketing Deck Template" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]" />
               </div>
               <div>
                 <label className="block text-xs font-medium text-[#57534E] mb-1">Category</label>
-                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]">
+                <select value={category} onChange={e => setCategory(e.target.value)} className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]">
                   {TEMPLATE_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
                 </select>
               </div>
             </div>
             <div>
               <label className="block text-xs font-medium text-[#57534E] mb-1">Link / URL *</label>
-              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="e.g., Google Drive, Notion, or Canva link" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]" />
+              <input value={url} onChange={e => setUrl(e.target.value)} placeholder="e.g., Google Drive, Notion, or Canva link" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]" />
             </div>
             <div>
               <label className="block text-xs font-medium text-[#57534E] mb-1">Description (optional)</label>
-              <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description of when to use this template" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]" />
+              <input value={description} onChange={e => setDescription(e.target.value)} placeholder="Brief description of when to use this template" className="w-full border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]" />
             </div>
             <div className="flex justify-end">
-              <button onClick={handleAdd} disabled={!name.trim()} className="px-4 py-2 rounded-lg bg-[#FF1493] text-white text-xs font-medium hover:bg-[#D4117D] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+              <button onClick={handleAdd} disabled={!name.trim()} className="px-4 py-2 rounded-lg bg-[#3538CD] text-white text-xs font-medium hover:bg-[#2D31B3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                 Save Template
               </button>
             </div>
@@ -709,7 +709,7 @@ function TemplatesTab() {
                       ) : (
                         <button
                           onClick={() => { setEditingId(t.id); setEditUrl(''); }}
-                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#FF1493] text-white text-xs font-medium hover:bg-[#D4117D] transition-colors shrink-0"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#3538CD] text-white text-xs font-medium hover:bg-[#2D31B3] transition-colors shrink-0"
                         >
                           <Plus className="w-3 h-3" />
                           Add Link
@@ -743,11 +743,11 @@ function TemplatesTab() {
                           value={editUrl}
                           onChange={e => setEditUrl(e.target.value)}
                           placeholder="Paste Google Drive, Notion, or Canva link..."
-                          className="flex-1 border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                          className="flex-1 border border-[#E7E5E4] rounded-lg px-3 py-2 text-sm text-[#1B1464] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                           autoFocus
                           onKeyDown={e => { if (e.key === 'Enter') handleUpdateUrl(t.id); if (e.key === 'Escape') setEditingId(null); }}
                         />
-                        <button onClick={() => handleUpdateUrl(t.id)} disabled={!editUrl.trim()} className="px-3 py-2 rounded-lg bg-[#FF1493] text-white text-xs font-medium hover:bg-[#D4117D] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
+                        <button onClick={() => handleUpdateUrl(t.id)} disabled={!editUrl.trim()} className="px-3 py-2 rounded-lg bg-[#3538CD] text-white text-xs font-medium hover:bg-[#2D31B3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed">
                           Save
                         </button>
                         <button onClick={() => setEditingId(null)} className="px-3 py-2 rounded-lg bg-[#F5F5F4] text-xs font-medium text-[#57534E] hover:bg-[#E7E5E4] transition-colors">

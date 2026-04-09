@@ -9,7 +9,7 @@ import { useData } from '@/components/DataProvider';
 import { getLaunchColor } from '@/lib/utils';
 import { computeDateRange, dayIndex, GanttDateRange } from '@/components/GanttChart';
 
-const LAUNCH_COLORS = ['#FF1493', '#6366F1', '#10B981', '#F59E0B', '#EC4899', '#0EA5E9', '#F97316', '#8B5CF6', '#14B8A6', '#EF4444'];
+const LAUNCH_COLORS = ['#3538CD', '#6366F1', '#10B981', '#F59E0B', '#EC4899', '#0EA5E9', '#F97316', '#8B5CF6', '#14B8A6', '#EF4444'];
 
 const PHASE_COLORS: Record<string, string> = {
   content_planning: '#6366F1',
@@ -219,7 +219,7 @@ export default function TimelinePage() {
                     >
                       {isExpanded ? <ChevronDown className="w-3 h-3 text-[#A8A29E]" /> : <ChevronRight className="w-3 h-3 text-[#A8A29E]" />}
                       <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
-                      <Link href={`/launch/${l.id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-semibold text-[#1B1464] truncate hover:text-[#FF1493]">
+                      <Link href={`/launch/${l.id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-semibold text-[#1B1464] truncate hover:text-[#3538CD]">
                         {l.name}
                       </Link>
                       <span className="text-[10px] text-[#A8A29E] ml-auto">{l.tasks.length}</span>

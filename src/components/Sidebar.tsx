@@ -42,11 +42,9 @@ export function Sidebar() {
       <aside className="fixed left-0 top-0 bottom-0 w-[240px] bg-white border-r border-[#E7E5E4] flex flex-col z-30">
         <div className="p-5 border-b border-[#E7E5E4]">
           <div className="flex items-center gap-2.5">
-            <StarLogo className="w-8 h-8" />
-            <div>
-              <h1 className="text-sm font-semibold text-[#1B1464] leading-tight">Evereden</h1>
-              <p className="text-[11px] text-[#A8A29E] leading-tight">GTM Planner</p>
-            </div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/evereden-logo-dark.svg" alt="Evereden" className="h-5 w-auto" />
+            <span className="text-[11px] text-[#A8A29E] leading-tight ml-1">GTM Planner</span>
           </div>
         </div>
 
@@ -60,7 +58,7 @@ export function Sidebar() {
                 href={item.href}
                 className={`flex items-center gap-2.5 px-3 py-2 rounded-lg text-[13px] font-medium transition-colors ${
                   isActive
-                    ? 'bg-[#FFF0F7] text-[#FF1493]'
+                    ? 'bg-[#EEF0FF] text-[#3538CD]'
                     : 'text-[#57534E] hover:bg-[#F5F5F4]'
                 }`}
               >
@@ -74,7 +72,7 @@ export function Sidebar() {
         <div className="p-3 border-t border-[#E7E5E4] space-y-2">
           <button
             onClick={() => setShowNewLaunch(true)}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#FF1493] text-white text-[13px] font-medium hover:bg-[#D4117D] transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-3 py-2.5 rounded-lg bg-[#3538CD] text-white text-[13px] font-medium hover:bg-[#2D31B3] transition-colors"
           >
             <PlusCircle className="w-4 h-4" />
             New Launch

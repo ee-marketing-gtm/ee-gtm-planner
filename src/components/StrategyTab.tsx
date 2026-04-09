@@ -31,12 +31,12 @@ export function StrategyTab({ launch, onUpdate }: Props) {
 
   return (
     <div className="space-y-6 max-w-3xl">
-      <div className="bg-[#FFF0F7] rounded-xl p-4 border border-[#FF1493]/10">
+      <div className="bg-[#EEF0FF] rounded-xl p-4 border border-[#3538CD]/10">
         <div className="flex items-start gap-2">
-          <Lightbulb className="w-4 h-4 text-[#FF1493] mt-0.5" />
+          <Lightbulb className="w-4 h-4 text-[#3538CD] mt-0.5" />
           <div>
-            <p className="text-sm font-medium text-[#FF1493]">Strategy Builder</p>
-            <p className="text-xs text-[#FF1493]/70 mt-0.5">
+            <p className="text-sm font-medium text-[#3538CD]">Strategy Builder</p>
+            <p className="text-xs text-[#3538CD]/70 mt-0.5">
               Define your positioning, messaging, and proof points. This will inform all channel briefs and creative direction.
             </p>
           </div>
@@ -54,7 +54,7 @@ export function StrategyTab({ launch, onUpdate }: Props) {
           onChange={e => updateStrategy({ targetAudience: e.target.value })}
           placeholder="e.g., Health-conscious millennial moms (25-40) looking for clean, effective skincare for their children. They read ingredient labels, follow pediatric dermatologists on social, and are willing to pay a premium for safe products."
           rows={3}
-          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
         />
       </Section>
 
@@ -69,7 +69,7 @@ export function StrategyTab({ launch, onUpdate }: Props) {
           onChange={e => updateStrategy({ keyInsight: e.target.value })}
           placeholder="e.g., Parents want to protect their children's skin but feel overwhelmed by conflicting information about which ingredients are truly safe."
           rows={2}
-          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
         />
       </Section>
 
@@ -84,7 +84,7 @@ export function StrategyTab({ launch, onUpdate }: Props) {
           onChange={e => updateStrategy({ positioning: e.target.value })}
           placeholder="For [target audience] who [need/want], [product] is the [category] that [key benefit] because [reason to believe]."
           rows={3}
-          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
         />
       </Section>
 
@@ -103,14 +103,14 @@ export function StrategyTab({ launch, onUpdate }: Props) {
                 value={msg}
                 onChange={e => updateListItem('keyMessages', i, e.target.value)}
                 placeholder={`Key message ${i + 1}`}
-                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
               />
               {s.keyMessages.length > 1 && (
                 <button onClick={() => removeListItem('keyMessages', i)} className="text-xs text-[#D6D3D1] hover:text-[#DC2626]">×</button>
               )}
             </div>
           ))}
-          <button onClick={() => addListItem('keyMessages')} className="text-xs text-[#FF1493] hover:underline">+ Add message</button>
+          <button onClick={() => addListItem('keyMessages')} className="text-xs text-[#3538CD] hover:underline">+ Add message</button>
         </div>
       </Section>
 
@@ -129,14 +129,14 @@ export function StrategyTab({ launch, onUpdate }: Props) {
                 value={point}
                 onChange={e => updateListItem('proofPoints', i, e.target.value)}
                 placeholder="e.g., Dermatologist tested, 98% saw improvement in 4 weeks"
-                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+                className="flex-1 px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
               />
               {s.proofPoints.length > 1 && (
                 <button onClick={() => removeListItem('proofPoints', i)} className="text-xs text-[#D6D3D1] hover:text-[#DC2626]">×</button>
               )}
             </div>
           ))}
-          <button onClick={() => addListItem('proofPoints')} className="text-xs text-[#FF1493] hover:underline">+ Add proof point</button>
+          <button onClick={() => addListItem('proofPoints')} className="text-xs text-[#3538CD] hover:underline">+ Add proof point</button>
         </div>
       </Section>
 
@@ -151,7 +151,7 @@ export function StrategyTab({ launch, onUpdate }: Props) {
           onChange={e => updateStrategy({ competitiveDifferentiation: e.target.value })}
           placeholder="What makes this product unique vs. competitors?"
           rows={2}
-          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 resize-none"
+          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
         />
       </Section>
 
@@ -166,7 +166,7 @@ export function StrategyTab({ launch, onUpdate }: Props) {
           value={s.toneOfVoice}
           onChange={e => updateStrategy({ toneOfVoice: e.target.value })}
           placeholder="e.g., Warm, expert, reassuring, playful"
-          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
+          className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
         />
       </Section>
     </div>
@@ -179,7 +179,7 @@ function Section({ icon, title, description, children }: {
   return (
     <div className="bg-white rounded-xl border border-[#E7E5E4] p-5">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-[#FF1493]">{icon}</span>
+        <span className="text-[#3538CD]">{icon}</span>
         <h3 className="text-sm font-semibold text-[#1C1917]">{title}</h3>
       </div>
       <p className="text-xs text-[#A8A29E] mb-3">{description}</p>

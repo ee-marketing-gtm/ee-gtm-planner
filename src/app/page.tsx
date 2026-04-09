@@ -201,10 +201,10 @@ export default function Dashboard() {
       {/* Stats Row */}
       <div className="grid grid-cols-4 gap-4 mb-8">
         <StatCard
-          icon={<Rocket className="w-5 h-5 text-[#FF1493]" />}
+          icon={<Rocket className="w-5 h-5 text-[#3538CD]" />}
           label="Active Launches"
           value={activeLaunches.length}
-          bg="bg-[#FFF0F7]"
+          bg="bg-[#EEF0FF]"
         />
         <StatCard
           icon={<AlertTriangle className="w-5 h-5 text-[#DC2626]" />}
@@ -376,7 +376,7 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
                         href={task.deliverableUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#FFF0F7] text-[#FF1493] rounded text-[10px] font-medium hover:bg-[#FF1493] hover:text-white transition-colors shrink-0"
+                        className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#EEF0FF] text-[#3538CD] rounded text-[10px] font-medium hover:bg-[#3538CD] hover:text-white transition-colors shrink-0"
                       >
                         <ExternalLink className="w-2.5 h-2.5" />
                         {getDisplayLabel(task)}
@@ -411,13 +411,13 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
               <div key={group.dateKey} className="bg-white rounded-xl border border-[#E7E5E4]">
                 {/* Date header */}
                 <div className={`px-4 py-2.5 border-b border-[#E7E5E4] flex items-center justify-between rounded-t-xl ${
-                  group.isOverdue ? 'bg-red-50' : group.isToday ? 'bg-[#FFF0F7]' : 'bg-[#FAFAF9]'
+                  group.isOverdue ? 'bg-red-50' : group.isToday ? 'bg-[#EEF0FF]' : 'bg-[#FAFAF9]'
                 }`}>
                   <div className="flex items-center gap-2">
                     {group.isOverdue && <AlertTriangle className="w-3.5 h-3.5 text-[#DC2626]" />}
-                    {group.isToday && <span className="w-2 h-2 rounded-full bg-[#FF1493] pulse-dot" />}
+                    {group.isToday && <span className="w-2 h-2 rounded-full bg-[#3538CD] pulse-dot" />}
                     <h3 className={`text-sm font-semibold ${
-                      group.isOverdue ? 'text-[#DC2626]' : group.isToday ? 'text-[#FF1493]' : 'text-[#1B1464]'
+                      group.isOverdue ? 'text-[#DC2626]' : group.isToday ? 'text-[#3538CD]' : 'text-[#1B1464]'
                     }`}>
                       {group.label}
                       {group.isOverdue && ' — Overdue'}
@@ -539,14 +539,14 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
 
                         <div className="flex items-center gap-2 mb-1.5">
                           <div className="flex-1 h-1.5 bg-[#F5F5F4] rounded-full overflow-hidden">
-                            <div className="h-full rounded-full progress-fill bg-[#FF1493]" style={{ width: `${progress}%` }} />
+                            <div className="h-full rounded-full progress-fill bg-[#3538CD]" style={{ width: `${progress}%` }} />
                           </div>
                           <span className="text-[10px] text-[#A8A29E] w-7 text-right">{progress}%</span>
                         </div>
 
                         {nextTask && (
                           <div className="flex items-center gap-1.5 text-[10px] text-[#57534E]">
-                            <ArrowRight className="w-2.5 h-2.5 text-[#FF1493]" />
+                            <ArrowRight className="w-2.5 h-2.5 text-[#3538CD]" />
                             <span className="truncate">Next: {nextTask.name}</span>
                             {nextTask.dueDate && (
                               <span className="text-[#A8A29E] whitespace-nowrap ml-auto">
@@ -652,7 +652,7 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
               >
                 <span style={{ color: s.color }}>{s.icon}</span>
                 <span className="text-[#1B1464]">{s.label}</span>
-                {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#FF1493]" />}
+                {task.status === s.value && <CheckCircle2 className="w-3 h-3 ml-auto text-[#3538CD]" />}
               </button>
             ))}
           </div>
@@ -679,7 +679,7 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
               href={task.deliverableUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#FFF0F7] text-[#FF1493] rounded text-[10px] font-medium hover:bg-[#FF1493] hover:text-white transition-colors max-w-[180px]"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#EEF0FF] text-[#3538CD] rounded text-[10px] font-medium hover:bg-[#3538CD] hover:text-white transition-colors max-w-[180px]"
               title={`Open ${getDisplayLabel(task)}`}
             >
               <ExternalLink className="w-2.5 h-2.5 shrink-0" />
@@ -688,7 +688,7 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
           ) : (
             <button
               onClick={() => setLinkOpen(!linkOpen)}
-              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded text-[10px] font-medium hover:bg-[#FFF0F7] hover:text-[#FF1493] transition-colors"
+              className="inline-flex items-center gap-1 px-1.5 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded text-[10px] font-medium hover:bg-[#EEF0FF] hover:text-[#3538CD] transition-colors"
               title={`Add link for ${deliverableLabel}`}
             >
               <Plus className="w-2.5 h-2.5" />
@@ -706,7 +706,7 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
                 value={linkValue}
                 onChange={(e) => setLinkValue(e.target.value)}
                 placeholder="https://..."
-                className="w-full px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] mb-2"
+                className="w-full px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD] mb-2"
                 autoFocus
                 onKeyDown={(e) => { if (e.key === 'Enter') handleLinkSave(); if (e.key === 'Escape') setLinkOpen(false); }}
               />
@@ -719,13 +719,13 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
                   value={linkLabel}
                   onChange={(e) => setLinkLabel(e.target.value)}
                   placeholder={`e.g. "Q1 Marketing Deck v3"`}
-                  className="flex-1 px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                  className="flex-1 px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                   onKeyDown={(e) => { if (e.key === 'Enter') handleLinkSave(); if (e.key === 'Escape') setLinkOpen(false); }}
                 />
                 <button
                   onClick={handleLinkSave}
                   disabled={!linkValue.trim()}
-                  className="px-3 py-1.5 bg-[#FF1493] text-white text-xs font-medium rounded-lg hover:bg-[#D4117D] transition-colors disabled:opacity-40"
+                  className="px-3 py-1.5 bg-[#3538CD] text-white text-xs font-medium rounded-lg hover:bg-[#2D31B3] transition-colors disabled:opacity-40"
                 >
                   Save
                 </button>
@@ -744,7 +744,7 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
       </span>
 
       <Link href={`/launch/${launch.id}`} className="shrink-0">
-        <ChevronRight className="w-4 h-4 text-[#D6D3D1] group-hover:text-[#FF1493]" />
+        <ChevronRight className="w-4 h-4 text-[#D6D3D1] group-hover:text-[#3538CD]" />
       </Link>
     </div>
   );
@@ -816,7 +816,7 @@ function LaunchCard({ launch }: { launch: Launch }) {
             )}
           </div>
           <div className="h-1.5 bg-[#F5F5F4] rounded-full overflow-hidden">
-            <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: overdue.length > 0 ? '#F59E0B' : '#FF1493' }} />
+            <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: overdue.length > 0 ? '#F59E0B' : '#3538CD' }} />
           </div>
         </div>
 
@@ -843,13 +843,13 @@ function LaunchCard({ launch }: { launch: Launch }) {
         {nextTask && (
           <div className="flex items-center justify-between bg-[#FAFAF9] rounded-lg px-3 py-2">
             <div className="flex items-center gap-2 min-w-0">
-              <ArrowRight className="w-3.5 h-3.5 text-[#FF1493] shrink-0" />
+              <ArrowRight className="w-3.5 h-3.5 text-[#3538CD] shrink-0" />
               <div className="min-w-0">
                 <p className="text-xs font-medium text-[#1B1464] truncate">Next: {nextTask.name}</p>
                 <p className="text-[11px] text-[#A8A29E]">{getPhaseName(nextTask.phase)} · Due {nextTask.dueDate ? format(parseISO(nextTask.dueDate), 'MMM d') : '—'}</p>
               </div>
             </div>
-            <ChevronRight className="w-4 h-4 text-[#D6D3D1] group-hover:text-[#FF1493] transition-colors" />
+            <ChevronRight className="w-4 h-4 text-[#D6D3D1] group-hover:text-[#3538CD] transition-colors" />
           </div>
         )}
       </div>

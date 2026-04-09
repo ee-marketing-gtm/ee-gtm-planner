@@ -301,8 +301,8 @@ export default function CalendarPage() {
         style={{ left: `${left}%` }}
         title={`Today: ${format(today, 'MMM d, yyyy')}`}
       >
-        <div className="w-0.5 h-full bg-[#FF1493]" />
-        <div className="absolute -top-1 -left-[9px] w-[20px] text-center text-[9px] font-bold text-[#FF1493]">
+        <div className="w-0.5 h-full bg-[#3538CD]" />
+        <div className="absolute -top-1 -left-[9px] w-[20px] text-center text-[9px] font-bold text-[#3538CD]">
           Today
         </div>
       </div>
@@ -376,12 +376,12 @@ export default function CalendarPage() {
           <div
             key={i}
             className={`flex-1 text-center py-2 border-r border-[#E7E5E4] last:border-r-0 ${
-              isToday(d) ? 'bg-[#FFF0F7]' : ''
+              isToday(d) ? 'bg-[#EEF0FF]' : ''
             }`}
             title={format(d, 'EEEE, MMMM d, yyyy')}
           >
             <div className="text-[10px] text-[#A8A29E]">{format(d, 'EEE')}</div>
-            <div className={`text-[13px] font-medium ${isToday(d) ? 'text-[#FF1493]' : 'text-[#57534E]'}`}>
+            <div className={`text-[13px] font-medium ${isToday(d) ? 'text-[#3538CD]' : 'text-[#57534E]'}`}>
               {format(d, 'd')}
             </div>
           </div>
@@ -964,8 +964,8 @@ export default function CalendarPage() {
 
           {/* Today marker */}
           <div className="flex items-center gap-1.5">
-            <div className="w-0.5 h-4 bg-[#FF1493]" />
-            <span className="text-[#FF1493] font-medium">Today</span>
+            <div className="w-0.5 h-4 bg-[#3538CD]" />
+            <span className="text-[#3538CD] font-medium">Today</span>
           </div>
         </div>
       </div>

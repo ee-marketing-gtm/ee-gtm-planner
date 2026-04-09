@@ -114,7 +114,7 @@ export function NewLaunchModal({ onClose }: Props) {
               value={name}
               onChange={e => setName(e.target.value)}
               placeholder="e.g., SPF 50 Summer Launch"
-              className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+              className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
             />
           </div>
 
@@ -128,7 +128,7 @@ export function NewLaunchModal({ onClose }: Props) {
                   type="date"
                   value={launchDate}
                   onChange={e => setLaunchDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                 />
               </div>
               <div>
@@ -138,7 +138,7 @@ export function NewLaunchModal({ onClose }: Props) {
                   value={sephoraLaunchDate}
                   onChange={e => setSephoraLaunchDate(e.target.value)}
                   placeholder="Auto: DTC + 4 weeks"
-                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                 />
                 {!sephoraLaunchDate && launchDate && (
                   <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
@@ -155,7 +155,7 @@ export function NewLaunchModal({ onClose }: Props) {
                 value={productCategory}
                 onChange={e => setProductCategory(e.target.value)}
                 placeholder="e.g., Kids, Mom, Baby"
-                className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
               />
             </div>
             <div>
@@ -163,7 +163,7 @@ export function NewLaunchModal({ onClose }: Props) {
               <select
                 value={launchType}
                 onChange={e => setLaunchType(e.target.value as LaunchType)}
-                className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493]"
+                className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
               >
                 {Object.entries(LAUNCH_TYPE_LABELS).map(([key, label]) => (
                   <option key={key} value={key}>{label}</option>
@@ -181,7 +181,7 @@ export function NewLaunchModal({ onClose }: Props) {
                   onClick={() => setTier(key)}
                   className={`p-3 rounded-lg border text-left transition-all ${
                     tier === key
-                      ? 'border-[#FF1493] bg-[#FFF0F7] ring-1 ring-[#FF1493]/20'
+                      ? 'border-[#3538CD] bg-[#EEF0FF] ring-1 ring-[#3538CD]/20'
                       : 'border-[#E7E5E4] hover:border-[#D6D3D1]'
                   }`}
                 >
@@ -305,7 +305,7 @@ export function NewLaunchModal({ onClose }: Props) {
               onChange={e => setDescription(e.target.value)}
               placeholder="Brief description of this launch..."
               rows={2}
-              className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20 focus:border-[#FF1493] resize-none"
+              className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD] resize-none"
             />
           </div>
         </div>
@@ -320,7 +320,7 @@ export function NewLaunchModal({ onClose }: Props) {
           <button
             onClick={handleCreate}
             disabled={!name || !launchDate}
-            className="px-4 py-2 text-sm font-medium bg-[#FF1493] text-white rounded-lg hover:bg-[#D4117D] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            className="px-4 py-2 text-sm font-medium bg-[#3538CD] text-white rounded-lg hover:bg-[#2D31B3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Create Launch
           </button>

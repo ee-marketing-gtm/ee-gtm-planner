@@ -249,7 +249,7 @@ export default function GanttChart({ tasks, launchDate, sephoraLaunchDate, amazo
   const range = useMemo(() => computeDateRange(tasks, launchDate, extraDates), [tasks, launchDate, ...extraDates]);
 
   const markers = useMemo(() => {
-    const m = [{ date: launchDate, color: '#FF1493', label: `DTC Launch: ${format(parseISO(launchDate), 'MMM d')}` }];
+    const m = [{ date: launchDate, color: '#3538CD', label: `DTC Launch: ${format(parseISO(launchDate), 'MMM d')}` }];
     if (sephoraLaunchDate) m.push({ date: sephoraLaunchDate, color: '#8B5CF6', label: `Sephora: ${format(parseISO(sephoraLaunchDate), 'MMM d')}` });
     if (amazonLaunchDate) m.push({ date: amazonLaunchDate, color: '#F97316', label: `Amazon: ${format(parseISO(amazonLaunchDate), 'MMM d')}` });
     return m;

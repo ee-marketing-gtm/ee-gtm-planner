@@ -73,7 +73,7 @@ export default function ArchivePage() {
                   <div>
                     <div className="flex items-center gap-2 mb-1">
                       <span className="w-2 h-2 rounded-full" style={{ background: getLaunchColor(launch) }} />
-                      <Link href={`/launch/${launch.id}`} className="text-base font-semibold text-[#1B1464] hover:text-[#FF1493] transition-colors">
+                      <Link href={`/launch/${launch.id}`} className="text-base font-semibold text-[#1B1464] hover:text-[#3538CD] transition-colors">
                         {launch.name}
                       </Link>
                       <span
