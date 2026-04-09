@@ -1564,33 +1564,33 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               </button>
             )}
           </div>
-          {/* Subtitle line — notes or driving dependency, not both */}
-          {!isExpanded && (() => {
-            // Check for driving dependency first
-            if (task.dependencies.length > 0 && task.status !== 'complete' && task.status !== 'skipped') {
+          {/* Subtitle — dependency status or notes */}
+          {!isExpanded && task.status !== 'complete' && task.status !== 'skipped' && (() => {
+            if (task.dependencies.length > 0) {
               const allComplete = task.dependencies.every(depId => {
                 const d = launch.tasks.find(t => t.id === depId);
                 return d && (d.status === 'complete' || d.status === 'skipped');
               });
-              if (!allComplete) {
-                const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
-                  const dep = launch.tasks.find(t => t.id === depId);
-                  if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
-                  if (!latest?.dueDate) return dep;
-                  return dep.dueDate > latest.dueDate ? dep : latest;
-                }, null);
-                if (drivingDep) {
-                  return (
-                    <p className="text-[10px] text-[#D6D3D1] mt-0.5 truncate">
-                      after <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#D6D3D1] hover:text-[#A8A29E] transition-colors">{drivingDep.name}</button>
-                    </p>
-                  );
-                }
+              if (allComplete) {
+                return <p className="text-[11px] text-emerald-500 mt-0.5">Ready</p>;
+              }
+              const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                const dep = launch.tasks.find(t => t.id === depId);
+                if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
+                if (!latest?.dueDate) return dep;
+                return dep.dueDate > latest.dueDate ? dep : latest;
+              }, null);
+              if (drivingDep) {
+                return (
+                  <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate">
+                    after <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#A8A29E] hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                  </p>
+                );
               }
             }
-            // Fall back to notes preview
-            if (task.notes && task.notes.trim()) {
-              return <p className="text-[10px] text-[#D6D3D1] mt-0.5 truncate max-w-md">{task.notes}</p>;
+            // No dependencies — show note preview if any
+            if (task.dependencies.length === 0 && task.notes && task.notes.trim()) {
+              return <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate max-w-md">{task.notes}</p>;
             }
             return null;
           })()}
