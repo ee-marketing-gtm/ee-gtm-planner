@@ -289,13 +289,18 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
               {startNowTasks.map(({ task, launch, daysUntilDue, leadTime }) => (
                 <div
                   key={task.id}
-                  className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-amber-100/50 transition-colors"
-                  onClick={() => router.push(`/launch/${launch.id}?task=${task.id}`)}
+                  className="flex items-center gap-3 px-4 py-3 hover:bg-amber-100/50 transition-colors"
                 >
-                  <div className="w-8 h-8 rounded-full bg-[#F59E0B]/10 flex items-center justify-center shrink-0">
+                  <div
+                    className="w-8 h-8 rounded-full bg-[#F59E0B]/10 flex items-center justify-center shrink-0 cursor-pointer"
+                    onClick={() => router.push(`/launch/${launch.id}?task=${task.id}`)}
+                  >
                     <Clock className="w-4 h-4 text-[#F59E0B]" />
                   </div>
-                  <div className="flex-1 min-w-0">
+                  <div
+                    className="flex-1 min-w-0 cursor-pointer"
+                    onClick={() => router.push(`/launch/${launch.id}?task=${task.id}`)}
+                  >
                     <span
                       className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 mb-1"
                       style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
@@ -305,13 +310,29 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
                     </span>
                     <p className="text-sm text-[#1B1464] font-medium truncate">{task.name}</p>
                   </div>
-                  <div className="text-right shrink-0">
+                  <div className="text-right shrink-0 mr-2">
                     <p className="text-xs font-semibold text-[#F59E0B]">
                       {daysUntilDue === 0 ? 'Due today' : `Due in ${daysUntilDue}d`}
                     </p>
-                    <p className="text-[10px] text-[#92400E]">
-                      Needs {leadTime}d lead time
+                    <p className="text-[10px] text-[#78716C]">
+                      {task.dueDate ? format(parseISO(task.dueDate), 'MMM d') : ''}
                     </p>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); updateTask(launch.id, task.id, { status: 'in_progress' }); }}
+                      className="px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 transition-colors"
+                      title="Start"
+                    >
+                      Start
+                    </button>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); updateTask(launch.id, task.id, { status: 'complete', completedDate: new Date().toISOString() }); }}
+                      className="px-2.5 py-1.5 text-[11px] font-semibold rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 transition-colors"
+                      title="Done"
+                    >
+                      Done
+                    </button>
                   </div>
                 </div>
               ))}
