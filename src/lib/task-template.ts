@@ -483,7 +483,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Bundle PDP Copy Brief',
     leadTime: 3,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
     owner: 'marketing',
     phase: 'design_briefs',
   },
