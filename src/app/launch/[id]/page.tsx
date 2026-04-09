@@ -956,13 +956,13 @@ export default function LaunchDetail() {
               }}
               className="px-3 py-1.5 bg-[#DC2626] text-white text-xs font-medium rounded-lg hover:bg-[#B91C1C] transition-colors"
             >
-              Apply Anyway
+              Keep with Delays
             </button>
             <button
               onClick={() => setCascadeWarning(null)}
               className="px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] text-xs font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors"
             >
-              Cancel
+              Undo Change
             </button>
           </div>
         </div>
@@ -1873,10 +1873,10 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                           {/* Action buttons */}
                           <div className="flex items-center gap-2 ml-6">
                             <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
-                              Apply Anyway
+                              Keep with Delays
                             </button>
                             <button onClick={onCascadeDismiss} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
-                              Cancel
+                              Undo Change
                             </button>
                           </div>
                         </>
