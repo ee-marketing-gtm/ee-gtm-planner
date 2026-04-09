@@ -7,6 +7,9 @@ import { DataProvider } from "@/components/DataProvider";
 export const metadata: Metadata = {
   title: "Evereden GTM Planner",
   description: "Go-to-market strategy, planning, and execution hub",
+  icons: {
+    icon: '/favicon.svg',
+  },
 };
 
 export default function RootLayout({
