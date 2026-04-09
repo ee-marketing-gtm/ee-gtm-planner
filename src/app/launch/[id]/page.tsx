@@ -1545,25 +1545,36 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
       {(() => {
         const q = searchQuery.toLowerCase().trim();
 
-        // Dependency trace: compute full upstream + downstream chain for a task
+        // Dependency trace: show the DRIVING path only (not every branch)
+        // Upstream: only follow the driving dep (latest due date) at each step
+        // Downstream: only follow direct dependents of the traced task
         const traceIds = (() => {
           if (!traceTaskId) return null;
           const ids = new Set<string>([traceTaskId]);
           const taskById = new Map(launch.tasks.map(t => [t.id, t]));
-          // Walk upstream: all dependencies recursively
-          const upQueue = [traceTaskId];
-          while (upQueue.length > 0) {
-            const cur = upQueue.shift()!;
-            const t = taskById.get(cur);
-            if (!t) continue;
+
+          // Walk upstream: only follow the driving dependency at each level
+          let current = traceTaskId;
+          const upSeen = new Set<string>([traceTaskId]);
+          while (true) {
+            const t = taskById.get(current);
+            if (!t || t.dependencies.length === 0) break;
+            // Find the driving dep (latest due date)
+            let drivingId: string | null = null;
+            let latestDue = '';
             for (const depId of t.dependencies) {
-              if (!ids.has(depId)) {
-                ids.add(depId);
-                upQueue.push(depId);
-              }
+              if (upSeen.has(depId)) continue;
+              const dep = taskById.get(depId);
+              if (!dep?.dueDate) continue;
+              if (dep.dueDate > latestDue) { latestDue = dep.dueDate; drivingId = depId; }
             }
+            if (!drivingId) break;
+            ids.add(drivingId);
+            upSeen.add(drivingId);
+            current = drivingId;
           }
-          // Walk downstream: all tasks that depend on this (directly or indirectly)
+
+          // Walk downstream: follow all direct dependents recursively
           const downQueue = [traceTaskId];
           while (downQueue.length > 0) {
             const cur = downQueue.shift()!;
