@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { format, parseISO, addBusinessDays, differenceInBusinessDays } from 'date-fns';
 import {
@@ -53,9 +53,10 @@ export default function LaunchDetail() {
   const [activeTab, setActiveTab] = useState<Tab>('tracker');
   const [expandedPhases, setExpandedPhases] = useState<Set<PhaseKey>>(new Set(PHASES.map(p => p.key)));
   const [mounted, setMounted] = useState(false);
-  const [recalcResult, setRecalcResult] = useState<{ daysLate: number; daysAbsorbed: number; impossible: boolean; warnings: string[]; changes: TaskDateChange[] } | null>(null);
+  const [recalcResult, setRecalcResult] = useState<{ daysLate: number; daysAbsorbed: number; impossible: boolean; warnings: string[]; changes: TaskDateChange[]; pendingTasks?: import('@/lib/types').GTMTask[] } | null>(null);
   const [preRecalcTasks, setPreRecalcTasks] = useState<import('@/lib/types').GTMTask[] | null>(null);
   const [cascadeWarning, setCascadeWarning] = useState<{
+    triggerTaskId: string;
     pendingTasks: import('@/lib/types').GTMTask[];
     overTasks: { name: string; dueDate: string; daysOver: number }[];
     suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
@@ -258,6 +259,7 @@ export default function LaunchDetail() {
       }
 
       setCascadeWarning({
+        triggerTaskId: taskId,
         pendingTasks: newTasks,
         overTasks,
         suggestions: suggestions.slice(0, 5),
@@ -445,7 +447,7 @@ export default function LaunchDetail() {
               </p>
               <button
                 onClick={() => {
-                  if (!confirm('Regenerate all tasks from the latest template? Your status, notes, links, and dates on completed tasks will be preserved.')) return;
+                  if (!confirm('Regenerate all tasks from the latest template? Your status, notes, links, and dates will be preserved on all existing tasks.')) return;
                   const result = scheduleLaunch({
                     dtcLaunchDate: launch.launchDate,
                     sephoraLaunchDate: launch.sephoraLaunchDate || undefined,
@@ -481,7 +483,6 @@ export default function LaunchDetail() {
                     const old = oldByName.get(ft.name) || (renameReverse.has(ft.name) ? oldByName.get(renameReverse.get(ft.name)!) : undefined);
                     if (!old) return ft;
 
-                    const isComplete = old.status === 'complete' || old.status === 'skipped';
                     return {
                       ...ft,
                       status: old.status,
@@ -489,11 +490,9 @@ export default function LaunchDetail() {
                       notes: old.notes || ft.notes,
                       deliverableUrl: old.deliverableUrl || ft.deliverableUrl,
                       deliverableLabel: old.deliverableLabel,
-                      // Preserve dates on completed tasks so finished work isn't reshuffled
-                      ...(isComplete ? {
-                        dueDate: old.dueDate,
-                        startDate: old.startDate,
-                      } : {}),
+                      // Preserve user's dates — regenerate is for picking up new tasks/deps, not resetting dates
+                      dueDate: old.dueDate || ft.dueDate,
+                      startDate: old.startDate || ft.startDate,
                     };
                   });
                   updateLaunch({ ...launch, tasks: mergedTasks, updatedAt: new Date().toISOString() });
@@ -630,6 +629,17 @@ export default function LaunchDetail() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0 ml-3">
+                  {recalcResult.impossible && recalcResult.pendingTasks && (
+                    <button
+                      onClick={() => {
+                        updateLaunch({ ...launch, tasks: recalcResult.pendingTasks! });
+                        setRecalcResult({ ...recalcResult, impossible: false, pendingTasks: undefined });
+                      }}
+                      className="px-3 py-1.5 bg-[#DC2626] text-white text-xs font-medium rounded-lg hover:bg-[#B91C1C] transition-colors"
+                    >
+                      Apply Anyway
+                    </button>
+                  )}
                   {preRecalcTasks && !recalcResult.impossible && (
                     <button
                       onClick={() => {
@@ -680,7 +690,7 @@ export default function LaunchDetail() {
                     setPreRecalcTasks([...launch.tasks]);
                     const result = recalculateTimeline(launch);
                     if (result.impossible) {
-                      setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes });
+                      setRecalcResult({ daysLate: result.daysLate, daysAbsorbed: result.daysAbsorbed, impossible: result.impossible, warnings: result.warnings, changes: result.changes, pendingTasks: result.tasks });
                       return;
                     }
                     updateLaunch({ ...launch, tasks: result.tasks });
@@ -697,8 +707,8 @@ export default function LaunchDetail() {
         })()}
         </div>
 
-      {/* Cascade Warning */}
-      {cascadeWarning && (
+      {/* Cascade Warning - rendered inline in TrackerView */}
+      {cascadeWarning && activeTab !== 'tracker' && (
         <div className="bg-red-50 rounded-xl border border-red-200 p-4 mb-4 animate-fade-in">
           <div className="flex items-start gap-2 mb-3">
             <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
@@ -798,6 +808,14 @@ export default function LaunchDetail() {
           updateTaskField={updateTaskField}
           updateTaskDateWithCascade={updateTaskDateWithCascade}
           initialTaskId={initialTaskId}
+          cascadeWarning={cascadeWarning}
+          onCascadeApply={() => {
+            if (cascadeWarning) {
+              updateLaunch({ ...launch, tasks: cascadeWarning.pendingTasks });
+              setCascadeWarning(null);
+            }
+          }}
+          onCascadeDismiss={() => setCascadeWarning(null)}
         />
       )}
       {activeTab === 'deliverables' && (
@@ -815,7 +833,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -825,6 +843,15 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   updateTaskField: (taskId: string, updates: Partial<GTMTask>) => void;
   updateTaskDateWithCascade: (taskId: string, newDate: string) => void;
   initialTaskId?: string | null;
+  cascadeWarning: {
+    triggerTaskId: string;
+    pendingTasks: import('@/lib/types').GTMTask[];
+    overTasks: { name: string; dueDate: string; daysOver: number }[];
+    suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
+    impossible: boolean;
+  } | null;
+  onCascadeApply: () => void;
+  onCascadeDismiss: () => void;
 }) {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(initialTaskId || null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -1134,8 +1161,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
             {sortedTasks.map(task => {
               const phase = phaseMap[task.phase] || PHASES[0];
               return (
+                <React.Fragment key={task.id}>
                 <TaskRow
-                  key={task.id}
                   task={task}
                   launch={launch}
                   phase={phase}
@@ -1160,6 +1187,55 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                     }, 100);
                   }}
                 />
+                {cascadeWarning && cascadeWarning.triggerTaskId === task.id && (
+                  <div className="bg-red-50 border-x border-b border-red-200 px-4 py-3 animate-fade-in">
+                    <div className="flex items-start gap-2 mb-2">
+                      <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
+                      <div>
+                        <p className="text-xs font-medium text-[#DC2626]">
+                          This pushes {cascadeWarning.overTasks.length} task{cascadeWarning.overTasks.length !== 1 ? 's' : ''} past launch
+                        </p>
+                        <div className="mt-1 space-y-0.5">
+                          {cascadeWarning.overTasks.slice(0, 5).map((t, i) => (
+                            <p key={i} className="text-[11px] text-[#92400E]">
+                              <span className="font-medium">{t.name}</span> — {t.daysOver} BD over
+                            </p>
+                          ))}
+                          {cascadeWarning.overTasks.length > 5 && (
+                            <p className="text-[11px] text-[#A8A29E]">...and {cascadeWarning.overTasks.length - 5} more</p>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {cascadeWarning.suggestions.length > 0 && (
+                      <div className="bg-white rounded-lg border border-[#E7E5E4] p-2 mb-2 ml-6">
+                        <p className="text-[11px] font-medium text-[#57534E] mb-1">
+                          {cascadeWarning.impossible ? 'Suggested reductions (still not enough):' : 'To fit within launch, try:'}
+                        </p>
+                        {cascadeWarning.suggestions.map((s, i) => (
+                          <div key={i} className="flex items-center justify-between text-[11px]">
+                            <span className="text-[#1B1464]">{s.taskName}</span>
+                            <span className="text-[#DC2626] font-medium">{s.currentDays}d → {s.suggestedDays}d</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {cascadeWarning.impossible && (
+                      <p className="text-[11px] text-[#DC2626] mb-2 ml-6 font-medium">
+                        Not enough room to compress — consider extending the launch date.
+                      </p>
+                    )}
+                    <div className="flex items-center gap-2 ml-6">
+                      <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
+                        Apply Anyway
+                      </button>
+                      <button onClick={onCascadeDismiss} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                )}
+                </React.Fragment>
               );
             })}
             {/* Done section */}
