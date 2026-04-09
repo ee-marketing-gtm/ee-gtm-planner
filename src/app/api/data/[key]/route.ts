@@ -13,7 +13,7 @@ export async function GET(
 
   const result = await getValue(key);
   if (!result) {
-    return Response.json({ value: key === 'launches' ? '[]' : '{}', updatedAt: 0 });
+    return Response.json({ value: '[]', updatedAt: 0 });
   }
   return Response.json(result);
 }

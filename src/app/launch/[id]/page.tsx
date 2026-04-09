@@ -581,9 +581,10 @@ export default function LaunchDetail() {
   const accentColor = launch.brandColor || TIER_CONFIG[launch.tier].color;
 
   const PRESET_COLORS = [
-    '#3538CD', '#EF4444', '#F59E0B', '#10B981', '#3B82F6',
-    '#6366F1', '#8B5CF6', '#EC4899', '#14B8A6', '#F97316', '#1B1464',
+    '#D8EE6A', '#3C3FC4', '#F4FFD1', '#EA3089', '#F6D7EA', '#E89073', '#E35AA3',
   ];
+
+  const [showImageLightbox, setShowImageLightbox] = useState(false);
 
   const deliverableCount = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim()).length;
 
@@ -687,6 +688,28 @@ export default function LaunchDetail() {
         </div>
       )}
 
+      {/* Image Lightbox */}
+      {showImageLightbox && launch.productImageUrl && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center cursor-pointer"
+          onClick={() => setShowImageLightbox(false)}
+        >
+          <div className="relative max-w-[80vw] max-h-[80vh]">
+            <img
+              src={launch.productImageUrl}
+              alt={launch.name}
+              className="max-w-full max-h-[80vh] object-contain rounded-xl"
+            />
+            <button
+              onClick={() => setShowImageLightbox(false)}
+              className="absolute -top-3 -right-3 w-8 h-8 bg-white rounded-full shadow-lg flex items-center justify-center text-[#57534E] hover:text-[#1B1464] transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="mb-6">
         <button onClick={() => router.back()} className="inline-flex items-center gap-1.5 text-xs text-[#A8A29E] hover:text-[#57534E] mb-4">
@@ -700,7 +723,8 @@ export default function LaunchDetail() {
                 <img
                   src={launch.productImageUrl}
                   alt={launch.name}
-                  className="w-12 h-12 rounded-lg object-contain shrink-0"
+                  className="w-12 h-12 rounded-lg object-contain shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+                  onClick={() => setShowImageLightbox(true)}
                 />
               ) : (
                 <div
@@ -731,10 +755,16 @@ export default function LaunchDetail() {
             {launch.description && (
               <p className="text-sm text-[#57534E] mb-2">{launch.description}</p>
             )}
-            <div className="flex items-center gap-4 text-xs text-[#A8A29E]">
-              <span>Launch: {format(parseISO(launch.launchDate), 'MMMM d, yyyy')}</span>
-              <span>·</span>
-              <span>{launch.productCategory || 'No category'}</span>
+            <div className="flex items-center gap-4 text-sm mt-1">
+              <span className="font-semibold text-[#1C1917]">Launch: {format(parseISO(launch.launchDate), 'MMMM d, yyyy')}</span>
+              {launch.sephoraLaunchDate && (
+                <>
+                  <span className="text-[#D6D3D1]">·</span>
+                  <span className="text-[#57534E]">Sephora: {format(parseISO(launch.sephoraLaunchDate), 'MMM d, yyyy')}</span>
+                </>
+              )}
+              <span className="text-[#D6D3D1]">·</span>
+              <span className="text-[#A8A29E] text-xs">{launch.productCategory || 'No category'}</span>
             </div>
           </div>
 
@@ -764,9 +794,9 @@ export default function LaunchDetail() {
           <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-5 animate-fade-in space-y-5">
             <h3 className="text-sm font-semibold text-[#1B1464]">Launch Customization</h3>
 
-            {/* Brand Color */}
+            {/* Launch Color */}
             <div>
-              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Brand Color</label>
+              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Launch Color</label>
               <div className="flex flex-wrap items-center gap-2 mb-2">
                 {PRESET_COLORS.map(color => {
                   const isSelected = launch.brandColor === color;
@@ -793,7 +823,16 @@ export default function LaunchDetail() {
                 })}
               </div>
               <div className="flex items-center gap-2">
-                <label className="text-[11px] text-[#A8A29E]">Custom:</label>
+                <input
+                  type="color"
+                  value={launch.brandColor || '#3538CD'}
+                  onChange={e => {
+                    setCustomHex(e.target.value);
+                    updateLaunch({ ...launch, brandColor: e.target.value });
+                  }}
+                  className="w-7 h-7 rounded-lg border border-[#E7E5E4] cursor-pointer p-0.5"
+                  title="Pick a color"
+                />
                 <input
                   type="text"
                   value={customHex}
@@ -811,9 +850,6 @@ export default function LaunchDetail() {
                   placeholder="#3538CD"
                   className="w-24 px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 font-mono"
                 />
-                {customHex && /^#[0-9A-Fa-f]{6}$/.test(customHex) && (
-                  <div className="w-5 h-5 rounded-full border border-[#E7E5E4]" style={{ background: customHex }} />
-                )}
                 {launch.brandColor && (
                   <button
                     onClick={() => {
@@ -822,7 +858,7 @@ export default function LaunchDetail() {
                     }}
                     className="text-[11px] text-[#A8A29E] hover:text-[#57534E] ml-2 transition-colors"
                   >
-                    Reset to tier default
+                    Reset
                   </button>
                 )}
               </div>

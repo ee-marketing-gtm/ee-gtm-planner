@@ -20,6 +20,7 @@ export function NewLaunchModal({ onClose }: Props) {
   const [name, setName] = useState('');
   const [launchDate, setLaunchDate] = useState('');
   const [sephoraLaunchDate, setSephoraLaunchDate] = useState('');
+  const [hasSephora, setHasSephora] = useState(true);
 
   const [launchType, setLaunchType] = useState<LaunchType>('new_product');
   const [tier, setTier] = useState<LaunchTier>('A');
@@ -55,9 +56,11 @@ export function NewLaunchModal({ onClose }: Props) {
   function handleCreate() {
     if (!name || !launchDate) return;
 
+    const effectiveSephoraDate = hasSephora ? (sephoraLaunchDate || undefined) : undefined;
+
     const result = scheduleLaunch({
       dtcLaunchDate: launchDate,
-      sephoraLaunchDate: sephoraLaunchDate || undefined,
+      sephoraLaunchDate: effectiveSephoraDate,
       amazonLaunchDate: launchDate || undefined,
       sephoraAssetLeadBD: sephoraAssetLead,
       d2cAssetLeadBD: d2cAssetLead,
@@ -65,14 +68,27 @@ export function NewLaunchModal({ onClose }: Props) {
       externalAnchors: anchors.length > 0 ? anchors : undefined,
     });
 
-    const tasks = scheduledTasksToGTMTasks(result.tasks);
+    let tasks = scheduledTasksToGTMTasks(result.tasks);
+
+    // If not launching in Sephora, remove Sephora-specific tasks
+    if (!hasSephora) {
+      const sephoraTaskNames = new Set(
+        tasks.filter(t => t.name.toLowerCase().includes('sephora')).map(t => t.id)
+      );
+      tasks = tasks
+        .filter(t => !sephoraTaskNames.has(t.id))
+        .map(t => ({
+          ...t,
+          dependencies: t.dependencies.filter(d => !sephoraTaskNames.has(d)),
+        }));
+    }
     const now = new Date().toISOString();
 
     const launch: Launch = {
       id: uuid(),
       name,
       launchDate,
-      sephoraLaunchDate: sephoraLaunchDate || undefined,
+      sephoraLaunchDate: hasSephora ? (sephoraLaunchDate || undefined) : undefined,
       amazonLaunchDate: launchDate || undefined,
       launchType,
       tier,
@@ -132,16 +148,35 @@ export function NewLaunchModal({ onClose }: Props) {
                 />
               </div>
               <div>
-                <label className="block text-[11px] text-[#A8A29E] mb-1">Sephora <span className="text-[10px]">(auto: DTC + 4 wks)</span></label>
-                <input
-                  type="date"
-                  value={sephoraLaunchDate}
-                  onChange={e => setSephoraLaunchDate(e.target.value)}
-                  placeholder="Auto: DTC + 4 weeks"
-                  className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
-                />
-                {!sephoraLaunchDate && launchDate && (
-                  <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-[#A8A29E]">Sephora Launch Date</label>
+                  <label className="flex items-center gap-1.5 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={hasSephora}
+                      onChange={e => {
+                        setHasSephora(e.target.checked);
+                        if (!e.target.checked) setSephoraLaunchDate('');
+                      }}
+                      className="w-3.5 h-3.5 rounded accent-[#3538CD]"
+                    />
+                    <span className="text-[10px] text-[#A8A29E]">Launching in Sephora</span>
+                  </label>
+                </div>
+                {hasSephora ? (
+                  <>
+                    <input
+                      type="date"
+                      value={sephoraLaunchDate}
+                      onChange={e => setSephoraLaunchDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
+                    />
+                    {!sephoraLaunchDate && launchDate && (
+                      <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-[11px] text-[#A8A29E] px-3 py-2 bg-[#F5F5F4] rounded-lg">No Sephora launch</p>
                 )}
               </div>
             </div>

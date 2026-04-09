@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo } from 'react';
 import { parseISO, addDays, format, differenceInCalendarDays, isWeekend, isToday, startOfWeek } from 'date-fns';
-import { ChevronDown, ChevronRight, Check, CheckCircle2, Circle, Clock } from 'lucide-react';
+import { ChevronDown, ChevronRight, Check, CheckCircle2, Circle, Clock, Layers, List } from 'lucide-react';
 import Link from 'next/link';
 import { Launch, GTMTask, PHASES, OWNER_LABELS, TIER_CONFIG, PhaseKey } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
@@ -20,7 +20,6 @@ const PHASE_COLORS: Record<string, string> = {
 };
 
 function desaturateColor(hex: string, amount: number): string {
-  // Simple desaturation: blend towards gray
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -31,6 +30,8 @@ function desaturateColor(hex: string, amount: number): string {
   return `#${nr.toString(16).padStart(2, '0')}${ng.toString(16).padStart(2, '0')}${nb.toString(16).padStart(2, '0')}`;
 }
 
+type ViewMode = 'by-launch' | 'stacked';
+
 export default function TimelinePage() {
   const { launches: allLaunches, loading } = useData();
   const launches = useMemo(
@@ -40,12 +41,22 @@ export default function TimelinePage() {
   const [mounted, setMounted] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedLaunches, setExpandedLaunches] = useState<Set<string>>(new Set());
+  const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
+  const [viewMode, setViewMode] = useState<ViewMode>('by-launch');
 
   useEffect(() => {
     if (loading) return;
-    // Auto-select first 3
-    setSelectedIds(new Set(launches.slice(0, 3).map(l => l.id)));
-    setExpandedLaunches(new Set(launches.slice(0, 3).map(l => l.id)));
+    const initial = launches.slice(0, 3).map(l => l.id);
+    setSelectedIds(new Set(initial));
+    setExpandedLaunches(new Set(initial));
+    // Expand all phases for all launches by default
+    const allPhaseKeys = new Set<string>();
+    for (const l of launches.slice(0, 3)) {
+      for (const p of PHASES) {
+        allPhaseKeys.add(`${l.id}:${p.key}`);
+      }
+    }
+    setExpandedPhases(allPhaseKeys);
     setMounted(true);
   }, [loading, launches]);
 
@@ -58,6 +69,12 @@ export default function TimelinePage() {
       } else {
         next.add(id);
         setExpandedLaunches(prev2 => new Set([...prev2, id]));
+        // Expand all phases for newly selected launch
+        setExpandedPhases(prev2 => {
+          const n = new Set(prev2);
+          for (const p of PHASES) n.add(`${id}:${p.key}`);
+          return n;
+        });
       }
       return next;
     });
@@ -68,6 +85,16 @@ export default function TimelinePage() {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const togglePhase = (launchId: string, phaseKey: string) => {
+    const key = `${launchId}:${phaseKey}`;
+    setExpandedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
@@ -91,20 +118,87 @@ export default function TimelinePage() {
     return computeDateRange(allTasks, primary, allLaunchDates.slice(1), 10);
   }, [selectedLaunches]);
 
-  // Color map for launches — prefer brandColor, then tier color, then fallback palette
+  // Color map for launches
   const launchColorMap = useMemo(() => {
     const map = new Map<string, string>();
     selectedLaunches.forEach((l, i) => map.set(l.id, getLaunchColor(l) || LAUNCH_COLORS[i % LAUNCH_COLORS.length]));
     return map;
   }, [selectedLaunches]);
 
+  // Stacked view: group all tasks by name across launches
+  const stackedData = useMemo(() => {
+    if (viewMode !== 'stacked' || selectedLaunches.length === 0) return null;
+
+    // Collect unique task names preserving order by phase then by earliest appearance
+    const taskNamesByPhase = new Map<PhaseKey, string[]>();
+    for (const phase of PHASES) {
+      const names = new Set<string>();
+      for (const l of selectedLaunches) {
+        for (const t of l.tasks) {
+          if (t.phase === phase.key && !names.has(t.name)) {
+            names.add(t.name);
+          }
+        }
+      }
+      if (names.size > 0) {
+        taskNamesByPhase.set(phase.key, Array.from(names));
+      }
+    }
+
+    // Build a map: taskName -> { launchId -> task }
+    const taskMap = new Map<string, Map<string, GTMTask>>();
+    for (const l of selectedLaunches) {
+      for (const t of l.tasks) {
+        if (!taskMap.has(t.name)) taskMap.set(t.name, new Map());
+        taskMap.get(t.name)!.set(l.id, t);
+      }
+    }
+
+    return { taskNamesByPhase, taskMap };
+  }, [viewMode, selectedLaunches]);
+
+  // Expanded phases for stacked view
+  const [expandedStackedPhases, setExpandedStackedPhases] = useState<Set<PhaseKey>>(new Set(PHASES.map(p => p.key)));
+
+  const toggleStackedPhase = (phaseKey: PhaseKey) => {
+    setExpandedStackedPhases(prev => {
+      const next = new Set(prev);
+      if (next.has(phaseKey)) next.delete(phaseKey);
+      else next.add(phaseKey);
+      return next;
+    });
+  };
+
   if (!mounted || loading) return <div className="p-8" />;
 
   return (
     <div className="p-8 max-w-[1600px]">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-[#1B1464]">Launch Timeline</h1>
-        <p className="text-sm text-[#A8A29E] mt-1">Compare timelines across multiple launches</p>
+      <div className="mb-6 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-[#1B1464]">Launch Timeline</h1>
+          <p className="text-sm text-[#A8A29E] mt-1">Compare timelines across multiple launches</p>
+        </div>
+        {/* View mode toggle */}
+        <div className="flex items-center gap-1 bg-[#F5F5F4] rounded-lg p-1">
+          <button
+            onClick={() => setViewMode('by-launch')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              viewMode === 'by-launch' ? 'bg-white text-[#1B1464] shadow-sm' : 'text-[#78716C] hover:text-[#44403C]'
+            }`}
+          >
+            <List className="w-3.5 h-3.5" />
+            By Launch
+          </button>
+          <button
+            onClick={() => setViewMode('stacked')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+              viewMode === 'stacked' ? 'bg-white text-[#1B1464] shadow-sm' : 'text-[#78716C] hover:text-[#44403C]'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            Stacked
+          </button>
+        </div>
       </div>
 
       {/* Launch selector */}
@@ -167,205 +261,383 @@ export default function TimelinePage() {
               <span className="text-[10px] text-[#57534E]">Today</span>
             </div>
 
-            <div className="w-px h-3 bg-[#E7E5E4]" />
-
-            {/* Phase colors */}
-            <div className="flex items-center gap-3">
-              {PHASES.map(p => (
-                <div key={p.key} className="flex items-center gap-1">
-                  <div className="w-3 h-3 rounded-sm" style={{ background: p.color }} />
-                  <span className="text-[10px] text-[#57534E]">{p.name}</span>
+            {viewMode === 'by-launch' && (
+              <>
+                <div className="w-px h-3 bg-[#E7E5E4]" />
+                {/* Phase colors */}
+                <div className="flex items-center gap-3">
+                  {PHASES.map(p => (
+                    <div key={p.key} className="flex items-center gap-1">
+                      <div className="w-3 h-3 rounded-sm" style={{ background: p.color }} />
+                      <span className="text-[10px] text-[#57534E]">{p.name}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <div className="w-px h-3 bg-[#E7E5E4]" />
+                <div className="w-px h-3 bg-[#E7E5E4]" />
 
-            {/* Task status opacity legend */}
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-medium text-[#78716C]">Status:</span>
-              <div className="flex items-center gap-1">
-                <div className="w-5 h-3 rounded-sm" style={{ background: '#6366F1' }} />
-                <span className="text-[10px] text-[#57534E]">In Progress</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-5 h-3 rounded-sm opacity-60" style={{ background: desaturateColor('#6366F1', 0.5) }} />
-                <span className="text-[10px] text-[#57534E]">Not Started</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <div className="w-5 h-3 rounded-sm opacity-40" style={{ background: '#6366F1' }} />
-                <span className="text-[10px] text-[#57534E]">Complete</span>
-              </div>
-            </div>
+                {/* Task status opacity legend */}
+                <div className="flex items-center gap-3">
+                  <span className="text-[10px] font-medium text-[#78716C]">Status:</span>
+                  <div className="flex items-center gap-1">
+                    <div className="w-5 h-3 rounded-sm" style={{ background: '#6366F1' }} />
+                    <span className="text-[10px] text-[#57534E]">In Progress</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-5 h-3 rounded-sm opacity-60" style={{ background: desaturateColor('#6366F1', 0.5) }} />
+                    <span className="text-[10px] text-[#57534E]">Not Started</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-5 h-3 rounded-sm opacity-40" style={{ background: '#6366F1' }} />
+                    <span className="text-[10px] text-[#57534E]">Complete</span>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
 
           <div className="flex">
             {/* Left: labels */}
             <div className="w-[220px] shrink-0 border-r border-[#E7E5E4] bg-white z-10 sticky left-0">
-              {/* Header spacer */}
-              <div className="h-[52px] border-b border-[#E7E5E4]" />
+              {/* Header spacer - must match the sticky header height */}
+              <div className="h-[52px] border-b border-[#E7E5E4] sticky top-0 bg-white z-20" />
 
-              {selectedLaunches.map(l => {
-                const isExpanded = expandedLaunches.has(l.id);
-                const color = launchColorMap.get(l.id) || '#6B7280';
-                const sortedTasks = [...l.tasks].sort((a, b) => (a.startDate || a.dueDate || '').localeCompare(b.startDate || b.dueDate || ''));
+              {viewMode === 'by-launch' ? (
+                /* ── By-Launch View: launches > phases > tasks ── */
+                selectedLaunches.map(l => {
+                  const isExpanded = expandedLaunches.has(l.id);
+                  const color = launchColorMap.get(l.id) || '#6B7280';
 
-                return (
-                  <div key={l.id}>
-                    {/* Launch header */}
-                    <button
-                      onClick={() => toggleExpanded(l.id)}
-                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#FAFAF9] transition-colors border-b border-[#E7E5E4]"
-                    >
-                      {isExpanded ? <ChevronDown className="w-3 h-3 text-[#A8A29E]" /> : <ChevronRight className="w-3 h-3 text-[#A8A29E]" />}
-                      <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
-                      <Link href={`/launch/${l.id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-semibold text-[#1B1464] truncate hover:text-[#3538CD]">
-                        {l.name}
-                      </Link>
-                      <span className="text-[10px] text-[#A8A29E] ml-auto">{l.tasks.length}</span>
-                    </button>
-                    {isExpanded && sortedTasks.map(t => (
-                      <div
-                        key={t.id}
-                        className={`flex items-center h-7 px-3 pl-7 text-[11px] truncate border-b border-[#F5F5F4] ${
-                          t.status === 'complete'
-                            ? 'text-[#A8A29E] line-through'
-                            : t.status === 'not_started'
-                              ? 'text-[#A8A29E]'
-                              : 'text-[#44403C]'
-                        }`}
-                        title={t.name}
+                  // Group tasks by phase
+                  const tasksByPhase: Record<string, GTMTask[]> = {};
+                  for (const t of l.tasks) {
+                    if (!tasksByPhase[t.phase]) tasksByPhase[t.phase] = [];
+                    tasksByPhase[t.phase].push(t);
+                  }
+                  // Sort tasks within each phase by start date
+                  for (const key of Object.keys(tasksByPhase)) {
+                    tasksByPhase[key].sort((a, b) => (a.startDate || a.dueDate || '').localeCompare(b.startDate || b.dueDate || ''));
+                  }
+
+                  return (
+                    <div key={l.id}>
+                      {/* Launch header */}
+                      <button
+                        onClick={() => toggleExpanded(l.id)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-[#FAFAF9] transition-colors border-b border-[#E7E5E4]"
                       >
-                        {t.status === 'complete' && <CheckCircle2 className="w-3 h-3 text-[#A8A29E] mr-1 shrink-0" />}
-                        {t.status === 'in_progress' && <Clock className="w-3 h-3 text-[#57534E] mr-1 shrink-0" />}
-                        {t.status === 'not_started' && <Circle className="w-3 h-3 text-[#D6D3D1] mr-1 shrink-0" />}
-                        {t.isMeeting && <span className="mr-1 text-[10px]">📅</span>}
-                        {t.name}
-                      </div>
-                    ))}
-                  </div>
-                );
-              })}
+                        {isExpanded ? <ChevronDown className="w-3 h-3 text-[#A8A29E]" /> : <ChevronRight className="w-3 h-3 text-[#A8A29E]" />}
+                        <div className="w-2.5 h-2.5 rounded-sm" style={{ background: color }} />
+                        <Link href={`/launch/${l.id}`} onClick={e => e.stopPropagation()} className="text-[11px] font-semibold text-[#1B1464] truncate hover:text-[#3538CD]">
+                          {l.name}
+                        </Link>
+                        <span className="text-[10px] text-[#A8A29E] ml-auto">{l.tasks.length}</span>
+                      </button>
+                      {isExpanded && PHASES.map(phase => {
+                        const phaseTasks = tasksByPhase[phase.key];
+                        if (!phaseTasks || phaseTasks.length === 0) return null;
+                        const phaseKey = `${l.id}:${phase.key}`;
+                        const isPhaseExpanded = expandedPhases.has(phaseKey);
+
+                        return (
+                          <div key={phase.key}>
+                            {/* Phase header */}
+                            <button
+                              onClick={() => togglePhase(l.id, phase.key)}
+                              className="w-full flex items-center gap-1.5 px-3 pl-7 py-1 text-left hover:bg-[#FAFAF9] transition-colors border-b border-[#F5F5F4]"
+                              style={{ background: `${phase.color}08` }}
+                            >
+                              {isPhaseExpanded ? <ChevronDown className="w-2.5 h-2.5 text-[#A8A29E]" /> : <ChevronRight className="w-2.5 h-2.5 text-[#A8A29E]" />}
+                              <div className="w-2 h-2 rounded-full" style={{ background: phase.color }} />
+                              <span className="text-[10px] font-semibold text-[#57534E] truncate">{phase.name}</span>
+                              <span className="text-[9px] text-[#A8A29E] ml-auto">{phaseTasks.length}</span>
+                            </button>
+                            {isPhaseExpanded && phaseTasks.map(t => (
+                              <div
+                                key={t.id}
+                                className={`flex items-center h-7 px-3 pl-10 text-[11px] truncate border-b border-[#F5F5F4] ${
+                                  t.status === 'complete'
+                                    ? 'text-[#A8A29E] line-through'
+                                    : t.status === 'not_started'
+                                      ? 'text-[#A8A29E]'
+                                      : 'text-[#44403C]'
+                                }`}
+                                title={t.name}
+                              >
+                                {t.status === 'complete' && <CheckCircle2 className="w-3 h-3 text-[#A8A29E] mr-1 shrink-0" />}
+                                {t.status === 'in_progress' && <Clock className="w-3 h-3 text-[#57534E] mr-1 shrink-0" />}
+                                {t.status === 'not_started' && <Circle className="w-3 h-3 text-[#D6D3D1] mr-1 shrink-0" />}
+                                {t.isMeeting && <span className="mr-1 text-[10px]">📅</span>}
+                                {t.name}
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })
+              ) : (
+                /* ── Stacked View: phases > task names (one row per task) ── */
+                stackedData && PHASES.map(phase => {
+                  const taskNames = stackedData.taskNamesByPhase.get(phase.key);
+                  if (!taskNames || taskNames.length === 0) return null;
+                  const isPhaseExpanded = expandedStackedPhases.has(phase.key);
+
+                  return (
+                    <div key={phase.key}>
+                      <button
+                        onClick={() => toggleStackedPhase(phase.key)}
+                        className="w-full flex items-center gap-1.5 px-3 py-1.5 text-left hover:bg-[#FAFAF9] transition-colors border-b border-[#E7E5E4]"
+                        style={{ background: `${phase.color}10` }}
+                      >
+                        {isPhaseExpanded ? <ChevronDown className="w-3 h-3 text-[#A8A29E]" /> : <ChevronRight className="w-3 h-3 text-[#A8A29E]" />}
+                        <div className="w-2 h-2 rounded-full" style={{ background: phase.color }} />
+                        <span className="text-[11px] font-semibold text-[#1B1464] truncate">{phase.name}</span>
+                        <span className="text-[10px] text-[#A8A29E] ml-auto">{taskNames.length}</span>
+                      </button>
+                      {isPhaseExpanded && taskNames.map(name => (
+                        <div
+                          key={name}
+                          className="flex items-center h-8 px-3 pl-7 text-[11px] truncate border-b border-[#F5F5F4] text-[#44403C]"
+                          title={name}
+                        >
+                          {name}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                })
+              )}
             </div>
 
             {/* Right: scrollable gantt */}
             <div className="flex-1 overflow-x-auto">
               <div className="min-w-[1400px] relative">
-                {/* Header */}
+                {/* Sticky header */}
                 <MultiGanttHeader range={range} />
 
                 <div className="relative">
                   {/* Day backgrounds */}
                   <MultiDayBackgrounds range={range} launches={selectedLaunches} colorMap={launchColorMap} />
 
-                  {selectedLaunches.map(l => {
-                    const isExpanded = expandedLaunches.has(l.id);
-                    const color = launchColorMap.get(l.id) || '#6B7280';
-                    const sortedTasks = [...l.tasks].sort((a, b) => (a.startDate || a.dueDate || '').localeCompare(b.startDate || b.dueDate || ''));
+                  {viewMode === 'by-launch' ? (
+                    /* ── By-Launch Gantt bars ── */
+                    selectedLaunches.map(l => {
+                      const isExpanded = expandedLaunches.has(l.id);
+                      const color = launchColorMap.get(l.id) || '#6B7280';
 
-                    return (
-                      <div key={l.id}>
-                        {/* Launch summary bar */}
-                        <div className="h-[37px] border-b border-[#E7E5E4]">
-                          <div
-                            className="grid items-center h-full"
-                            style={{ gridTemplateColumns: `repeat(${range.totalDays}, minmax(18px, 1fr))` }}
-                          >
-                            {(() => {
-                              const tasks = l.tasks.filter(t => t.dueDate);
-                              if (tasks.length === 0) return null;
-                              const earliest = tasks.reduce((min, t) => {
-                                const s = t.startDate || t.dueDate;
-                                return s && s < min ? s : min;
-                              }, l.launchDate);
-                              const col1 = Math.max(1, dayIndex(parseISO(earliest), range.start) + 1);
-                              const col2 = Math.max(col1 + 1, dayIndex(parseISO(l.launchDate), range.start) + 2);
-                              return (
-                                <div
-                                  className="h-2 rounded-full opacity-30"
-                                  style={{ gridColumn: `${col1} / ${col2}`, background: color }}
-                                />
-                              );
-                            })()}
-                          </div>
-                        </div>
-                        {/* Individual task bars */}
-                        {isExpanded && sortedTasks.map(t => {
-                          const startDate = t.startDate
-                            ? parseISO(t.startDate)
-                            : t.dueDate
-                              ? addDays(parseISO(t.dueDate), -Math.max(t.durationDays, 1))
-                              : null;
-                          const endDate = t.dueDate ? parseISO(t.dueDate) : null;
+                      // Group tasks by phase
+                      const tasksByPhase: Record<string, GTMTask[]> = {};
+                      for (const t of l.tasks) {
+                        if (!tasksByPhase[t.phase]) tasksByPhase[t.phase] = [];
+                        tasksByPhase[t.phase].push(t);
+                      }
+                      for (const key of Object.keys(tasksByPhase)) {
+                        tasksByPhase[key].sort((a, b) => (a.startDate || a.dueDate || '').localeCompare(b.startDate || b.dueDate || ''));
+                      }
 
-                          if (!startDate || !endDate) return <div key={t.id} className="h-6" />;
-
-                          const col1 = Math.max(1, dayIndex(startDate, range.start) + 1);
-                          const col2 = Math.max(col1 + 1, dayIndex(endDate, range.start) + 2);
-                          const phaseColor = PHASE_COLORS[t.phase] || '#6B7280';
-                          const isComplete = t.status === 'complete';
-                          const isNotStarted = t.status === 'not_started';
-
-                          // Determine visual styling based on status
-                          const barColor = isNotStarted ? desaturateColor(phaseColor, 0.5) : phaseColor;
-                          const barOpacity = isComplete ? 'opacity-40' : isNotStarted ? 'opacity-60' : '';
-
-                          return (
+                      return (
+                        <div key={l.id}>
+                          {/* Launch summary bar */}
+                          <div className="h-[37px] border-b border-[#E7E5E4]">
                             <div
-                              key={t.id}
-                              className="grid items-center h-7 border-b border-[#F5F5F4]"
+                              className="grid items-center h-full"
                               style={{ gridTemplateColumns: `repeat(${range.totalDays}, minmax(18px, 1fr))` }}
                             >
+                              {(() => {
+                                const tasks = l.tasks.filter(t => t.dueDate);
+                                if (tasks.length === 0) return null;
+                                const earliest = tasks.reduce((min, t) => {
+                                  const s = t.startDate || t.dueDate;
+                                  return s && s < min ? s : min;
+                                }, l.launchDate);
+                                const col1 = Math.max(1, dayIndex(parseISO(earliest), range.start) + 1);
+                                const col2 = Math.max(col1 + 1, dayIndex(parseISO(l.launchDate), range.start) + 2);
+                                return (
+                                  <div
+                                    className="h-2 rounded-full opacity-30"
+                                    style={{ gridColumn: `${col1} / ${col2}`, background: color }}
+                                  />
+                                );
+                              })()}
+                            </div>
+                          </div>
+                          {/* Phase groups with task bars */}
+                          {isExpanded && PHASES.map(phase => {
+                            const phaseTasks = tasksByPhase[phase.key];
+                            if (!phaseTasks || phaseTasks.length === 0) return null;
+                            const phaseKey = `${l.id}:${phase.key}`;
+                            const isPhaseExpanded = expandedPhases.has(phaseKey);
+                            const phaseColor = PHASE_COLORS[phase.key] || phase.color || '#6B7280';
+
+                            return (
+                              <div key={phase.key}>
+                                {/* Phase header row spacer */}
+                                <div className="h-[26px] border-b border-[#F5F5F4]" style={{ background: `${phase.color}08` }} />
+                                {/* Task bars */}
+                                {isPhaseExpanded && phaseTasks.map(t => {
+                                  const startDate = t.startDate
+                                    ? parseISO(t.startDate)
+                                    : t.dueDate
+                                      ? addDays(parseISO(t.dueDate), -Math.max(t.durationDays, 1))
+                                      : null;
+                                  const endDate = t.dueDate ? parseISO(t.dueDate) : null;
+
+                                  if (!startDate || !endDate) return <div key={t.id} className="h-7 border-b border-[#F5F5F4]" />;
+
+                                  const col1 = Math.max(1, dayIndex(startDate, range.start) + 1);
+                                  const col2 = Math.max(col1 + 1, dayIndex(endDate, range.start) + 2);
+                                  const isComplete = t.status === 'complete';
+                                  const isNotStarted = t.status === 'not_started';
+                                  const barColor = isNotStarted ? desaturateColor(phaseColor, 0.5) : phaseColor;
+                                  const barOpacity = isComplete ? 'opacity-40' : isNotStarted ? 'opacity-60' : '';
+
+                                  return (
+                                    <div
+                                      key={t.id}
+                                      className="grid items-center h-7 border-b border-[#F5F5F4]"
+                                      style={{ gridTemplateColumns: `repeat(${range.totalDays}, minmax(18px, 1fr))` }}
+                                    >
+                                      <div
+                                        className={`h-5 rounded-md relative group cursor-default ${barOpacity} ${t.isCompressed ? 'ring-1 ring-amber-400' : ''}`}
+                                        style={{
+                                          gridColumn: `${col1} / ${col2}`,
+                                          background: barColor,
+                                        }}
+                                      >
+                                        {isComplete && (
+                                          <div className="absolute inset-0 flex items-center pointer-events-none">
+                                            <div className="w-full h-px bg-white/60" />
+                                          </div>
+                                        )}
+                                        <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-medium text-white truncate pointer-events-none">
+                                          {isComplete && <CheckCircle2 className="w-3 h-3 mr-0.5 shrink-0" />}
+                                          {t.isMeeting ? '📅 ' : ''}{t.name}
+                                        </span>
+                                        <TaskTooltip task={t} launchName={l.name} startDate={startDate} endDate={endDate} />
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    /* ── Stacked Gantt bars ── */
+                    stackedData && PHASES.map(phase => {
+                      const taskNames = stackedData.taskNamesByPhase.get(phase.key);
+                      if (!taskNames || taskNames.length === 0) return null;
+                      const isPhaseExpanded = expandedStackedPhases.has(phase.key);
+
+                      return (
+                        <div key={phase.key}>
+                          {/* Phase header row */}
+                          <div className="h-[30px] border-b border-[#E7E5E4]" style={{ background: `${phase.color}10` }} />
+                          {isPhaseExpanded && taskNames.map(name => {
+                            const launchTasks = stackedData.taskMap.get(name);
+                            if (!launchTasks) return <div key={name} className="h-8 border-b border-[#F5F5F4]" />;
+
+                            return (
                               <div
-                                className={`h-5 rounded-md relative group cursor-default ${barOpacity} ${t.isCompressed ? 'ring-1 ring-amber-400' : ''}`}
-                                style={{
-                                  gridColumn: `${col1} / ${col2}`,
-                                  background: barColor,
-                                }}
+                                key={name}
+                                className="relative h-8 border-b border-[#F5F5F4]"
                               >
-                                {/* Strikethrough overlay for complete tasks */}
-                                {isComplete && (
-                                  <div className="absolute inset-0 flex items-center pointer-events-none">
-                                    <div className="w-full h-px bg-white/60" />
-                                  </div>
-                                )}
-                                <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-medium text-white truncate pointer-events-none">
-                                  {isComplete && <CheckCircle2 className="w-3 h-3 mr-0.5 shrink-0" />}
-                                  {t.isMeeting ? '📅 ' : ''}{t.name}
-                                </span>
-                                {/* Rich hover tooltip */}
-                                <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-30 pointer-events-none">
-                                  <div className="bg-[#1B1464] text-white text-[10px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap max-w-[300px]">
-                                    <p className="font-semibold text-[11px]">{t.name}</p>
-                                    <p className="text-white/60 mt-0.5">{l.name}</p>
-                                    <p className="text-white/60 mt-0.5">{format(startDate, 'MMM d')} → {format(endDate, 'MMM d')} ({t.durationDays} BD)</p>
-                                    <p className="text-white/60">Owner: {OWNER_LABELS[t.owner] || t.owner}</p>
-                                    <p className="mt-0.5">
-                                      <span className={
-                                        isComplete ? 'text-green-300' : isNotStarted ? 'text-white/40' : 'text-blue-300'
-                                      }>
-                                        Status: {t.status.replace('_', ' ')}
-                                      </span>
-                                    </p>
-                                    {t.isCompressed && <p className="text-amber-300 mt-0.5">⚠ Compressed by {t.compressionDays} BD</p>}
-                                    {t.dependencyNames && t.dependencyNames.length > 0 && (
-                                      <p className="text-white/60 mt-0.5">Deps: {t.dependencyNames.join(', ')}</p>
-                                    )}
-                                  </div>
+                                <div
+                                  className="grid items-center h-full"
+                                  style={{ gridTemplateColumns: `repeat(${range.totalDays}, minmax(18px, 1fr))` }}
+                                >
+                                  {selectedLaunches.map(l => {
+                                    const t = launchTasks.get(l.id);
+                                    if (!t) return null;
+
+                                    const startDate = t.startDate
+                                      ? parseISO(t.startDate)
+                                      : t.dueDate
+                                        ? addDays(parseISO(t.dueDate), -Math.max(t.durationDays, 1))
+                                        : null;
+                                    const endDate = t.dueDate ? parseISO(t.dueDate) : null;
+
+                                    if (!startDate || !endDate) return null;
+
+                                    const col1 = Math.max(1, dayIndex(startDate, range.start) + 1);
+                                    const col2 = Math.max(col1 + 1, dayIndex(endDate, range.start) + 2);
+                                    const launchColor = launchColorMap.get(l.id) || '#6B7280';
+                                    const isComplete = t.status === 'complete';
+                                    const isNotStarted = t.status === 'not_started';
+                                    const barColor = isNotStarted ? desaturateColor(launchColor, 0.4) : launchColor;
+                                    const barOpacity = isComplete ? 'opacity-40' : isNotStarted ? 'opacity-60' : '';
+
+                                    return (
+                                      <div
+                                        key={l.id}
+                                        className={`h-4 rounded relative group cursor-default ${barOpacity} ${t.isCompressed ? 'ring-1 ring-amber-400' : ''}`}
+                                        style={{
+                                          gridColumn: `${col1} / ${col2}`,
+                                          background: barColor,
+                                          // Offset bars vertically so overlapping bars are visible
+                                          marginTop: '1px',
+                                          marginBottom: '1px',
+                                        }}
+                                      >
+                                        {isComplete && (
+                                          <div className="absolute inset-0 flex items-center pointer-events-none">
+                                            <div className="w-full h-px bg-white/60" />
+                                          </div>
+                                        )}
+                                        <span className="absolute inset-0 flex items-center px-1 text-[8px] font-medium text-white truncate pointer-events-none">
+                                          {l.name}
+                                        </span>
+                                        <TaskTooltip task={t} launchName={l.name} startDate={startDate} endDate={endDate} />
+                                      </div>
+                                    );
+                                  })}
                                 </div>
                               </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    );
-                  })}
+                            );
+                          })}
+                        </div>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+// ── Shared tooltip component ──
+
+function TaskTooltip({ task, launchName, startDate, endDate }: { task: GTMTask; launchName: string; startDate: Date; endDate: Date }) {
+  const isComplete = task.status === 'complete';
+  const isNotStarted = task.status === 'not_started';
+
+  return (
+    <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-30 pointer-events-none">
+      <div className="bg-[#1B1464] text-white text-[10px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap max-w-[300px]">
+        <p className="font-semibold text-[11px]">{task.name}</p>
+        <p className="text-white/60 mt-0.5">{launchName}</p>
+        <p className="text-white/60 mt-0.5">{format(startDate, 'MMM d')} {'\u2192'} {format(endDate, 'MMM d')} ({task.durationDays} BD)</p>
+        <p className="text-white/60">Owner: {OWNER_LABELS[task.owner] || task.owner}</p>
+        <p className="mt-0.5">
+          <span className={
+            isComplete ? 'text-green-300' : isNotStarted ? 'text-white/40' : 'text-blue-300'
+          }>
+            Status: {task.status.replace('_', ' ')}
+          </span>
+        </p>
+        {task.isCompressed && <p className="text-amber-300 mt-0.5">Warning: Compressed by {task.compressionDays} BD</p>}
+        {task.dependencyNames && task.dependencyNames.length > 0 && (
+          <p className="text-white/60 mt-0.5">Deps: {task.dependencyNames.join(', ')}</p>
+        )}
+      </div>
     </div>
   );
 }

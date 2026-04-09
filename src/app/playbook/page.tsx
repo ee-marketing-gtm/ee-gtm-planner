@@ -39,95 +39,146 @@ const GATES: Gate[] = [
   {
     id: 'content_planning',
     phase: 'Content Planning',
-    phaseColor: '#6366F1',
+    phaseColor: '#3D4EDB',
     phaseBg: '#EEF2FF',
     phaseIcon: <Target className="w-6 h-6" />,
-    description: 'Define the strategic foundation — who the launch is for, what it says, and how it looks.',
-    totalDuration: '~20 business days',
-    checkpoint: 'Strategy & Creative Direction Locked',
+    description: 'Define the strategic foundation — positioning, messaging, creative direction, and copy.',
+    totalDuration: '~25 business days',
+    checkpoint: 'Positioning, Copy & Creative Direction Locked',
     checkpointDetails: [
-      'Positioning statement approved',
-      'Key messages and copy direction finalized',
-      'Creative concepts approved from brainstorm',
-      'Asset request form and marketing deck drafted',
+      'Product positioning & messaging finalized',
+      'Creative shoot plan finalized',
+      'Bundle assortment finalized',
+      'Final taglines & campaign copy delivered',
+      'RSP finalization complete',
     ],
     tasks: [
-      { name: 'Marketing Positioning', owner: 'Marketing', duration: '5 days', icon: <Target className="w-4 h-4" />, description: 'Define target audience, key insight, positioning statement, and competitive differentiation.', tips: ['Review past GTM decks for frameworks that worked', 'Align with Product on claims and ingredient story'] },
-      { name: 'Copy Direction', owner: 'Marketing', duration: '5 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Develop messaging hierarchy, 3-5 key messages, proof points, tone of voice, and headline options.', tips: ['Messages should work short (social) and long (email)', 'Include specific claims for regulatory review if needed'] },
-      { name: 'Brainstorm Meeting', owner: 'Marketing', duration: '2 days', icon: <Users className="w-4 h-4" />, description: 'Cross-functional creative brainstorm with Marketing, Creative, and Channel Leads to align on visual direction and campaign narrative.', tips: ['Don\'t squeeze into another meeting — schedule dedicated time', 'Come with positioning + copy direction finalized'] },
-      { name: 'Brainstorm Concepts Approved', owner: 'Marketing', duration: '3 days', icon: <CheckSquare className="w-4 h-4" />, description: 'Finalize and get sign-off on creative concepts, shot list direction, and high-level asset list by channel.' },
-      { name: '1st Draft Marketing Deck & Asset Request Form', owner: 'Channel Leads', duration: '5 days', icon: <FileText className="w-4 h-4" />, description: 'Channel leads build the 360 marketing deck and asset request forms with specs per channel.', tips: ['Use the standardized template — don\'t start from scratch', 'If one person owns multiple briefs, flag workload early'] },
+      { name: 'Product Sheet & Competitive Landscape', owner: 'Marketing', duration: '3 days', icon: <Target className="w-4 h-4" />, description: 'Research competitive landscape and build the product sheet — the starting point for everything downstream.', tips: ['This is the very first task — start date is computed backward from launch', 'Include key differentiators, ingredient story, and claims'] },
+      { name: 'Draft Product Positioning & Messaging', owner: 'Marketing', duration: '3 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Develop the core positioning statement, key messages, and messaging hierarchy.', tips: ['Messages should work short (social) and long (email)', 'Align with Product on claims and ingredient story'] },
+      { name: 'GTM Brainstorm Meeting', owner: 'Marketing', duration: '3 days', icon: <Users className="w-4 h-4" />, description: 'Cross-functional creative brainstorm to align on positioning, marketing pillars, creative concepts, bundle assortment, and retail channel presence.', tips: ['Don\'t squeeze into another meeting — schedule dedicated time', 'Come with positioning + copy direction finalized'] },
+      { name: 'Finalize Positioning, Shoot Plan & Bundles', owner: 'Marketing / Creative / Growth', duration: '3 days', icon: <CheckSquare className="w-4 h-4" />, description: 'Three parallel tracks after brainstorm: finalize product positioning, creative shoot plan, and bundle assortment (requires RSP finalization).' },
+      { name: 'Tagline & Campaign Copy Track', owner: 'Marketing / Copywriter', duration: '~23 days', icon: <FileText className="w-4 h-4" />, description: 'Submit copy brief, receive R1 taglines (5 BD), iterate (10 BD), and deliver final taglines & campaign copy.', tips: ['Copy iteration includes back-and-forth with copywriter — plan for 10 BD', 'Final taglines gate the 360 GTM Plan and all design briefs'] },
     ],
   },
   {
-    id: 'finalize_mgmt',
-    phase: 'Finalize & Inform Mgmt',
-    phaseColor: '#F59E0B',
-    phaseBg: '#FFFBEB',
-    phaseIcon: <Presentation className="w-6 h-6" />,
-    description: 'Polish the plan, get leadership buy-in, and lock the strategy before moving into production.',
-    totalDuration: '~5 business days',
-    checkpoint: 'Management Approved — Go to Production',
-    checkpointDetails: ['Final marketing deck with strategy, channels, budget, and timeline', 'Explicit management sign-off received', 'Any revision notes incorporated'],
-    tasks: [
-      { name: 'Final Marketing Launch Deck', owner: 'Marketing', duration: '3 days', icon: <Presentation className="w-4 h-4" />, description: 'Polish the marketing deck incorporating all channel plans, budget, and timeline into a single source of truth.', tips: ['This deck becomes the GTM bible — make it comprehensive', 'Include the "why" behind each channel choice'] },
-      { name: 'Management Approval', owner: 'Marketing', duration: '2 days', icon: <ShieldCheck className="w-4 h-4" />, description: 'Present the launch plan to leadership for approval before moving into production.', tips: ['Send deck in advance so leadership can review beforehand', 'Get explicit sign-off — silence ≠ approval'] },
-    ],
-  },
-  {
-    id: 'packaging',
-    phase: 'Packaging Development',
-    phaseColor: '#7C3AED',
+    id: 'cross_functional',
+    phase: 'Alignment',
+    phaseColor: '#9333ea',
     phaseBg: '#F5F3FF',
-    phaseIcon: <Package className="w-6 h-6" />,
-    description: 'Develop packaging design and copy in parallel with production — must be finalized before photoshoot samples.',
-    totalDuration: '~18 business days',
-    checkpoint: 'Packaging Samples Ready for Photoshoot',
+    phaseIcon: <Users className="w-6 h-6" />,
+    description: 'Six parallel cross-functional alignment tracks — all happen simultaneously after brainstorm + positioning.',
+    totalDuration: '~3 business days',
+    checkpoint: 'All Channel Strategies Aligned',
     checkpointDetails: [
-      'Packaging structure and colors finalized',
-      'Copy sheet draft ready (near-final)',
-      'Samples available for product photoshoot',
+      'Paid influencer strategy aligned',
+      'Social strategy aligned',
+      'Paid ads strategy aligned',
+      'Email plan aligned',
+      'Homepage plan aligned',
+      'Early access decision made',
     ],
     tasks: [
-      { name: 'Marketing Briefs Creative on Packaging Concept', owner: 'Marketing', duration: '3 days', icon: <FileText className="w-4 h-4" />, description: 'Marketing develops the packaging concept brief covering brand positioning, target shelf presence, key claims, and visual direction for creative to begin sourcing.', tips: ['Include competitive shelf references', 'Specify must-have claims and regulatory constraints upfront'] },
-      { name: 'Creative Sources & Develops Packaging Options', owner: 'Creative', duration: '10 days', icon: <Palette className="w-4 h-4" />, description: 'Creative team sources materials, develops structural and graphic options, and presents 2-3 packaging directions for review.', tips: ['Request vendor samples early — lead times can be long', 'Present options with mock-ups showing shelf context'] },
-      { name: 'Marketing + Kim Refine & Finalize Design', owner: 'Marketing', duration: '5 days', icon: <CheckSquare className="w-4 h-4" />, description: 'Marketing and founder (Kim) review packaging options, provide feedback, and make final design selection. Kim is the final decision-maker on packaging aesthetics.', tips: ['Schedule founder review early — her calendar fills fast', 'Come with a clear recommendation and rationale', 'Founder is final decision-maker on packaging aesthetics'] },
-      { name: 'Develop Packaging Copy Sheet', owner: 'Marketing', duration: '5 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Develop the full packaging copy sheet including front panel, back panel, ingredient call-outs, claims, and regulatory copy. This runs in parallel with design exploration.', tips: ['Start copy sheet during design exploration — don\'t wait for final design', 'Coordinate with regulatory on claims language early', 'Copy sheet should be near-final before photoshoot samples are produced'] },
+      { name: 'Align on Paid Influencer Strategy', owner: 'Influencer', duration: '3 days', icon: <Star className="w-4 h-4" />, description: 'Align on paid influencer approach before brief drafting begins.' },
+      { name: 'Align on Social Strategy', owner: 'Social', duration: '3 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Align on social strategy before brief drafting begins.' },
+      { name: 'Align on Paid Ads Strategy', owner: 'Growth', duration: '3 days', icon: <Zap className="w-4 h-4" />, description: 'Align on paid ads approach and budget allocation.' },
+      { name: 'Align on Email Plan', owner: 'Growth', duration: '3 days', icon: <FileText className="w-4 h-4" />, description: 'Align on email campaign plan and cadence.' },
+      { name: 'Align on Homepage Plan', owner: 'Growth / Creative', duration: '3 days', icon: <Monitor className="w-4 h-4" />, description: 'Align on homepage hero, modules, and banner plan.' },
+      { name: 'Align on Early Access Decision', owner: 'Growth', duration: '3 days', icon: <Lock className="w-4 h-4" />, description: 'Decide if launch includes an early access window.' },
+    ],
+  },
+  {
+    id: 'finalize_strategies',
+    phase: 'Strategies',
+    phaseColor: '#22c55e',
+    phaseBg: '#F0FDF4',
+    phaseIcon: <Presentation className="w-6 h-6" />,
+    description: 'Finalize channel strategies, build the 360 GTM plan, and create the final GTM deck.',
+    totalDuration: '~18 business days',
+    checkpoint: '360 GTM Plan & Final Deck Complete',
+    checkpointDetails: [
+      'Email strategy finalized',
+      'Social strategy finalized',
+      'Influencer strategy finalized & creator sourcing started',
+      '360 GTM Plan & Retail Channels approved (requires ALL alignment + strategies + taglines)',
+      'Final GTM Deck presented',
+    ],
+    tasks: [
+      { name: 'Finalize Email Strategy', owner: 'Growth', duration: '3 days', icon: <FileText className="w-4 h-4" />, description: 'Finalize email strategy after email plan alignment.' },
+      { name: 'Finalize Social Strategy', owner: 'Social', duration: '5 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Finalize social strategy after social alignment.' },
+      { name: 'Finalize Influencer Strategy & Start Sourcing', owner: 'Influencer', duration: '15 days', icon: <Star className="w-4 h-4" />, description: 'Finalize influencer strategy and begin sourcing creators ahead of creator review meeting.', tips: ['This is the longest task in this phase — start early', 'Creator sourcing feeds into the Creator Review Meeting in Content Production'] },
+      { name: 'Finalize 360 GTM Plan & Retail Channels', owner: 'Leadership', duration: '3 days', icon: <ShieldCheck className="w-4 h-4" />, description: 'Requires ALL alignment outcomes, finalized strategies, and final taglines. This is the big convergence point.', tips: ['Cannot start until every alignment and strategy task is done', 'This gates ALL design briefs downstream'] },
+      { name: 'Final GTM Deck', owner: 'Marketing', duration: '3 days', icon: <Presentation className="w-4 h-4" />, description: 'Build the presentation deck from the 360 plan — the GTM source of truth.', tips: ['Include the "why" behind each channel choice', 'Send to leadership in advance for review'] },
     ],
   },
   {
     id: 'content_production',
     phase: 'Content Production',
-    phaseColor: '#10B981',
-    phaseBg: '#ECFDF5',
+    phaseColor: '#f97316',
+    phaseBg: '#FFF7ED',
     phaseIcon: <Camera className="w-6 h-6" />,
-    description: 'Execute the creative vision — photography, video, retouching, and technical asset preparation.',
-    totalDuration: '~38 business days',
-    checkpoint: 'Final Assets Delivered & Tech-Ready',
-    checkpointDetails: ['All retouched assets delivered in required formats', 'Tech-ready files handed off (web, PDP, etc.)', 'One round of revisions completed'],
+    description: 'Shoots, photo selects, and creator content — two parallel tracks (photography + creators).',
+    totalDuration: '~30 business days',
+    checkpoint: 'Photo Selects & Creator Content Delivered',
+    checkpointDetails: [
+      'Lifestyle & product photo selects ready (feed into R1 assets)',
+      'Creator content delivered (~1 week before D2C launch)',
+      'Packaging samples received for photoshoot',
+      'Finished goods available for creator seeding',
+    ],
     tasks: [
-      { name: 'Asset Request Form Approval & AD Start', owner: 'Creative', duration: '11 days', icon: <Palette className="w-4 h-4" />, description: 'Creative reviews and approves asset requests, begins art direction and pre-production planning.', tips: ['Creative needs complete briefs — incomplete briefs cause delays', 'Confirm model/talent availability early'] },
-      { name: 'Production Start', owner: 'Creative', duration: '7 days', icon: <Camera className="w-4 h-4" />, description: 'Pre-production logistics: location scouting, prop sourcing, styling, and production scheduling.' },
-      { name: 'Shoot', owner: 'Creative', duration: '10 days', icon: <Star className="w-4 h-4" />, description: 'Photography and/or video production days, including initial selects.', tips: ['Marketing should attend for real-time alignment', 'Capture BTS content for social while you have the setup'] },
-      { name: 'Retouching', owner: 'Creative', duration: '10 days', icon: <Scissors className="w-4 h-4" />, description: 'Post-production retouching, color correction, and file preparation.', tips: ['Build in one round of revisions — plan for it', 'Confirm all tech specs with Digital/Ops before handoff'] },
-      { name: 'Tech Hand Off', owner: 'Creative', duration: '—', icon: <Monitor className="w-4 h-4" />, description: 'Technical handoff of web-ready files for PDP, landing pages, and digital channels.' },
+      { name: 'Draft & Finalize Shoot Plan', owner: 'Marketing / Creative', duration: '8 days', icon: <FileText className="w-4 h-4" />, description: 'Draft the shoot & content capture plan (3 BD), then finalize it once positioning is locked (5 BD).', tips: ['Use the standardized Asset Form template', 'Requires finalized positioning before the plan can be finalized'] },
+      { name: 'Lifestyle & Product Shoots', owner: 'Creative', duration: '5 days each', icon: <Camera className="w-4 h-4" />, description: 'Lifestyle and product shoots run in parallel. Both need packaging samples (not finished goods).', tips: ['Marketing should attend for real-time alignment', 'Capture BTS content for social while you have the setup'] },
+      { name: 'Photo Selects & Retouching', owner: 'Creative', duration: '10 days each', icon: <Scissors className="w-4 h-4" />, description: 'Lifestyle and product photo selects and retouching (~2 weeks each). These feed directly into R1 Assets.', tips: ['Build in one round of revisions — plan for it', 'Confirm all tech specs with Digital/Ops before handoff'] },
+      { name: 'Creator Review Meeting', owner: 'Influencer', duration: '3 days', icon: <Users className="w-4 h-4" />, description: 'Review shortlisted creators, confirm tiers & budget, align on content deliverables.' },
+      { name: 'Briefs to Creators', owner: 'Influencer', duration: '5 days', icon: <FileText className="w-4 h-4" />, description: 'Send briefs to confirmed creators. Requires both confirmed creator list AND finished good marketing units.', tips: ['Cannot start until finished goods are available for shipping'] },
+      { name: 'Creator Content Delivered', owner: 'Influencer', duration: '15 days', icon: <Star className="w-4 h-4" />, description: 'Creators produce and deliver content. Must arrive ~1 week (5 BD) before D2C launch.' },
+    ],
+  },
+  {
+    id: 'design_briefs',
+    phase: 'Design Briefs',
+    phaseColor: '#e85d04',
+    phaseBg: '#FFF7ED',
+    phaseIcon: <FileText className="w-6 h-6" />,
+    description: 'Draft all design briefs — 9 briefs across product and bundle, all in parallel.',
+    totalDuration: '~5 business days',
+    checkpoint: 'All Draft Design Briefs Submitted',
+    checkpointDetails: [
+      'PDP Gallery, Sephora/Amazon Gallery, Amazon A+ briefs drafted',
+      'Email, Social, Homepage briefs drafted',
+      'Bundle PDP Copy, Bundle PDP Gallery, Bundle Sephora/Amazon Gallery briefs drafted',
+    ],
+    tasks: [
+      { name: 'Draft PDP Gallery Asset Brief', owner: 'Marketing', duration: '5 days', icon: <FileText className="w-4 h-4" />, description: 'Product PDP gallery images brief. Requires final taglines, 360 GTM plan, and bundle assortment.' },
+      { name: 'Draft Sephora/Amazon Gallery Asset Brief', owner: 'Marketing', duration: '5 days', icon: <FileText className="w-4 h-4" />, description: 'Sephora and Amazon gallery asset brief (if different from DTC PDP assets).' },
+      { name: 'Draft Amazon A+ Content Brief', owner: 'Marketing', duration: '5 days', icon: <FileText className="w-4 h-4" />, description: 'Amazon A+ enhanced content brief.' },
+      { name: 'Draft Email, Social & Homepage Briefs', owner: 'Marketing / Social', duration: '3-4 days', icon: <MessageSquare className="w-4 h-4" />, description: 'Email brief (3 BD), Social creative brief (4 BD), and Homepage asset brief (3 BD) — all in parallel.' },
+      { name: 'Draft Bundle Briefs (PDP Copy, Gallery, Sephora/Amazon)', owner: 'Marketing', duration: '3-5 days', icon: <Package className="w-4 h-4" />, description: 'Bundle PDP copy brief (3 BD), Bundle PDP gallery (5 BD), and Bundle Sephora/Amazon gallery (5 BD) — all in parallel.' },
     ],
   },
   {
     id: 'design_production',
-    phase: 'Design Production',
+    phase: 'Asset Production',
     phaseColor: '#EC4899',
     phaseBg: '#FDF2F8',
     phaseIcon: <PenTool className="w-6 h-6" />,
-    description: 'Turn final assets into channel-ready creative — email, web, social, paid — and launch.',
-    totalDuration: '~26 business days',
-    checkpoint: 'All Creative Approved — Ready to Launch',
-    checkpointDetails: ['All channel creative reviewed and approved', 'Visual and messaging consistency confirmed across touchpoints', 'All CTAs and links verified', 'Launch day checklist complete'],
+    description: 'Align on briefs, produce R1 assets, iterate feedback, and deliver final assets per channel.',
+    totalDuration: '~25 business days',
+    checkpoint: 'All Final Assets Delivered — Ready to Launch',
+    checkpointDetails: [
+      'Brief Alignment Meeting completed (all briefs + all alignments reviewed)',
+      'R1 Assets delivered and feedback incorporated',
+      'Sephora final assets submitted (10 weeks before Sephora launch)',
+      'DTC & Amazon final assets delivered (3 weeks before D2C launch)',
+      'Final PDP copy & reviews complete (2 weeks before D2C launch)',
+      'Social campaign started (1 week before D2C launch)',
+    ],
     tasks: [
-      { name: 'Design Briefs Due', owner: 'Channel Leads', duration: '21 days', icon: <FileText className="w-4 h-4" />, description: 'Channel leads submit detailed design briefs for email, web, social, and paid media creative.', tips: ['Start writing briefs while assets are still in production — don\'t wait', 'Reference approved strategy and key messages in every brief'] },
-      { name: 'Design Approvals & Scheduling', owner: 'Channel Leads', duration: '5 days', icon: <Eye className="w-4 h-4" />, description: 'Review designed assets per channel and schedule content for launch.' },
-      { name: 'Creative 360 Review', owner: 'Creative', duration: '—', icon: <Sparkles className="w-4 h-4" />, description: 'Cross-functional review of ALL designed assets together to ensure consistency across every touchpoint.', tips: ['Do this as a single session — seeing everything together catches inconsistencies', 'Check: Are key messages consistent? Visual identity cohesive? CTAs aligned?'] },
-      { name: 'Launch!', owner: 'Marketing', duration: 'Day 0', icon: <Rocket className="w-4 h-4" />, description: 'Go live across all channels. Monitor performance and be ready to optimize.', tips: ['Have a launch day checklist — verify every channel is live and correct', 'Schedule a post-launch debrief for 2-4 weeks after launch'] },
+      { name: 'Brief Alignment Meeting', owner: 'Marketing', duration: '3 days', icon: <Users className="w-4 h-4" />, description: 'Review ALL draft briefs (product + bundle) and ALL cross-functional alignments. Align on creative direction, asset specs, and timeline.', tips: ['All 9 draft briefs and all 6 alignment outcomes must be complete before this meeting', 'This is the single biggest convergence point for design production'] },
+      { name: 'Final Asset Design Briefs & PDP Copy Brief', owner: 'Marketing', duration: '2-3 days', icon: <FileText className="w-4 h-4" />, description: 'Finalize design briefs incorporating alignment meeting feedback (2 BD). Draft PDP copy brief (3 BD, requires legal review).' },
+      { name: 'R1 Assets Due', owner: 'Creative', duration: '10 days', icon: <Palette className="w-4 h-4" />, description: 'First round of all design assets (email, social, PDP, homepage, Amazon A+). Requires finalized briefs AND photo selects.', tips: ['~2 weeks for creative production', 'Cannot start until both final briefs and photo selects are ready'] },
+      { name: 'Asset Feedback & Final Delivery', owner: 'Marketing / Creative', duration: '3-5 days', icon: <Eye className="w-4 h-4" />, description: 'Feedback on R1 assets (3 BD), then final assets for Sephora (5 BD) and DTC/Amazon (5 BD).' },
+      { name: 'Social Campaign Start & Launch', owner: 'Social / Marketing', duration: 'Launch', icon: <Rocket className="w-4 h-4" />, description: 'Social campaign starts 5 BD before D2C launch. D2C launches first, Sephora follows ~4 weeks later.', tips: ['Have a launch day checklist — verify every channel is live and correct', 'Schedule a post-launch debrief for 2-4 weeks after launch'] },
     ],
   },
 ];
@@ -174,19 +225,23 @@ function ProcessTab() {
         <div className="mt-5 pt-4 border-t border-[#E7E5E4]">
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-[#A8A29E]" />
-            <span className="text-xs text-[#57534E]">Total timeline: <strong>~89 business days (18 weeks)</strong> for full production launches</span>
+            <span className="text-xs text-[#57534E]">Total timeline: <strong>~106 business days (21 weeks)</strong> for full production launches</span>
           </div>
           <div className="flex mt-2 rounded-full overflow-hidden h-2">
-            <div className="h-full" style={{ width: '22%', background: '#6366F1' }} />
-            <div className="h-full" style={{ width: '6%', background: '#F59E0B' }} />
-            <div className="h-full" style={{ width: '43%', background: '#10B981' }} />
-            <div className="h-full" style={{ width: '29%', background: '#EC4899' }} />
+            <div className="h-full" style={{ width: '24%', background: '#3D4EDB' }} />
+            <div className="h-full" style={{ width: '3%', background: '#9333ea' }} />
+            <div className="h-full" style={{ width: '17%', background: '#22c55e' }} />
+            <div className="h-full" style={{ width: '28%', background: '#f97316' }} />
+            <div className="h-full" style={{ width: '5%', background: '#e85d04' }} />
+            <div className="h-full" style={{ width: '23%', background: '#EC4899' }} />
           </div>
           <div className="flex mt-1">
-            <span className="text-[9px] text-[#6366F1]" style={{ width: '22%' }}>20d</span>
-            <span className="text-[9px] text-[#F59E0B]" style={{ width: '6%' }}>5d</span>
-            <span className="text-[9px] text-[#10B981]" style={{ width: '43%' }}>38d</span>
-            <span className="text-[9px] text-[#EC4899]" style={{ width: '29%' }}>26d</span>
+            <span className="text-[9px] text-[#3D4EDB]" style={{ width: '24%' }}>25d</span>
+            <span className="text-[9px] text-[#9333ea]" style={{ width: '3%' }}>3d</span>
+            <span className="text-[9px] text-[#22c55e]" style={{ width: '17%' }}>18d</span>
+            <span className="text-[9px] text-[#f97316]" style={{ width: '28%' }}>30d</span>
+            <span className="text-[9px] text-[#e85d04]" style={{ width: '5%' }}>5d</span>
+            <span className="text-[9px] text-[#EC4899]" style={{ width: '23%' }}>25d</span>
           </div>
         </div>
       </div>
@@ -303,9 +358,9 @@ function ProcessTab() {
         <h3 className="text-sm font-bold text-[#1B1464] mb-4">How the Pipeline Changes by Launch Type</h3>
         <div className="grid grid-cols-3 gap-3">
           {[
-            { type: 'Full Production', subtitle: 'With Tech', phases: ['Content Planning', 'Finalize & Mgmt', 'Content Production', 'Design Production'], duration: '~89 days', example: 'SPF 50 Launch, Kids Hair Launch', colors: ['#6366F1', '#F59E0B', '#10B981', '#EC4899'] },
-            { type: 'No Content Production', subtitle: 'Campaign / Moment', phases: ['Content Planning', 'Finalize & Mgmt', 'Design Production'], duration: '~51 days', example: "Mother's Day, Memorial Day Sale", colors: ['#6366F1', '#F59E0B', '#EC4899'] },
-            { type: 'Content Prod (No Tech)', subtitle: 'No landing page needed', phases: ['Content Planning', 'Finalize & Mgmt', 'Content Prod*', 'Design Production'], duration: '~79 days', example: 'Product extension, restock campaign', colors: ['#6366F1', '#F59E0B', '#10B981', '#EC4899'] },
+            { type: 'Full Production', subtitle: 'With Tech', phases: ['Content Planning', 'Alignment', 'Strategies', 'Content Production', 'Design Briefs', 'Asset Production'], duration: '~106 days', example: 'SPF 50 Launch, Kids Hair Launch', colors: ['#3D4EDB', '#9333ea', '#22c55e', '#f97316', '#e85d04', '#EC4899'] },
+            { type: 'No Content Production', subtitle: 'Campaign / Moment', phases: ['Content Planning', 'Alignment', 'Strategies', 'Design Briefs', 'Asset Production'], duration: '~76 days', example: "Mother's Day, Memorial Day Sale", colors: ['#3D4EDB', '#9333ea', '#22c55e', '#e85d04', '#EC4899'] },
+            { type: 'Content Prod (No Tech)', subtitle: 'No landing page needed', phases: ['Content Planning', 'Alignment', 'Strategies', 'Content Prod*', 'Design Briefs', 'Asset Production'], duration: '~96 days', example: 'Product extension, restock campaign', colors: ['#3D4EDB', '#9333ea', '#22c55e', '#f97316', '#e85d04', '#EC4899'] },
           ].map((lt, i) => (
             <div key={i} className="bg-[#FAFAF9] rounded-xl p-4">
               <p className="text-sm font-bold text-[#1B1464]">{lt.type}</p>
@@ -349,19 +404,35 @@ interface PlaybookStep {
 }
 
 const PLAYBOOK_STEPS: PlaybookStep[] = [
-  { name: 'Marketing Positioning', phase: 'Content Planning', owner: 'Marketing', duration: '5 business days', description: 'Define the core positioning for this launch: who it\'s for, what problem it solves, and how it\'s differentiated.', keyDeliverables: ['Target audience definition', 'Key consumer insight', 'Positioning statement', 'Competitive differentiation'], bestPractices: ['Review past GTM decks for positioning frameworks that worked', 'Check competitive landscape for recent launches in the same space', 'Align with Product team on product claims and ingredient story'] },
-  { name: 'Copy Direction', phase: 'Content Planning', owner: 'Marketing', duration: '5 business days', description: 'Develop the messaging hierarchy and copy direction that will inform all creative and channel-specific briefs.', keyDeliverables: ['Key messages (3-5)', 'Proof points', 'Tone of voice guidelines', 'Headline/tagline options'], bestPractices: ['Key messages should be adaptable across channels (short for social, longer for email)', 'Include specific claims with regulatory review if needed', 'Test copy direction with internal team before proceeding'] },
-  { name: 'Brainstorm Meeting', phase: 'Content Planning', owner: 'Marketing', duration: '2 business days', description: 'Cross-functional creative brainstorm to align on visual direction, content concepts, and campaign narrative.', keyDeliverables: ['Meeting notes with concept directions', 'Mood board or visual references', 'Agreed-upon creative territory'], bestPractices: ['Schedule this as a dedicated session — don\'t try to squeeze it into another meeting', 'Invite: Marketing, Creative, Channel Leads. Optional: Product, Retail', 'Come prepared with positioning and copy direction finalized'], prerequisite: 'Marketing Positioning and Copy Direction must be approved before this meeting' },
-  { name: 'Brainstorm Concepts Approved', phase: 'Content Planning', owner: 'Marketing', duration: '3 business days', description: 'Finalize and get sign-off on the creative concepts that came out of the brainstorm session.', keyDeliverables: ['Approved concept(s)', 'Shot list direction (if applicable)', 'High-level asset list by channel'], bestPractices: ['Document the approved direction clearly so it can be referenced in all downstream briefs', 'If there\'s disagreement, escalate quickly — don\'t let this step stall the timeline'] },
-  { name: '1st Draft Marketing Deck & Asset Request Form', phase: 'Content Planning', owner: 'Channel Leads', duration: '5 business days', description: 'Channel leads build out the 360 marketing deck and asset request forms detailing exactly what\'s needed per channel.', keyDeliverables: ['Marketing deck draft (strategy + channel plans)', 'Asset request form with specs per channel', 'Budget allocations by channel'], bestPractices: ['Use the standardized template — don\'t start from scratch', 'If one person owns multiple channel briefs, flag workload early so they can plan ahead', 'Include specs (dimensions, formats, copy character counts) in the asset request form'], prerequisite: 'Brainstorm concepts must be approved before writing channel-specific briefs' },
-  { name: 'Final Marketing Launch Deck', phase: 'Finalize & Inform Mgmt', owner: 'Marketing', duration: '3 business days', description: 'Polish the marketing deck incorporating all channel plans, budget, and timeline into a single source of truth.', keyDeliverables: ['Final marketing deck', 'Launch timeline', 'Budget summary'], bestPractices: ['This deck becomes the GTM source of truth — make it comprehensive', 'Include strategy rationale, not just what you\'re doing but why'] },
-  { name: 'Management Approval', phase: 'Finalize & Inform Mgmt', owner: 'Marketing', duration: '2 business days', description: 'Present the launch plan to leadership for approval before moving into production.', keyDeliverables: ['Management sign-off', 'Any revision notes incorporated'], bestPractices: ['Send the deck in advance so leadership can review before the meeting', 'Come prepared to justify budget and channel choices with data from past launches', 'Get explicit sign-off — don\'t assume silence is approval'] },
-  { name: 'Asset Request Form Approval & AD Start', phase: 'Content Production', owner: 'Creative', duration: '11 business days', description: 'Creative team reviews and approves asset requests, then begins art direction and pre-production.', keyDeliverables: ['Approved asset request forms', 'Art direction concepts', 'Production schedule'], bestPractices: ['Creative needs clear, complete briefs — incomplete briefs cause delays', 'Confirm model/talent availability early in this phase'] },
-  { name: 'Production & Shoot', phase: 'Content Production', owner: 'Creative', duration: '17 business days', description: 'Photography/video production including shoot days and initial selects.', keyDeliverables: ['Raw content from shoot', 'Initial selects', 'Behind-the-scenes content (if applicable)'], bestPractices: ['Marketing should attend the shoot for real-time alignment', 'Capture extra BTS content for social while you have the setup'] },
-  { name: 'Retouching & Tech Hand Off', phase: 'Content Production', owner: 'Creative', duration: '10 business days', description: 'Post-production retouching and technical handoff of final assets.', keyDeliverables: ['Final retouched assets', 'All file formats per channel specs', 'Tech-ready files (web, PDP, etc.)'], bestPractices: ['Build in one round of revisions — plan for it, don\'t let it surprise your timeline', 'Confirm all tech specs with Digital/Ops before handoff'] },
-  { name: 'Design Briefs Due', phase: 'Design Production', owner: 'Channel Leads', duration: '21 business days', description: 'Channel leads submit detailed design briefs for email, web, social, and paid media creative.', keyDeliverables: ['Email design brief', 'Social creative brief', 'Web/PDP design brief', 'Paid media creative brief'], bestPractices: ['Start writing briefs as soon as final assets are in production — don\'t wait until they\'re fully done', 'Reference the approved strategy and key messages in every brief', 'Flag if one person is writing multiple briefs — plan for workload overlap'] },
-  { name: 'Design Approvals & Creative 360 Review', phase: 'Design Production', owner: 'Channel Leads + Creative', duration: '5 business days', description: 'Review all designed assets across channels to ensure consistency and quality.', keyDeliverables: ['All channel creative approved', 'Consistent visual and messaging across touchpoints'], bestPractices: ['Do this as a single cross-functional review — seeing everything together catches inconsistencies', 'Check: Are key messages consistent? Is visual identity cohesive? Are all CTAs aligned?'] },
-  { name: 'Launch!', phase: 'Design Production', owner: 'Marketing', duration: 'Launch day', description: 'Go live across all channels. Monitor performance and be ready to optimize.', keyDeliverables: ['All channels live', 'Launch day monitoring dashboard', 'Quick-response plan for issues'], bestPractices: ['Have a launch day checklist — check every channel is live and correct', 'Monitor first 24-48 hours closely for any issues', 'Schedule a post-launch debrief 2-4 weeks after launch'] },
+  // ── Content Planning ──
+  { name: 'Product Sheet & Competitive Landscape', phase: 'Content Planning', owner: 'Marketing', duration: '3 business days', description: 'Research the competitive landscape and build the product sheet — the starting point for positioning and messaging.', keyDeliverables: ['Competitive landscape analysis', 'Product sheet with key claims', 'Ingredient story and differentiators'], bestPractices: ['This is the very first task — start date is computed backward from launch', 'Include key differentiators, ingredient story, and claims'] },
+  { name: 'Draft Product Positioning & Messaging', phase: 'Content Planning', owner: 'Marketing', duration: '3 business days', description: 'Develop the core positioning statement, key messages, and messaging hierarchy based on the product sheet.', keyDeliverables: ['Positioning statement', 'Key messages (3-5)', 'Messaging hierarchy'], bestPractices: ['Messages should work short (social) and long (email)', 'Align with Product on claims and ingredient story'] },
+  { name: 'GTM Brainstorm Meeting', phase: 'Content Planning', owner: 'Marketing', duration: '3 business days', description: 'Cross-functional brainstorm to align on positioning, marketing pillars, creative concepts, bundle assortment, and retail channel presence.', keyDeliverables: ['Aligned positioning & marketing pillars', 'Creative concept directions', 'Bundle assortment direction', 'Retail channel presence plan'], bestPractices: ['Schedule as a dedicated session — don\'t squeeze into another meeting', 'Come with positioning + messaging drafted', 'Invite: Marketing, Creative, Growth, Channel Leads'], prerequisite: 'Draft Product Positioning & Messaging must be complete' },
+  { name: 'Finalize Positioning, Shoot Plan & Bundles', phase: 'Content Planning', owner: 'Marketing / Creative / Growth', duration: '3 business days', description: 'Three parallel tracks after brainstorm: finalize product positioning & messaging, creative shoot plan, and bundle assortment (requires RSP finalization).', keyDeliverables: ['Finalized product positioning & messaging', 'Finalized creative shoot plan', 'Finalized bundle assortment'], bestPractices: ['Bundle assortment requires RSP finalization (final COGS from Operations)', 'These three tracks run in parallel — coordinate to keep them aligned'] },
+  { name: 'Tagline & Campaign Copy', phase: 'Content Planning', owner: 'Marketing / Copywriter', duration: '23 business days', description: 'Full copy track: submit brief (3 BD), receive R1 taglines (5 BD), iterate with copywriter (10 BD), deliver final taglines & campaign copy (5 BD).', keyDeliverables: ['Tagline + campaign copy brief', 'R1 taglines', 'Final taglines & campaign copy'], bestPractices: ['Copy iteration includes back-and-forth with copywriter — plan for 10 BD', 'Final taglines gate the 360 GTM Plan and all design briefs', 'Start the brief as soon as positioning is finalized'] },
+
+  // ── Alignment ──
+  { name: 'Cross-Functional Alignment (6 parallel tracks)', phase: 'Alignment', owner: 'Influencer / Social / Growth', duration: '3 business days', description: 'Six alignment tracks run simultaneously after brainstorm + positioning: Paid Influencer, Social, Paid Ads, Email, Homepage, and Early Access.', keyDeliverables: ['Paid influencer strategy aligned', 'Social strategy aligned', 'Paid ads strategy aligned', 'Email plan aligned', 'Homepage plan aligned', 'Early access decision made'], bestPractices: ['All six tracks are 3 BD and run in parallel — total phase is only 3 BD', 'Must align before strategy finalization and brief drafting begins', 'Each alignment feeds into its corresponding finalize step'], prerequisite: 'GTM Brainstorm Meeting and Finalize Product Positioning & Messaging must be complete' },
+
+  // ── Strategies ──
+  { name: 'Finalize Channel Strategies', phase: 'Strategies', owner: 'Growth / Social / Influencer', duration: '3-15 business days', description: 'Finalize email strategy (3 BD), social strategy (5 BD), and influencer strategy + start sourcing creators (15 BD) — all after their respective alignments.', keyDeliverables: ['Finalized email strategy', 'Finalized social strategy', 'Finalized influencer strategy', 'Creator sourcing started'], bestPractices: ['Influencer strategy + sourcing is the longest at 15 BD — start early', 'Creator sourcing feeds into the Creator Review Meeting in Content Production'] },
+  { name: 'Finalize 360 GTM Plan & Retail Channels', phase: 'Strategies', owner: 'Leadership', duration: '3 business days', description: 'The big convergence point: requires ALL alignment outcomes, ALL finalized strategies, and final taglines/copy before it can start.', keyDeliverables: ['Approved 360 GTM Plan', 'Retail channel decisions', 'Go/no-go on each channel'], bestPractices: ['Cannot start until every alignment, strategy, and copy task is done', 'This gates ALL design briefs downstream — delays here cascade everywhere'], prerequisite: 'All alignment tasks, all finalized strategies, and final taglines must be complete' },
+  { name: 'Final GTM Deck', phase: 'Strategies', owner: 'Marketing', duration: '3 business days', description: 'Build the final GTM presentation deck — the single source of truth for the launch.', keyDeliverables: ['Final GTM deck with strategy, channels, budget, timeline', 'Launch timeline'], bestPractices: ['Include the "why" behind each channel choice', 'Send to leadership in advance for review', 'This deck becomes the GTM bible — make it comprehensive'] },
+
+  // ── Content Production ──
+  { name: 'Draft & Finalize Shoot Plan', phase: 'Content Production', owner: 'Marketing / Creative', duration: '8 business days', description: 'Draft the shoot & content capture plan (3 BD after brainstorm), then finalize once positioning is locked (5 BD).', keyDeliverables: ['Shoot & content capture plan', 'Shot list', 'Content capture requirements by channel'], bestPractices: ['Use the standardized Asset Form template', 'Requires finalized positioning before the plan can be finalized'] },
+  { name: 'Lifestyle & Product Shoots', phase: 'Content Production', owner: 'Creative', duration: '5 business days each', description: 'Lifestyle and product shoots run in parallel. Both need packaging samples and finalized shoot plan.', keyDeliverables: ['Lifestyle photography', 'Product photography', 'BTS content for social'], bestPractices: ['Marketing should attend for real-time alignment', 'Capture BTS content for social while you have the setup', 'Need packaging samples — NOT finished goods'] },
+  { name: 'Photo Selects & Retouching', phase: 'Content Production', owner: 'Creative', duration: '10 business days each', description: 'Lifestyle and product photo selects and retouching (~2 weeks each). These feed directly into R1 Assets in Asset Production.', keyDeliverables: ['Retouched lifestyle photos', 'Retouched product photos', 'All file formats per channel specs'], bestPractices: ['Build in one round of revisions — plan for it', 'Photo selects gate R1 Assets — delays here cascade into Asset Production'] },
+  { name: 'Creator Track', phase: 'Content Production', owner: 'Influencer', duration: '23 business days', description: 'Creator Review Meeting (3 BD) after influencer sourcing, then briefs to creators (5 BD, needs finished goods), then creator content delivered (15 BD).', keyDeliverables: ['Confirmed creator list', 'Creator briefs sent', 'Creator content delivered'], bestPractices: ['Cannot send briefs until finished goods marketing units are available', 'Creator content must arrive ~1 week (5 BD) before D2C launch'] },
+
+  // ── Design Briefs ──
+  { name: 'Draft All Design Briefs', phase: 'Design Briefs', owner: 'Marketing / Social', duration: '3-5 business days', description: 'Draft 9 design briefs in parallel: PDP Gallery (5 BD), Sephora/Amazon Gallery (5 BD), Amazon A+ (5 BD), Email (3 BD), Social (4 BD), Homepage (3 BD), Bundle PDP Copy (3 BD), Bundle PDP Gallery (5 BD), Bundle Sephora/Amazon Gallery (5 BD).', keyDeliverables: ['PDP Gallery Asset Brief', 'Sephora/Amazon Gallery Asset Brief', 'Amazon A+ Content Brief', 'Email Brief', 'Social Creative Brief', 'Homepage Asset Brief', 'Bundle PDP Copy Brief', 'Bundle PDP Gallery Asset Brief', 'Bundle Sephora/Amazon Gallery Asset Brief'], bestPractices: ['All 9 briefs run in parallel — coordinate across owners', 'Most briefs require final taglines, 360 GTM plan, and/or bundle assortment', 'All briefs feed into the Brief Alignment Meeting'], prerequisite: 'Final Taglines, 360 GTM Plan, and Finalize Bundle Assortment must be complete' },
+
+  // ── Asset Production ──
+  { name: 'Brief Alignment Meeting', phase: 'Asset Production', owner: 'Marketing', duration: '3 business days', description: 'Review ALL draft briefs (product + bundle) and ALL cross-functional alignment outcomes. Align on creative direction, asset specs, dimensions, and timeline.', keyDeliverables: ['Aligned creative direction across channels', 'Confirmed asset specs & dimensions', 'Timeline for R1 assets & feedback'], bestPractices: ['All 9 draft briefs and all 6 alignment outcomes must be complete', 'This is the single biggest convergence point for design production', 'Schedule as a dedicated session'], prerequisite: 'All 9 draft design briefs and all 6 cross-functional alignments must be complete' },
+  { name: 'Final Briefs & R1 Assets', phase: 'Asset Production', owner: 'Marketing / Creative', duration: '12 business days', description: 'Finalize design briefs (2 BD), draft PDP copy brief (3 BD, needs legal review), then produce R1 assets for email, social, PDP, homepage, and Amazon A+ (~10 BD). R1 assets require finalized briefs AND photo selects.', keyDeliverables: ['Final asset design briefs', 'PDP copy brief (with legal review)', 'R1 assets (email, social, PDP, homepage, Amazon A+)'], bestPractices: ['R1 assets take ~2 weeks for creative production', 'Cannot start until both final briefs and photo selects are ready'] },
+  { name: 'Asset Feedback & Final Delivery', phase: 'Asset Production', owner: 'Marketing / Creative', duration: '8 business days', description: 'Asset feedback (3 BD), then parallel final delivery: Sephora final assets (5 BD, due 10 weeks before Sephora launch), DTC & Amazon final assets (5 BD, due 3 weeks before D2C launch), final PDP copy (5 BD, due 2 weeks before D2C launch).', keyDeliverables: ['Sephora final assets submitted', 'DTC & Amazon final assets delivered', 'Final PDP copy & reviews complete', 'Social assets ready'], bestPractices: ['Sephora assets due 50 BD (10 weeks) before Sephora launch — plan for this deadline early', 'DTC assets due 15 BD (3 weeks) before D2C launch'] },
+  { name: 'Launch!', phase: 'Asset Production', owner: 'Marketing', duration: 'Launch day', description: 'Social campaign starts 5 BD before D2C launch. D2C launches first, Sephora follows approximately 4 weeks later (default).', keyDeliverables: ['Social campaign live', 'D2C launch complete', 'Sephora launch complete'], bestPractices: ['Have a launch day checklist — verify every channel is live and correct', 'Monitor first 24-48 hours closely for any issues', 'Schedule a post-launch debrief 2-4 weeks after launch'] },
 ];
 
 function StepByStepTab() {

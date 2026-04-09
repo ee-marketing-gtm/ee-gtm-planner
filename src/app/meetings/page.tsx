@@ -131,7 +131,7 @@ export default function MeetingsPage() {
                 className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden"
               >
                 {/* Main row */}
-                <div className="grid grid-cols-[1fr_160px_200px_100px_auto] gap-3 px-4 py-3 items-center">
+                <div className="grid grid-cols-[1fr_160px_240px_100px_auto] gap-3 px-4 py-3 items-center">
                   {/* Meeting name + launch */}
                   <div>
                     <Link
@@ -140,7 +140,7 @@ export default function MeetingsPage() {
                     >
                       {task.name}
                     </Link>
-                    <p className="text-[11px] text-[#A8A29E]">{launch.name}</p>
+                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF0FF] text-[#3538CD]">{launch.name}</span>
                   </div>
 
                   {/* Schedule Window */}
@@ -189,7 +189,7 @@ export default function MeetingsPage() {
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[#1B1464] text-white hover:bg-[#2D2378] transition-colors whitespace-nowrap"
                     >
                       <ExternalLink className="w-3 h-3" />
-                      Open in Outlook
+                      Schedule in Outlook
                     </a>
                     {hasChecklist && (
                       <button

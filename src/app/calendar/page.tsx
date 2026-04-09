@@ -60,11 +60,13 @@ async function loadFromApi(): Promise<CustomMoment[]> {
   try {
     const res = await fetch('/api/data/custom_moments');
     const data = await res.json();
-    return data.value ? JSON.parse(data.value) : [];
+    const parsed = data.value ? JSON.parse(data.value) : [];
+    return Array.isArray(parsed) ? parsed : [];
   } catch {
     // fallback to localStorage
     const raw = localStorage.getItem(CUSTOM_MOMENTS_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const fallback = raw ? JSON.parse(raw) : [];
+    return Array.isArray(fallback) ? fallback : [];
   }
 }
 
