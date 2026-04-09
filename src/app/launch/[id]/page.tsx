@@ -1129,6 +1129,103 @@ export default function LaunchDetail() {
               });
             }
           }}
+          onCascadeRemoveDep={(taskId: string, depToRemove: string) => {
+            if (!cascadeWarning) return;
+            // Clone all pending tasks and remove the dependency
+            const taskMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, { ...t }]));
+            const targetTask = taskMap.get(taskId);
+            if (!targetTask) return;
+            targetTask.dependencies = targetTask.dependencies.filter(d => d !== depToRemove);
+
+            // Build reverse dep map
+            const dependentsOf = new Map<string, string[]>();
+            for (const t of taskMap.values()) {
+              for (const depId of t.dependencies) {
+                if (!dependentsOf.has(depId)) dependentsOf.set(depId, []);
+                dependentsOf.get(depId)!.push(t.id);
+              }
+            }
+
+            // Recalculate the target task's dates based on remaining deps
+            if (targetTask.dependencies.length > 0) {
+              const latestDepDue = targetTask.dependencies.reduce((latest, dId) => {
+                const d = taskMap.get(dId);
+                if (!d) return latest;
+                const endDate = (d.status === 'complete' || d.status === 'skipped')
+                  ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                return endDate > latest ? endDate : latest;
+              }, '');
+              if (latestDepDue) {
+                const newStart = parseISO(latestDepDue);
+                const dur = targetTask.durationDays || 1;
+                targetTask.startDate = format(newStart, 'yyyy-MM-dd');
+                targetTask.dueDate = format(addBusinessDays(newStart, Math.max(0, dur)), 'yyyy-MM-dd');
+              }
+            }
+
+            // BFS cascade from the modified task
+            const queue = [taskId];
+            const visited = new Set<string>([taskId]);
+            while (queue.length > 0) {
+              const currentId = queue.shift()!;
+              const deps = dependentsOf.get(currentId) || [];
+              for (const depId of deps) {
+                if (visited.has(depId)) continue;
+                const depTask = taskMap.get(depId)!;
+                if (!depTask.dueDate) continue;
+                const latestDep = depTask.dependencies.reduce((latest, dId) => {
+                  const d = taskMap.get(dId);
+                  if (!d) return latest;
+                  const endDate = (d.status === 'complete' || d.status === 'skipped')
+                    ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                  return endDate > latest ? endDate : latest;
+                }, '');
+                if (!latestDep) continue;
+                const newStart = parseISO(latestDep);
+                const dur = depTask.durationDays || 1;
+                const newDue = addBusinessDays(newStart, Math.max(0, dur));
+                const newStartStr = format(newStart, 'yyyy-MM-dd');
+                const newDueStr = format(newDue, 'yyyy-MM-dd');
+                if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+                  depTask.startDate = newStartStr;
+                  depTask.dueDate = newDueStr;
+                  visited.add(depId);
+                  queue.push(depId);
+                }
+              }
+            }
+
+            // Recheck if still over launch
+            const newTasks = Array.from(taskMap.values());
+            const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+            let overCount = 0;
+            let maxDaysOver = 0;
+            for (const t of newTasks) {
+              if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
+              if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
+              const due = parseISO(t.dueDate);
+              if (dtcLaunch && isAfter(due, dtcLaunch)) {
+                overCount++;
+                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, dtcLaunch));
+              }
+            }
+
+            if (overCount === 0) {
+              // All tasks fit! Auto-apply
+              updateLaunch({ ...launch, tasks: newTasks });
+              setCascadeWarning(null);
+              const changedIds = new Set(cascadeWarning.chainTaskIds);
+              flashChangedTasks(changedIds);
+            } else {
+              // Update the warning with recalculated tasks
+              setCascadeWarning({
+                ...cascadeWarning,
+                pendingTasks: newTasks,
+                overCount,
+                maxDaysOver,
+              });
+            }
+          }}
           highlightedTaskIds={highlightedTaskIds}
           scrollToTaskId={scrollToTaskId}
         />
@@ -1151,7 +1248,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, highlightedTaskIds, scrollToTaskId }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, onCascadeRemoveDep, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -1171,6 +1268,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   onCascadeApply: () => void;
   onCascadeDismiss: () => void;
   onCascadeAdjustLeadTime: (taskId: string, newDuration: number) => void;
+  onCascadeRemoveDep: (taskId: string, depToRemove: string) => void;
   highlightedTaskIds: Set<string>;
   scrollToTaskId: string | null;
 }) {
@@ -1181,6 +1279,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [hideCompleted, setHideCompleted] = useState(true);
   const [sortBy, setSortBy] = useState<'due' | 'owner' | 'phase'>('due');
   const [sortAsc, setSortAsc] = useState(true);
+  const [showFullChain, setShowFullChain] = useState(false);
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
@@ -1548,125 +1647,241 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 />
                 {cascadeWarning && cascadeWarning.triggerTaskId === task.id && (
                   <div className="bg-red-50 border-x border-b border-red-200 px-4 py-3 animate-fade-in">
-                    <div className="flex items-start gap-2 mb-3">
-                      <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
-                      <div>
-                        <p className="text-xs font-medium text-[#DC2626]">
-                          This pushes {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} past launch ({cascadeWarning.maxDaysOver} BD over)
-                        </p>
-                        <p className="text-[11px] text-[#92400E] mt-0.5">
-                          Adjust lead times below to fit within the launch date
-                        </p>
-                      </div>
-                    </div>
-
-                    {/* Interactive dependency chain */}
                     {(() => {
-                      const chainSet = new Set(cascadeWarning.chainTaskIds);
                       const pendingMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, t]));
+                      const triggerTask = pendingMap.get(cascadeWarning.triggerTaskId);
+                      const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
 
-                      // Pre-compute depths: for each task, depth = max(depth of chain parents) + 1
-                      // Tasks with no chain parents = depth 0 (the trigger or root tasks)
-                      const depthMap = new Map<string, number>();
-                      const getDepth = (id: string, visited = new Set<string>()): number => {
-                        if (depthMap.has(id)) return depthMap.get(id)!;
-                        if (visited.has(id)) return 0; // cycle guard
-                        visited.add(id);
-                        const t = pendingMap.get(id);
-                        if (!t) return 0;
-                        const chainParentDepths = t.dependencies
-                          .filter(dId => chainSet.has(dId))
-                          .map(dId => getDepth(dId, visited));
-                        const depth = chainParentDepths.length > 0 ? Math.max(...chainParentDepths) + 1 : 0;
-                        depthMap.set(id, depth);
-                        return depth;
+                      // Find the tasks that are actually over launch
+                      const overTasks = cascadeWarning.pendingTasks.filter(t => {
+                        if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) return false;
+                        if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') return false;
+                        return dtcLaunch && isAfter(parseISO(t.dueDate), dtcLaunch);
+                      });
+
+                      // For each over task, trace the critical path back to the trigger
+                      const getCriticalPath = (taskId: string): string[] => {
+                        const path: string[] = [taskId];
+                        let current = taskId;
+                        const seen = new Set<string>([taskId]);
+                        while (current !== cascadeWarning.triggerTaskId) {
+                          const t = pendingMap.get(current);
+                          if (!t) break;
+                          // Find the driving dependency (latest due date among deps)
+                          let drivingDep: string | null = null;
+                          let latestDue = '';
+                          for (const depId of t.dependencies) {
+                            if (seen.has(depId)) continue;
+                            const dep = pendingMap.get(depId);
+                            if (!dep?.dueDate) continue;
+                            if (dep.dueDate > latestDue) { latestDue = dep.dueDate; drivingDep = depId; }
+                          }
+                          if (!drivingDep) break;
+                          seen.add(drivingDep);
+                          path.unshift(drivingDep);
+                          current = drivingDep;
+                        }
+                        return path;
                       };
-                      cascadeWarning.chainTaskIds.forEach(id => getDepth(id));
 
-                      // Cap depth for display (avoid extreme nesting)
-                      const maxDepthDisplay = 5;
+                      // Group over tasks and their critical paths
+                      const overTasksWithPaths = overTasks.map(t => ({
+                        task: t,
+                        daysOver: dtcLaunch ? differenceInBusinessDays(parseISO(t.dueDate!), dtcLaunch) : 0,
+                        criticalPath: getCriticalPath(t.id),
+                      })).sort((a, b) => b.daysOver - a.daysOver);
 
-                      // For each task, find the "driving" parent in the chain (latest due date)
-                      const getDrivingParent = (id: string) => {
-                        const t = pendingMap.get(id);
-                        if (!t) return null;
-                        const chainParents = t.dependencies.filter(dId => chainSet.has(dId));
-                        if (chainParents.length === 0) return null;
-                        return chainParents.reduce<string | null>((best, dId) => {
-                          const d = pendingMap.get(dId);
-                          if (!d?.dueDate) return best;
-                          if (!best) return dId;
-                          const bestTask = pendingMap.get(best);
-                          return d.dueDate > (bestTask?.dueDate || '') ? dId : best;
-                        }, null);
-                      };
+                      // Collect all unique tasks in all critical paths for the lead time adjuster
+                      const allPathTaskIds = new Set<string>();
+                      for (const { criticalPath } of overTasksWithPaths) {
+                        for (const id of criticalPath) allPathTaskIds.add(id);
+                      }
 
                       return (
-                        <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mb-3 ml-6">
-                          <div className="grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
-                            <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
-                            <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead</span>
-                            <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Due</span>
+                        <>
+                          {/* Header */}
+                          <div className="flex items-start gap-2 mb-3">
+                            <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
+                            <div>
+                              <p className="text-xs font-medium text-[#DC2626]">
+                                {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} pushed past launch ({cascadeWarning.maxDaysOver} BD over)
+                              </p>
+                            </div>
                           </div>
-                          {cascadeWarning.chainTaskIds.map((chainId) => {
-                            const chainTask = pendingMap.get(chainId);
-                            if (!chainTask) return null;
-                            const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
-                            const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
-                              ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
-                            const isTrigger = chainId === cascadeWarning.triggerTaskId;
-                            const depth = Math.min(depthMap.get(chainId) || 0, maxDepthDisplay);
-                            const drivingParentId = getDrivingParent(chainId);
-                            const drivingParent = drivingParentId ? pendingMap.get(drivingParentId) : null;
 
-                            return (
-                              <div
-                                key={chainId}
-                                className={`grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : ''}`}
-                              >
-                                <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: `${depth * 12}px` }}>
-                                  {depth > 0 && (
-                                    <span className="text-[10px] text-[#D6D3D1] shrink-0">↳</span>
-                                  )}
-                                  <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : isTrigger ? 'text-[#1B1464] font-medium' : 'text-[#44403C]'}`}>
-                                    {chainTask.name}
-                                  </span>
-                                  {isOver && <span className="text-[9px] text-[#DC2626] font-medium shrink-0 ml-1">OVER</span>}
+                          {/* Over tasks with critical paths and fix options */}
+                          <div className="space-y-2 ml-6 mb-3">
+                            {overTasksWithPaths.map(({ task: overTask, daysOver, criticalPath }) => {
+                              // Find the driving dependency for this over task (the one making it late)
+                              const drivingDepId = overTask.dependencies.reduce<string | null>((best, depId) => {
+                                const d = pendingMap.get(depId);
+                                if (!d?.dueDate) return best;
+                                if (!best) return depId;
+                                const bestTask = pendingMap.get(best);
+                                return d.dueDate > (bestTask?.dueDate || '') ? depId : best;
+                              }, null);
+                              const drivingDep = drivingDepId ? pendingMap.get(drivingDepId) : null;
+
+                              return (
+                                <div key={overTask.id} className="bg-white rounded-lg border border-red-200 overflow-hidden">
+                                  {/* Over task header */}
+                                  <div className="px-3 py-2 bg-red-50 border-b border-red-100">
+                                    <div className="flex items-center justify-between">
+                                      <span className="text-[11px] font-semibold text-[#DC2626] truncate">{overTask.name}</span>
+                                      <span className="text-[10px] font-medium text-[#DC2626] bg-red-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
+                                        {daysOver} BD over
+                                      </span>
+                                    </div>
+                                    <p className="text-[10px] text-[#92400E] mt-0.5">
+                                      Due {overTask.dueDate ? format(parseISO(overTask.dueDate), 'MMM d') : '—'} · Launch {launch.launchDate ? format(parseISO(launch.launchDate), 'MMM d') : '—'}
+                                    </p>
+                                  </div>
+
+                                  {/* Critical path breadcrumb */}
+                                  <div className="px-3 py-1.5 border-b border-[#F5F5F4]">
+                                    <p className="text-[9px] font-semibold text-[#A8A29E] uppercase tracking-wide mb-1">Delay chain</p>
+                                    <div className="flex items-center gap-0.5 flex-wrap">
+                                      {criticalPath.map((pathId, i) => {
+                                        const pathTask = pendingMap.get(pathId);
+                                        if (!pathTask) return null;
+                                        const isLast = i === criticalPath.length - 1;
+                                        const pathTaskOver = dtcLaunch && pathTask.dueDate ? isAfter(parseISO(pathTask.dueDate), dtcLaunch) : false;
+                                        return (
+                                          <React.Fragment key={pathId}>
+                                            <span className={`text-[10px] px-1 py-0.5 rounded ${
+                                              pathTaskOver ? 'text-[#DC2626] bg-red-50 font-medium' :
+                                              pathId === cascadeWarning.triggerTaskId ? 'text-[#1B1464] bg-indigo-50 font-medium' :
+                                              'text-[#57534E] bg-[#F5F5F4]'
+                                            }`}>
+                                              {pathTask.name.length > 25 ? pathTask.name.substring(0, 25) + '…' : pathTask.name}
+                                              <span className="text-[8px] ml-0.5 opacity-60">{pathTask.durationDays}d</span>
+                                            </span>
+                                            {!isLast && <span className="text-[10px] text-[#D6D3D1]">→</span>}
+                                          </React.Fragment>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+
+                                  {/* Quick fixes */}
+                                  <div className="px-3 py-2">
+                                    <p className="text-[9px] font-semibold text-[#A8A29E] uppercase tracking-wide mb-1.5">Quick fixes</p>
+                                    <div className="space-y-1">
+                                      {/* Fix 1: Unblock from driving dependency */}
+                                      {drivingDep && overTask.dependencies.length > 1 && (
+                                        <button
+                                          onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
+                                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left group"
+                                        >
+                                          <span className="text-[11px]">🔓</span>
+                                          <span className="text-[10px] text-[#92400E]">
+                                            Remove dependency on <span className="font-medium">{drivingDep.name}</span>
+                                          </span>
+                                        </button>
+                                      )}
+                                      {drivingDep && overTask.dependencies.length === 1 && (
+                                        <button
+                                          onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
+                                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left group"
+                                        >
+                                          <span className="text-[11px]">🔓</span>
+                                          <span className="text-[10px] text-[#92400E]">
+                                            Unblock from <span className="font-medium">{drivingDep.name}</span> (only dependency)
+                                          </span>
+                                        </button>
+                                      )}
+                                      {/* Fix 2: Reduce lead time on bottleneck tasks in the path */}
+                                      {criticalPath.filter(id => {
+                                        const t = pendingMap.get(id);
+                                        return t && t.durationDays > 1 && id !== overTask.id;
+                                      }).slice(0, 2).map(pathId => {
+                                        const pathTask = pendingMap.get(pathId)!;
+                                        const reduceTo = Math.max(0, pathTask.durationDays - daysOver);
+                                        return (
+                                          <button
+                                            key={pathId}
+                                            onClick={() => onCascadeAdjustLeadTime(pathId, reduceTo)}
+                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors text-left"
+                                          >
+                                            <span className="text-[11px]">⏱</span>
+                                            <span className="text-[10px] text-[#1E40AF]">
+                                              Reduce <span className="font-medium">{pathTask.name}</span> lead time {pathTask.durationDays} → {reduceTo} BD
+                                            </span>
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
                                 </div>
-                                <div className="flex items-center justify-center gap-0.5">
-                                  <button
-                                    onClick={() => onCascadeAdjustLeadTime(chainId, Math.max(0, (chainTask.durationDays || 1) - 1))}
-                                    className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
-                                    disabled={chainTask.durationDays <= 0}
-                                  >−</button>
-                                  <span className="text-[11px] font-medium text-[#1B1464] w-5 text-center">{chainTask.durationDays}</span>
-                                  <button
-                                    onClick={() => onCascadeAdjustLeadTime(chainId, (chainTask.durationDays || 0) + 1)}
-                                    className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
-                                  >+</button>
-                                </div>
-                                <span className={`text-[11px] text-right ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
-                                  {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d') : '—'}
-                                </span>
-                              </div>
-                            );
-                          })}
-                          {/* Driving dependency note for context */}
-                          <div className="px-3 py-1.5 bg-[#FAFAF9] border-t border-[#E7E5E4] text-[10px] text-[#A8A29E]">
-                            Tasks are indented under their driving dependency in the chain
+                              );
+                            })}
                           </div>
-                        </div>
+
+                          {/* Full chain (collapsible) for manual tweaking */}
+                          <div className="ml-6 mb-3">
+                                <button
+                                  onClick={() => setShowFullChain(!showFullChain)}
+                                  className="text-[10px] text-[#A8A29E] hover:text-[#57534E] transition-colors flex items-center gap-1"
+                                >
+                                  {showFullChain ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                                  <span>Full chain — adjust lead times manually ({cascadeWarning.chainTaskIds.length} tasks)</span>
+                                </button>
+                                {showFullChain && (
+                                  <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mt-1.5">
+                                    <div className="grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
+                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead</span>
+                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Due</span>
+                                    </div>
+                                    {cascadeWarning.chainTaskIds.map((chainId) => {
+                                      const chainTask = pendingMap.get(chainId);
+                                      if (!chainTask) return null;
+                                      const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
+                                        ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
+                                      const isOnCriticalPath = allPathTaskIds.has(chainId);
+                                      return (
+                                        <div
+                                          key={chainId}
+                                          className={`grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : isOnCriticalPath ? 'bg-amber-50/50' : ''}`}
+                                        >
+                                          <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : isOnCriticalPath ? 'text-[#92400E]' : 'text-[#44403C]'}`}>
+                                            {chainTask.name}
+                                            {isOver && <span className="text-[9px] text-[#DC2626] font-medium ml-1">OVER</span>}
+                                          </span>
+                                          <div className="flex items-center justify-center gap-0.5">
+                                            <button
+                                              onClick={() => onCascadeAdjustLeadTime(chainId, Math.max(0, (chainTask.durationDays || 1) - 1))}
+                                              className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
+                                              disabled={chainTask.durationDays <= 0}
+                                            >−</button>
+                                            <span className="text-[11px] font-medium text-[#1B1464] w-5 text-center">{chainTask.durationDays}</span>
+                                            <button
+                                              onClick={() => onCascadeAdjustLeadTime(chainId, (chainTask.durationDays || 0) + 1)}
+                                              className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
+                                            >+</button>
+                                          </div>
+                                          <span className={`text-[11px] text-right ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
+                                            {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d') : '—'}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                          </div>
+
+                          {/* Action buttons */}
+                          <div className="flex items-center gap-2 ml-6">
+                            <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
+                              Apply Anyway
+                            </button>
+                            <button onClick={onCascadeDismiss} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
+                              Cancel
+                            </button>
+                          </div>
+                        </>
                       );
                     })()}
-
-                    <div className="flex items-center gap-2 ml-6">
-                      <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
-                        Apply Anyway
-                      </button>
-                      <button onClick={onCascadeDismiss} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
-                        Cancel
-                      </button>
-                    </div>
                   </div>
                 )}
                 </React.Fragment>
