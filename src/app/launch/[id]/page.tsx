@@ -150,15 +150,6 @@ export default function LaunchDetail() {
     router.push('/archive');
   };
 
-  const updateTaskField = useCallback((taskId: string, updates: Partial<GTMTask>) => {
-    if (!launch) return;
-    const updated = {
-      ...launch,
-      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
-    };
-    updateLaunch(updated);
-  }, [launch, updateLaunch]);
-
   // Flash highlight on changed tasks and scroll to the furthest-moved one
   const flashChangedTasks = useCallback((changedIds: Set<string>, scrollTo?: string) => {
     if (changedIds.size === 0) return;
@@ -170,6 +161,83 @@ export default function LaunchDetail() {
       setScrollToTaskId(null);
     }, 5000);
   }, []);
+
+  const updateTaskField = useCallback((taskId: string, updates: Partial<GTMTask>) => {
+    if (!launch) return;
+
+    // If dependencies changed, recalculate this task's dates and cascade downstream
+    if ('dependencies' in updates) {
+      const taskMap = new Map(launch.tasks.map(t => [t.id, { ...t }]));
+      const task = taskMap.get(taskId)!;
+      Object.assign(task, updates);
+
+      // Recalculate this task's start/due based on new dependencies
+      if (task.dependencies.length > 0) {
+        const latestDepDue = task.dependencies.reduce((latest, dId) => {
+          const d = taskMap.get(dId);
+          if (!d) return latest;
+          const endDate = (d.status === 'complete' || d.status === 'skipped')
+            ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+          return endDate > latest ? endDate : latest;
+        }, '');
+        if (latestDepDue) {
+          const newStart = parseISO(latestDepDue);
+          const dur = task.durationDays || 1;
+          task.startDate = format(newStart, 'yyyy-MM-dd');
+          task.dueDate = format(addBusinessDays(newStart, Math.max(0, dur)), 'yyyy-MM-dd');
+        }
+      }
+
+      // BFS cascade downstream from this task
+      const dependentsOf = new Map<string, string[]>();
+      for (const t of launch.tasks) {
+        for (const depId of (t.id === taskId ? task.dependencies : t.dependencies)) {
+          if (!dependentsOf.has(depId)) dependentsOf.set(depId, []);
+          dependentsOf.get(depId)!.push(t.id);
+        }
+      }
+      const queue = [taskId];
+      const visited = new Set<string>([taskId]);
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        const deps = dependentsOf.get(currentId) || [];
+        for (const depId of deps) {
+          if (visited.has(depId)) continue;
+          const depTask = taskMap.get(depId)!;
+          if (!depTask.dueDate) continue;
+          const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
+            const d = taskMap.get(dId);
+            if (!d) return latest;
+            const endDate = (d.status === 'complete' || d.status === 'skipped')
+              ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+            return endDate > latest ? endDate : latest;
+          }, '');
+          if (!latestDepDue) continue;
+          const newStart = parseISO(latestDepDue);
+          const dur = depTask.durationDays || 1;
+          const newStartStr = format(newStart, 'yyyy-MM-dd');
+          const newDueStr = format(addBusinessDays(newStart, Math.max(0, dur)), 'yyyy-MM-dd');
+          if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+            depTask.startDate = newStartStr;
+            depTask.dueDate = newDueStr;
+            visited.add(depId);
+            queue.push(depId);
+          }
+        }
+      }
+
+      const cascadedIds = new Set(Array.from(visited).filter(id => id !== taskId));
+      updateLaunch({ ...launch, tasks: Array.from(taskMap.values()) });
+      if (cascadedIds.size > 0) flashChangedTasks(cascadedIds);
+      return;
+    }
+
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, ...updates } : t),
+    };
+    updateLaunch(updated);
+  }, [launch, updateLaunch, flashChangedTasks]);
 
   const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
     if (!launch) return;
