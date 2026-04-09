@@ -455,8 +455,12 @@ export default function LaunchDetail() {
     }
 
     // Check if any tasks NEWLY exceed launch dates (ignore ones already over before this change)
+    // Sephora tasks compare against Sephora launch date; all others against DTC launch date
     const newTasks = Array.from(taskMap.values());
     const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+    const sephLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
+    const getLaunchDateForTask = (t: { name: string }) =>
+      t.name.toLowerCase().includes('sephora') && sephLaunch ? sephLaunch : dtcLaunch;
     const oldTaskMap = new Map(launch.tasks.map(t => [t.id, t]));
 
     const overTaskIds: string[] = [];
@@ -464,9 +468,10 @@ export default function LaunchDetail() {
       if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
       if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
       const due = parseISO(t.dueDate);
-      if (dtcLaunch && isAfter(due, dtcLaunch)) {
+      const launchRef = getLaunchDateForTask(t);
+      if (launchRef && isAfter(due, launchRef)) {
         const oldTask = oldTaskMap.get(t.id);
-        const wasAlreadyOver = oldTask?.dueDate && isAfter(parseISO(oldTask.dueDate), dtcLaunch);
+        const wasAlreadyOver = oldTask?.dueDate && isAfter(parseISO(oldTask.dueDate), launchRef);
         const gotWorse = oldTask?.dueDate && t.dueDate > oldTask.dueDate;
         if (!wasAlreadyOver || gotWorse) {
           overTaskIds.push(t.id);
@@ -1169,18 +1174,22 @@ export default function LaunchDetail() {
               }
             }
 
-            // Recheck if still over launch
+            // Recheck if still over launch (Sephora tasks vs Sephora date, others vs DTC date)
             const newTasks = Array.from(taskMap.values());
             const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+            const sephLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
+            const getRef = (t: { name: string }) =>
+              t.name.toLowerCase().includes('sephora') && sephLaunch ? sephLaunch : dtcLaunch;
             let overCount = 0;
             let maxDaysOver = 0;
             for (const t of newTasks) {
               if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
               if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
               const due = parseISO(t.dueDate);
-              if (dtcLaunch && isAfter(due, dtcLaunch)) {
+              const ref = getRef(t);
+              if (ref && isAfter(due, ref)) {
                 overCount++;
-                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, dtcLaunch));
+                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, ref));
               }
             }
 
@@ -1270,18 +1279,22 @@ export default function LaunchDetail() {
               }
             }
 
-            // Recheck if still over launch
+            // Recheck if still over launch (Sephora tasks vs Sephora date, others vs DTC date)
             const newTasks = Array.from(taskMap.values());
             const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+            const sephLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
+            const getRef = (t: { name: string }) =>
+              t.name.toLowerCase().includes('sephora') && sephLaunch ? sephLaunch : dtcLaunch;
             let overCount = 0;
             let maxDaysOver = 0;
             for (const t of newTasks) {
               if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
               if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
               const due = parseISO(t.dueDate);
-              if (dtcLaunch && isAfter(due, dtcLaunch)) {
+              const ref = getRef(t);
+              if (ref && isAfter(due, ref)) {
                 overCount++;
-                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, dtcLaunch));
+                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, ref));
               }
             }
 
@@ -1868,15 +1881,19 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                     {(() => {
                       const pendingMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, t]));
                       const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+                      const sephLaunch = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
+                      const getRef = (t: { name: string }) =>
+                        t.name.toLowerCase().includes('sephora') && sephLaunch ? sephLaunch : dtcLaunch;
                       const allResolved = cascadeWarning.overCount === 0 && cascadeWarning.hasFixes;
 
-                      // Current over tasks
+                      // Current over tasks (compare against correct launch date per task)
                       const currentOverIds = new Set(
                         cascadeWarning.pendingTasks
                           .filter(t => {
                             if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) return false;
                             if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') return false;
-                            return dtcLaunch && isAfter(parseISO(t.dueDate), dtcLaunch);
+                            const ref = getRef(t);
+                            return ref && isAfter(parseISO(t.dueDate), ref);
                           })
                           .map(t => t.id)
                       );
@@ -1972,8 +1989,9 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                               <div className="space-y-2">
                                 {originalOverTasks.map(overTask => {
                                   const isResolved = !currentOverIds.has(overTask.id);
-                                  const daysOver = dtcLaunch && overTask.dueDate
-                                    ? differenceInBusinessDays(parseISO(overTask.dueDate), dtcLaunch) : 0;
+                                  const overRef = getRef(overTask);
+                                  const daysOver = overRef && overTask.dueDate
+                                    ? differenceInBusinessDays(parseISO(overTask.dueDate), overRef) : 0;
                                   const chain = buildChain(overTask.id);
 
                                   return (
@@ -2010,8 +2028,9 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                           {chain.map((link, i) => {
                                             const dep = pendingMap.get(link.depId);
                                             if (!dep) return null;
-                                            const depIsOver = dtcLaunch && dep.dueDate && dep.name !== 'D2C Launch' && dep.name !== 'Sephora Launch'
-                                              ? isAfter(parseISO(dep.dueDate), dtcLaunch) : false;
+                                            const depRef = getRef(dep);
+                                            const depIsOver = depRef && dep.dueDate
+                                              ? isAfter(parseISO(dep.dueDate), depRef) : false;
                                             return (
                                               <div
                                                 key={link.depId}
@@ -2209,9 +2228,12 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
 
   const isOverdue = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
     parseISO(task.dueDate) < new Date();
+  const isSephoraTask = task.name.toLowerCase().includes('sephora');
+  const effectiveLaunchDate = isSephoraTask && launch.sephoraLaunchDate
+    ? launch.sephoraLaunchDate
+    : launch.launchDate;
   const isPastLaunch = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
-    task.name !== 'D2C Launch' && task.name !== 'Sephora Launch' &&
-    launch.launchDate && parseISO(task.dueDate) > parseISO(launch.launchDate);
+    effectiveLaunchDate && parseISO(task.dueDate) > parseISO(effectiveLaunchDate);
   const allDepsComplete = task.dependencies.length > 0 && task.dependencies.every(depId => {
     const dep = launch.tasks.find(t => t.id === depId);
     return dep && (dep.status === 'complete' || dep.status === 'skipped');
