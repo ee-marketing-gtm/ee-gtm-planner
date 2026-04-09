@@ -58,9 +58,9 @@ export default function LaunchDetail() {
   const [cascadeWarning, setCascadeWarning] = useState<{
     triggerTaskId: string;
     pendingTasks: import('@/lib/types').GTMTask[];
-    overTasks: { name: string; dueDate: string; daysOver: number }[];
-    suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
-    impossible: boolean;
+    chainTaskIds: string[]; // ordered dependency chain from trigger to over-launch tasks
+    overCount: number;
+    maxDaysOver: number;
   } | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const [scrollToTaskId, setScrollToTaskId] = useState<string | null>(null);
@@ -127,19 +127,6 @@ export default function LaunchDetail() {
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [handleUndo]);
 
-  const updateTaskStatus = (taskId: string, status: TaskStatus) => {
-    if (!launch) return;
-    const updated = {
-      ...launch,
-      tasks: launch.tasks.map(t =>
-        t.id === taskId
-          ? { ...t, status, completedDate: status === 'complete' ? new Date().toISOString() : null }
-          : t
-      ),
-    };
-    updateLaunch(updated);
-  };
-
   const updateTaskNotes = (taskId: string, notes: string) => {
     if (!launch) return;
     const updated = {
@@ -184,6 +171,71 @@ export default function LaunchDetail() {
     }, 5000);
   }, []);
 
+  const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
+    if (!launch) return;
+    const wasComplete = launch.tasks.find(t => t.id === taskId)?.status === 'complete';
+    const isNowComplete = status === 'complete';
+    const completedDate = isNowComplete ? new Date().toISOString() : null;
+
+    // Build task map with the status change applied
+    const taskMap = new Map(launch.tasks.map(t => [t.id, { ...t }]));
+    const changedTask = taskMap.get(taskId)!;
+    changedTask.status = status;
+    changedTask.completedDate = completedDate;
+
+    // If completing or uncompleting, recalculate downstream tasks
+    // because the effective end date for this task changes
+    if (wasComplete !== isNowComplete) {
+      const dependentsOf = new Map<string, string[]>();
+      for (const t of launch.tasks) {
+        for (const depId of t.dependencies) {
+          if (!dependentsOf.has(depId)) dependentsOf.set(depId, []);
+          dependentsOf.get(depId)!.push(t.id);
+        }
+      }
+
+      // BFS cascade from the status-changed task
+      const queue = [taskId];
+      const visited = new Set<string>([taskId]);
+      while (queue.length > 0) {
+        const currentId = queue.shift()!;
+        const deps = dependentsOf.get(currentId) || [];
+        for (const depId of deps) {
+          if (visited.has(depId)) continue;
+          const depTask = taskMap.get(depId)!;
+          if (!depTask.dueDate) continue;
+          // Find latest dep end date (use completedDate for complete/skipped tasks)
+          const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
+            const d = taskMap.get(dId);
+            if (!d) return latest;
+            const endDate = (d.status === 'complete' || d.status === 'skipped')
+              ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+            return endDate > latest ? endDate : latest;
+          }, '');
+          if (!latestDepDue) continue;
+          const newStart = parseISO(latestDepDue);
+          const dur = depTask.durationDays || 1;
+          const newDue = addBusinessDays(newStart, Math.max(0, dur));
+          const newStartStr = format(newStart, 'yyyy-MM-dd');
+          const newDueStr = format(newDue, 'yyyy-MM-dd');
+          if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+            depTask.startDate = newStartStr;
+            depTask.dueDate = newDueStr;
+            visited.add(depId);
+            queue.push(depId);
+          }
+        }
+      }
+
+      const cascadedIds = new Set(Array.from(visited).filter(id => id !== taskId));
+      const newTasks = Array.from(taskMap.values());
+      updateLaunch({ ...launch, tasks: newTasks });
+      if (cascadedIds.size > 0) flashChangedTasks(cascadedIds);
+    } else {
+      updateLaunch({ ...launch, tasks: Array.from(taskMap.values()) });
+    }
+  }, [launch, updateLaunch, flashChangedTasks]);
+
   // Cascade due dates through dependency graph when a task's date changes
   // extraUpdates: optional additional field changes to apply to the source task (e.g. durationDays from lead time stepper)
   const updateTaskDateWithCascade = useCallback((taskId: string, newDate: string, extraUpdates?: Partial<GTMTask>) => {
@@ -191,11 +243,10 @@ export default function LaunchDetail() {
     const task = launch.tasks.find(t => t.id === taskId);
     if (!task) return;
     if (!task.dueDate) {
-      updateTaskField(taskId, { dueDate: newDate });
+      updateTaskField(taskId, { dueDate: newDate, ...extraUpdates });
       return;
     }
-    const daysDiff = differenceInBusinessDays(parseISO(newDate), parseISO(task.dueDate));
-    if (daysDiff === 0) return;
+    if (newDate === task.dueDate && !extraUpdates) return;
 
     // Build task map and reverse dependency map (task → tasks that depend on it)
     const taskMap = new Map(launch.tasks.map(t => [t.id, { ...t }]));
@@ -207,22 +258,40 @@ export default function LaunchDetail() {
       }
     }
 
-    // Apply the date change to the source task
+    // Apply changes to the source task
     const sourceTask = taskMap.get(taskId)!;
-    sourceTask.dueDate = newDate;
-    if (sourceTask.startDate) {
-      sourceTask.startDate = format(addBusinessDays(parseISO(sourceTask.startDate), daysDiff), 'yyyy-MM-dd');
-    }
-    // Apply any extra field updates (e.g. durationDays from lead time stepper)
-    if (extraUpdates) Object.assign(sourceTask, extraUpdates);
+    const isLeadTimeChange = extraUpdates && 'durationDays' in extraUpdates;
 
-    // BFS: propagate through dependency graph
+    if (isLeadTimeChange) {
+      // Lead time change: keep start date fixed, recalculate due date from start + new duration
+      const newDuration = extraUpdates!.durationDays as number;
+      sourceTask.durationDays = newDuration;
+      if (sourceTask.startDate) {
+        sourceTask.dueDate = format(addBusinessDays(parseISO(sourceTask.startDate), Math.max(0, newDuration)), 'yyyy-MM-dd');
+      } else {
+        // No start date — just set due date directly
+        sourceTask.dueDate = newDate;
+      }
+    } else {
+      // Manual date change: set due date, recalculate start = due - duration
+      sourceTask.dueDate = newDate;
+      if (sourceTask.startDate && sourceTask.durationDays != null) {
+        sourceTask.startDate = format(addBusinessDays(parseISO(newDate), -sourceTask.durationDays), 'yyyy-MM-dd');
+      }
+    }
+    // Apply any other extra field updates
+    if (extraUpdates) {
+      const { durationDays: _d, ...otherUpdates } = extraUpdates as Record<string, unknown>;
+      if (Object.keys(otherUpdates).length > 0) Object.assign(sourceTask, otherUpdates);
+    }
+
+    // BFS: recalculate all downstream tasks through dependency graph
+    // For each downstream task: start = max(all dep due dates), due = start + duration
     const queue = [taskId];
     const visited = new Set<string>([taskId]);
 
     while (queue.length > 0) {
       const currentId = queue.shift()!;
-      const current = taskMap.get(currentId)!;
       const deps = dependentsOf.get(currentId) || [];
 
       for (const depTaskId of deps) {
@@ -231,7 +300,7 @@ export default function LaunchDetail() {
         if (!depTask.dueDate) continue;
 
         // Find the latest dependency end date for this task
-        // For completed deps, use completedDate so they don't block on original dueDate
+        // For completed/skipped deps, use completedDate so they don't block
         const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
           const d = taskMap.get(dId);
           if (!d) return latest;
@@ -244,29 +313,19 @@ export default function LaunchDetail() {
 
         if (!latestDepDue) continue;
 
-        // The dependent task should start after the latest dep finishes
-        const latestDepDate = parseISO(latestDepDue);
-        const currentStart = depTask.startDate ? parseISO(depTask.startDate) :
-          (depTask.dueDate && depTask.durationDays ? addBusinessDays(parseISO(depTask.dueDate), -depTask.durationDays) : null);
+        // Recalculate: start = latest dep due, due = start + duration
+        const newStart = parseISO(latestDepDue);
+        const duration = depTask.durationDays || 1;
+        const newDue = addBusinessDays(newStart, Math.max(0, duration));
+        const newStartStr = format(newStart, 'yyyy-MM-dd');
+        const newDueStr = format(newDue, 'yyyy-MM-dd');
 
-        // If the latest dep due date is after this task's start, push it forward
-        if (currentStart && isAfter(latestDepDate, currentStart)) {
-          const newStart = latestDepDate;
-          const duration = depTask.durationDays || differenceInBusinessDays(parseISO(depTask.dueDate), currentStart);
-          const newDue = addBusinessDays(newStart, Math.max(0, duration));
-          depTask.startDate = format(newStart, 'yyyy-MM-dd');
-          depTask.dueDate = format(newDue, 'yyyy-MM-dd');
+        // Only cascade if dates actually changed
+        if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+          depTask.startDate = newStartStr;
+          depTask.dueDate = newDueStr;
           visited.add(depTaskId);
           queue.push(depTaskId);
-        } else if (!currentStart && depTask.dueDate) {
-          // Fallback: if no startDate, shift by the same diff as the dependency moved
-          const depDueDate = parseISO(depTask.dueDate);
-          if (isAfter(latestDepDate, depDueDate)) {
-            const shift = differenceInBusinessDays(latestDepDate, depDueDate) + (depTask.durationDays || 3);
-            depTask.dueDate = format(addBusinessDays(depDueDate, shift), 'yyyy-MM-dd');
-            visited.add(depTaskId);
-            queue.push(depTaskId);
-          }
         }
       }
     }
@@ -276,52 +335,78 @@ export default function LaunchDetail() {
     const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
     const oldTaskMap = new Map(launch.tasks.map(t => [t.id, t]));
 
-    const overTasks: { name: string; dueDate: string; daysOver: number }[] = [];
+    const overTaskIds: string[] = [];
     for (const t of newTasks) {
       if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
       if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
       const due = parseISO(t.dueDate);
       if (dtcLaunch && isAfter(due, dtcLaunch)) {
-        // Only warn if this task wasn't already past launch, or got pushed further
         const oldTask = oldTaskMap.get(t.id);
         const wasAlreadyOver = oldTask?.dueDate && isAfter(parseISO(oldTask.dueDate), dtcLaunch);
         const gotWorse = oldTask?.dueDate && t.dueDate > oldTask.dueDate;
         if (!wasAlreadyOver || gotWorse) {
-          overTasks.push({ name: t.name, dueDate: t.dueDate, daysOver: differenceInBusinessDays(due, dtcLaunch) });
+          overTaskIds.push(t.id);
         }
       }
     }
 
-    if (overTasks.length > 0) {
-      // Find tasks in the chain that could be compressed to fix this
-      const totalDaysOver = Math.max(...overTasks.map(t => t.daysOver));
-      const suggestions: { taskName: string; currentDays: number; suggestedDays: number }[] = [];
+    if (overTaskIds.length > 0) {
+      // Build the chain: trigger task + all downstream tasks that were affected by the cascade
+      // Also walk backwards from the trigger to include upstream tasks the user could compress
+      const chainIds = new Set<string>();
 
-      // Walk the chain from the moved task to find compressible tasks
-      const chainTasks = newTasks
-        .filter(t => t.status !== 'complete' && t.status !== 'skipped' && t.durationDays && t.durationDays > 2)
-        .sort((a, b) => (b.durationDays || 0) - (a.durationDays || 0));
+      // 1. Include the trigger task
+      chainIds.add(taskId);
 
-      let daysToSave = totalDaysOver;
-      for (const ct of chainTasks) {
-        if (daysToSave <= 0) break;
-        const maxReduction = Math.floor((ct.durationDays || 0) * 0.4); // Can compress up to 40%
-        if (maxReduction < 1) continue;
-        const reduction = Math.min(maxReduction, daysToSave);
-        suggestions.push({
-          taskName: ct.name,
-          currentDays: ct.durationDays || 0,
-          suggestedDays: (ct.durationDays || 0) - reduction,
-        });
-        daysToSave -= reduction;
+      // 2. Walk backwards from trigger to include upstream dependencies (gives context)
+      const backQueue = [taskId];
+      const backVisited = new Set<string>([taskId]);
+      while (backQueue.length > 0) {
+        const cur = backQueue.shift()!;
+        const curTask = taskMap.get(cur);
+        if (!curTask) continue;
+        for (const depId of curTask.dependencies) {
+          if (backVisited.has(depId)) continue;
+          backVisited.add(depId);
+          const depTask = taskMap.get(depId);
+          if (depTask && depTask.status !== 'complete' && depTask.status !== 'skipped') {
+            chainIds.add(depId);
+            // Only go back a few levels — we don't need the whole history
+            // Stop if we've gone back 5 tasks
+            if (chainIds.size < 8) backQueue.push(depId);
+          }
+        }
       }
+
+      // 3. Include all downstream cascade-affected tasks (from visited set)
+      for (const id of visited) {
+        chainIds.add(id);
+      }
+
+      // 4. Also include any over tasks not already in the set
+      for (const id of overTaskIds) {
+        chainIds.add(id);
+      }
+
+      // Order chain by due date
+      const chainTaskIds = Array.from(chainIds)
+        .map(id => taskMap.get(id)!)
+        .filter(t => t && t.name !== 'D2C Launch' && t.name !== 'Sephora Launch')
+        .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
+        .map(t => t.id);
+
+      const maxDaysOver = overTaskIds.reduce((max, id) => {
+        const t = taskMap.get(id)!;
+        const days = dtcLaunch ? differenceInBusinessDays(parseISO(t.dueDate!), dtcLaunch) : 0;
+        return Math.max(max, days);
+      }, 0);
 
       setCascadeWarning({
         triggerTaskId: taskId,
         pendingTasks: newTasks,
-        overTasks,
-        suggestions: suggestions.slice(0, 5),
-        impossible: daysToSave > 0,
+        chainTaskIds,
+        overCount: overTaskIds.length,
+        maxDaysOver,
       });
       return;
     }
@@ -786,52 +871,15 @@ export default function LaunchDetail() {
         })()}
         </div>
 
-      {/* Cascade Warning - rendered inline in TrackerView */}
+      {/* Cascade Warning - rendered inline in TrackerView, fallback for other tabs */}
       {cascadeWarning && activeTab !== 'tracker' && (
         <div className="bg-red-50 rounded-xl border border-red-200 p-4 mb-4 animate-fade-in">
           <div className="flex items-start gap-2 mb-3">
             <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
-            <div>
-              <p className="text-sm font-medium text-[#DC2626]">
-                This change pushes {cascadeWarning.overTasks.length} task{cascadeWarning.overTasks.length !== 1 ? 's' : ''} past the launch date
-              </p>
-              <div className="mt-2 space-y-1">
-                {cascadeWarning.overTasks.slice(0, 5).map((t, i) => (
-                  <p key={i} className="text-xs text-[#92400E]">
-                    <span className="font-medium">{t.name}</span> — {t.daysOver} BD past launch
-                  </p>
-                ))}
-                {cascadeWarning.overTasks.length > 5 && (
-                  <p className="text-xs text-[#A8A29E]">...and {cascadeWarning.overTasks.length - 5} more</p>
-                )}
-              </div>
-            </div>
-          </div>
-
-          {cascadeWarning.suggestions.length > 0 && (
-            <div className="bg-white rounded-lg border border-[#E7E5E4] p-3 mb-3">
-              <p className="text-xs font-medium text-[#57534E] mb-2">
-                {cascadeWarning.impossible ? 'Suggested reductions (still not enough):' : 'To fit within the launch date, try:'}
-              </p>
-              <div className="space-y-1.5">
-                {cascadeWarning.suggestions.map((s, i) => (
-                  <div key={i} className="flex items-center justify-between text-xs">
-                    <span className="text-[#1B1464]">{s.taskName}</span>
-                    <span className="text-[#DC2626] font-medium">
-                      {s.currentDays}d → {s.suggestedDays}d
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {cascadeWarning.impossible && (
-            <p className="text-xs text-[#DC2626] mb-3 font-medium">
-              Not enough room to compress — consider extending the launch date.
+            <p className="text-sm font-medium text-[#DC2626]">
+              This pushes {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} past launch ({cascadeWarning.maxDaysOver} BD over). Switch to Task Tracker to resolve.
             </p>
-          )}
-
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => {
@@ -930,6 +978,89 @@ export default function LaunchDetail() {
             }
           }}
           onCascadeDismiss={() => setCascadeWarning(null)}
+          onCascadeAdjustLeadTime={(adjustTaskId: string, newDuration: number) => {
+            if (!cascadeWarning) return;
+            // Clone all pending tasks
+            const taskMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, { ...t }]));
+            const dependentsOf = new Map<string, string[]>();
+            for (const t of cascadeWarning.pendingTasks) {
+              for (const depId of t.dependencies) {
+                if (!dependentsOf.has(depId)) dependentsOf.set(depId, []);
+                dependentsOf.get(depId)!.push(t.id);
+              }
+            }
+
+            // Adjust the target task's lead time
+            const adjustTask = taskMap.get(adjustTaskId)!;
+            adjustTask.durationDays = newDuration;
+            if (adjustTask.startDate) {
+              adjustTask.dueDate = format(addBusinessDays(parseISO(adjustTask.startDate), Math.max(0, newDuration)), 'yyyy-MM-dd');
+            }
+
+            // BFS cascade from adjusted task
+            const queue = [adjustTaskId];
+            const visited = new Set<string>([adjustTaskId]);
+            while (queue.length > 0) {
+              const currentId = queue.shift()!;
+              const deps = dependentsOf.get(currentId) || [];
+              for (const depId of deps) {
+                if (visited.has(depId)) continue;
+                const depTask = taskMap.get(depId)!;
+                if (!depTask.dueDate) continue;
+                const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
+                  const d = taskMap.get(dId);
+                  if (!d) return latest;
+                  const endDate = (d.status === 'complete' || d.status === 'skipped')
+                    ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                  return endDate > latest ? endDate : latest;
+                }, '');
+                if (!latestDepDue) continue;
+                const newStart = parseISO(latestDepDue);
+                const dur = depTask.durationDays || 1;
+                const newDue = addBusinessDays(newStart, Math.max(0, dur));
+                const newStartStr = format(newStart, 'yyyy-MM-dd');
+                const newDueStr = format(newDue, 'yyyy-MM-dd');
+                if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+                  depTask.startDate = newStartStr;
+                  depTask.dueDate = newDueStr;
+                  visited.add(depId);
+                  queue.push(depId);
+                }
+              }
+            }
+
+            // Recheck if still over launch
+            const newTasks = Array.from(taskMap.values());
+            const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+            let overCount = 0;
+            let maxDaysOver = 0;
+            for (const t of newTasks) {
+              if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
+              if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
+              const due = parseISO(t.dueDate);
+              if (dtcLaunch && isAfter(due, dtcLaunch)) {
+                overCount++;
+                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, dtcLaunch));
+              }
+            }
+
+            if (overCount === 0) {
+              // All tasks fit! Auto-apply
+              updateLaunch({ ...launch, tasks: newTasks });
+              setCascadeWarning(null);
+              // Flash the chain tasks
+              const changedIds = new Set(cascadeWarning.chainTaskIds);
+              flashChangedTasks(changedIds);
+            } else {
+              // Update the warning with recalculated tasks
+              setCascadeWarning({
+                ...cascadeWarning,
+                pendingTasks: newTasks,
+                overCount,
+                maxDaysOver,
+              });
+            }
+          }}
           highlightedTaskIds={highlightedTaskIds}
           scrollToTaskId={scrollToTaskId}
         />
@@ -952,7 +1083,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, highlightedTaskIds, scrollToTaskId }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -965,12 +1096,13 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   cascadeWarning: {
     triggerTaskId: string;
     pendingTasks: import('@/lib/types').GTMTask[];
-    overTasks: { name: string; dueDate: string; daysOver: number }[];
-    suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
-    impossible: boolean;
+    chainTaskIds: string[];
+    overCount: number;
+    maxDaysOver: number;
   } | null;
   onCascadeApply: () => void;
   onCascadeDismiss: () => void;
+  onCascadeAdjustLeadTime: (taskId: string, newDuration: number) => void;
   highlightedTaskIds: Set<string>;
   scrollToTaskId: string | null;
 }) {
@@ -1334,51 +1466,78 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                     onUpdateLaunch({ ...launch, tasks: launch.tasks.filter(t => t.id !== taskId) });
                   }}
                   onNavigateToTask={(targetId) => {
+                    // If target is in the done section and it's hidden, reveal it
+                    const targetTask = launch.tasks.find(t => t.id === targetId);
+                    if (targetTask && (targetTask.status === 'complete' || targetTask.status === 'skipped') && hideCompleted) {
+                      setHideCompleted(false);
+                    }
                     setExpandedTaskId(targetId);
                     setTimeout(() => {
                       const el = document.getElementById(`task-${targetId}`);
                       if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }, 100);
+                    }, 150);
                   }}
                 />
                 {cascadeWarning && cascadeWarning.triggerTaskId === task.id && (
                   <div className="bg-red-50 border-x border-b border-red-200 px-4 py-3 animate-fade-in">
-                    <div className="flex items-start gap-2 mb-2">
+                    <div className="flex items-start gap-2 mb-3">
                       <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
                       <div>
                         <p className="text-xs font-medium text-[#DC2626]">
-                          This pushes {cascadeWarning.overTasks.length} task{cascadeWarning.overTasks.length !== 1 ? 's' : ''} past launch
+                          This pushes {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} past launch ({cascadeWarning.maxDaysOver} BD over)
                         </p>
-                        <div className="mt-1 space-y-0.5">
-                          {cascadeWarning.overTasks.slice(0, 5).map((t, i) => (
-                            <p key={i} className="text-[11px] text-[#92400E]">
-                              <span className="font-medium">{t.name}</span> — {t.daysOver} BD over
-                            </p>
-                          ))}
-                          {cascadeWarning.overTasks.length > 5 && (
-                            <p className="text-[11px] text-[#A8A29E]">...and {cascadeWarning.overTasks.length - 5} more</p>
-                          )}
-                        </div>
+                        <p className="text-[11px] text-[#92400E] mt-0.5">
+                          Adjust lead times below to fit within the launch date
+                        </p>
                       </div>
                     </div>
-                    {cascadeWarning.suggestions.length > 0 && (
-                      <div className="bg-white rounded-lg border border-[#E7E5E4] p-2 mb-2 ml-6">
-                        <p className="text-[11px] font-medium text-[#57534E] mb-1">
-                          {cascadeWarning.impossible ? 'Suggested reductions (still not enough):' : 'To fit within launch, try:'}
-                        </p>
-                        {cascadeWarning.suggestions.map((s, i) => (
-                          <div key={i} className="flex items-center justify-between text-[11px]">
-                            <span className="text-[#1B1464]">{s.taskName}</span>
-                            <span className="text-[#DC2626] font-medium">{s.currentDays}d → {s.suggestedDays}d</span>
-                          </div>
-                        ))}
+
+                    {/* Interactive dependency chain */}
+                    <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mb-3 ml-6">
+                      <div className="grid grid-cols-[1fr_80px_100px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+                        <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
+                        <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead Time</span>
+                        <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Due Date</span>
                       </div>
-                    )}
-                    {cascadeWarning.impossible && (
-                      <p className="text-[11px] text-[#DC2626] mb-2 ml-6 font-medium">
-                        Not enough room to compress — consider extending the launch date.
-                      </p>
-                    )}
+                      {cascadeWarning.chainTaskIds.map((chainId, idx) => {
+                        const chainTask = cascadeWarning.pendingTasks.find(t => t.id === chainId);
+                        if (!chainTask) return null;
+                        const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+                        const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
+                          ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
+                        const isTrigger = chainId === cascadeWarning.triggerTaskId;
+                        return (
+                          <div
+                            key={chainId}
+                            className={`grid grid-cols-[1fr_80px_100px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : ''}`}
+                          >
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              {idx > 0 && <span className="text-[10px] text-[#D6D3D1]">↳</span>}
+                              <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : isTrigger ? 'text-[#1B1464] font-medium' : 'text-[#44403C]'}`}>
+                                {chainTask.name}
+                              </span>
+                              {isOver && <span className="text-[9px] text-[#DC2626] font-medium shrink-0">OVER</span>}
+                            </div>
+                            <div className="flex items-center justify-center gap-0.5">
+                              <button
+                                onClick={() => onCascadeAdjustLeadTime(chainId, Math.max(0, (chainTask.durationDays || 1) - 1))}
+                                className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
+                                disabled={chainTask.durationDays <= 0}
+                              >−</button>
+                              <span className="text-[11px] font-medium text-[#1B1464] w-5 text-center">{chainTask.durationDays}</span>
+                              <button
+                                onClick={() => onCascadeAdjustLeadTime(chainId, (chainTask.durationDays || 0) + 1)}
+                                className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
+                              >+</button>
+                            </div>
+                            <span className={`text-[11px] text-right ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
+                              {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d, yyyy') : '—'}
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
                     <div className="flex items-center gap-2 ml-6">
                       <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
                         Apply Anyway
@@ -1426,11 +1585,15 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                         onUpdateLaunch({ ...launch, tasks: launch.tasks.filter(t => t.id !== taskId) });
                       }}
                       onNavigateToTask={(targetId) => {
+                        const targetTask = launch.tasks.find(t => t.id === targetId);
+                        if (targetTask && (targetTask.status === 'complete' || targetTask.status === 'skipped') && hideCompleted) {
+                          setHideCompleted(false);
+                        }
                         setExpandedTaskId(targetId);
                         setTimeout(() => {
                           const el = document.getElementById(`task-${targetId}`);
                           if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }, 100);
+                        }, 150);
                       }}
                     />
                   );
