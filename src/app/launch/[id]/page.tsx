@@ -77,6 +77,7 @@ export default function LaunchDetail() {
   const [cropImage, setCropImage] = useState<string | null>(null);
   const [cropZoom, setCropZoom] = useState(1);
   const [cropOffset, setCropOffset] = useState({ x: 0, y: 0 });
+  const [showImageLightbox, setShowImageLightbox] = useState(false);
   const cropDragging = useRef(false);
   const cropStart = useRef({ x: 0, y: 0, ox: 0, oy: 0 });
 
@@ -583,8 +584,6 @@ export default function LaunchDetail() {
   const PRESET_COLORS = [
     '#D8EE6A', '#3C3FC4', '#F4FFD1', '#EA3089', '#F6D7EA', '#E89073', '#E35AA3',
   ];
-
-  const [showImageLightbox, setShowImageLightbox] = useState(false);
 
   const deliverableCount = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim()).length;
 
