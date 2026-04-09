@@ -58,9 +58,12 @@ export default function LaunchDetail() {
   const [cascadeWarning, setCascadeWarning] = useState<{
     triggerTaskId: string;
     pendingTasks: import('@/lib/types').GTMTask[];
+    originalPendingTasks: import('@/lib/types').GTMTask[]; // snapshot before any quick fixes
     chainTaskIds: string[]; // ordered dependency chain from trigger to over-launch tasks
     overCount: number;
     maxDaysOver: number;
+    originalOverTaskIds: string[]; // tasks that were over before quick fixes
+    hasFixes: boolean; // whether any quick fixes have been applied
   } | null>(null);
   const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
   const [scrollToTaskId, setScrollToTaskId] = useState<string | null>(null);
@@ -472,9 +475,12 @@ export default function LaunchDetail() {
       setCascadeWarning({
         triggerTaskId: taskId,
         pendingTasks: newTasks,
+        originalPendingTasks: newTasks,
         chainTaskIds,
         overCount: overTaskIds.length,
         maxDaysOver,
+        originalOverTaskIds: overTaskIds,
+        hasFixes: false,
       });
       return;
     }
@@ -1025,7 +1031,6 @@ export default function LaunchDetail() {
           cascadeWarning={cascadeWarning}
           onCascadeApply={() => {
             if (cascadeWarning) {
-              // Find which tasks changed dates
               const oldByName = new Map(launch.tasks.map(t => [t.id, t]));
               const changedIds = new Set<string>();
               let furthestId = '';
@@ -1041,6 +1046,28 @@ export default function LaunchDetail() {
                 }
               }
               updateLaunch({ ...launch, tasks: cascadeWarning.pendingTasks });
+              setCascadeWarning(null);
+              if (changedIds.size > 0) flashChangedTasks(changedIds, furthestId || undefined);
+            }
+          }}
+          onCascadeApplyOriginal={() => {
+            if (cascadeWarning) {
+              // Apply the original cascade (before quick fixes)
+              const oldByName = new Map(launch.tasks.map(t => [t.id, t]));
+              const changedIds = new Set<string>();
+              let furthestId = '';
+              let furthestDate = '';
+              for (const t of cascadeWarning.originalPendingTasks) {
+                const old = oldByName.get(t.id);
+                if (old && old.dueDate !== t.dueDate && t.id !== cascadeWarning.triggerTaskId) {
+                  changedIds.add(t.id);
+                  if (t.dueDate && t.dueDate > furthestDate) {
+                    furthestDate = t.dueDate;
+                    furthestId = t.id;
+                  }
+                }
+              }
+              updateLaunch({ ...launch, tasks: cascadeWarning.originalPendingTasks });
               setCascadeWarning(null);
               if (changedIds.size > 0) flashChangedTasks(changedIds, furthestId || undefined);
             }
@@ -1113,12 +1140,14 @@ export default function LaunchDetail() {
             }
 
             if (overCount === 0) {
-              // All tasks fit! Auto-apply
-              updateLaunch({ ...launch, tasks: newTasks });
-              setCascadeWarning(null);
-              // Flash the chain tasks
-              const changedIds = new Set(cascadeWarning.chainTaskIds);
-              flashChangedTasks(changedIds);
+              // All resolved — don't auto-apply, show success state so user can confirm
+              setCascadeWarning({
+                ...cascadeWarning,
+                pendingTasks: newTasks,
+                overCount: 0,
+                maxDaysOver: 0,
+                hasFixes: true,
+              });
             } else {
               // Update the warning with recalculated tasks
               setCascadeWarning({
@@ -1126,6 +1155,7 @@ export default function LaunchDetail() {
                 pendingTasks: newTasks,
                 overCount,
                 maxDaysOver,
+                hasFixes: true,
               });
             }
           }}
@@ -1211,11 +1241,14 @@ export default function LaunchDetail() {
             }
 
             if (overCount === 0) {
-              // All tasks fit! Auto-apply
-              updateLaunch({ ...launch, tasks: newTasks });
-              setCascadeWarning(null);
-              const changedIds = new Set(cascadeWarning.chainTaskIds);
-              flashChangedTasks(changedIds);
+              // All resolved — show success state so user can confirm
+              setCascadeWarning({
+                ...cascadeWarning,
+                pendingTasks: newTasks,
+                overCount: 0,
+                maxDaysOver: 0,
+                hasFixes: true,
+              });
             } else {
               // Update the warning with recalculated tasks
               setCascadeWarning({
@@ -1223,6 +1256,7 @@ export default function LaunchDetail() {
                 pendingTasks: newTasks,
                 overCount,
                 maxDaysOver,
+                hasFixes: true,
               });
             }
           }}
@@ -1248,7 +1282,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, onCascadeRemoveDep, highlightedTaskIds, scrollToTaskId }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeApplyOriginal, onCascadeDismiss, onCascadeAdjustLeadTime, onCascadeRemoveDep, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -1261,11 +1295,15 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   cascadeWarning: {
     triggerTaskId: string;
     pendingTasks: import('@/lib/types').GTMTask[];
+    originalPendingTasks: import('@/lib/types').GTMTask[];
     chainTaskIds: string[];
     overCount: number;
     maxDaysOver: number;
+    originalOverTaskIds: string[];
+    hasFixes: boolean;
   } | null;
   onCascadeApply: () => void;
+  onCascadeApplyOriginal: () => void;
   onCascadeDismiss: () => void;
   onCascadeAdjustLeadTime: (taskId: string, newDuration: number) => void;
   onCascadeRemoveDep: (taskId: string, depToRemove: string) => void;
@@ -1280,6 +1318,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [sortBy, setSortBy] = useState<'due' | 'owner' | 'phase'>('due');
   const [sortAsc, setSortAsc] = useState(true);
   const [showFullChain, setShowFullChain] = useState(false);
+  const [showCascadeDetails, setShowCascadeDetails] = useState(false);
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
@@ -1646,20 +1685,27 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                   }}
                 />
                 {cascadeWarning && cascadeWarning.triggerTaskId === task.id && (
-                  <div className="bg-red-50 border-x border-b border-red-200 px-4 py-3 animate-fade-in">
+                  <div className="border-x border-b border-red-200 animate-fade-in">
                     {(() => {
                       const pendingMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, t]));
-                      const triggerTask = pendingMap.get(cascadeWarning.triggerTaskId);
                       const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+                      const originalOverSet = new Set(cascadeWarning.originalOverTaskIds);
+                      const allResolved = cascadeWarning.overCount === 0 && cascadeWarning.hasFixes;
 
-                      // Find the tasks that are actually over launch
-                      const overTasks = cascadeWarning.pendingTasks.filter(t => {
+                      // Find tasks currently over launch
+                      const currentOverTasks = cascadeWarning.pendingTasks.filter(t => {
                         if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) return false;
                         if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') return false;
                         return dtcLaunch && isAfter(parseISO(t.dueDate), dtcLaunch);
                       });
+                      const currentOverIds = new Set(currentOverTasks.map(t => t.id));
 
-                      // For each over task, trace the critical path back to the trigger
+                      // Build list: originally-over tasks, showing resolved vs still-over
+                      const originalOverTasks = cascadeWarning.originalOverTaskIds
+                        .map(id => pendingMap.get(id))
+                        .filter((t): t is GTMTask => !!t);
+
+                      // For critical path tracing
                       const getCriticalPath = (taskId: string): string[] => {
                         const path: string[] = [taskId];
                         let current = taskId;
@@ -1667,7 +1713,6 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                         while (current !== cascadeWarning.triggerTaskId) {
                           const t = pendingMap.get(current);
                           if (!t) break;
-                          // Find the driving dependency (latest due date among deps)
                           let drivingDep: string | null = null;
                           let latestDue = '';
                           for (const depId of t.dependencies) {
@@ -1684,141 +1729,159 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                         return path;
                       };
 
-                      // Group over tasks and their critical paths
-                      const overTasksWithPaths = overTasks.map(t => ({
-                        task: t,
-                        daysOver: dtcLaunch ? differenceInBusinessDays(parseISO(t.dueDate!), dtcLaunch) : 0,
-                        criticalPath: getCriticalPath(t.id),
-                      })).sort((a, b) => b.daysOver - a.daysOver);
-
-                      // Collect all unique tasks in all critical paths for the lead time adjuster
-                      const allPathTaskIds = new Set<string>();
-                      for (const { criticalPath } of overTasksWithPaths) {
-                        for (const id of criticalPath) allPathTaskIds.add(id);
-                      }
-
                       return (
                         <>
-                          {/* Header */}
-                          <div className="flex items-start gap-2 mb-3">
-                            <AlertCircle className="w-4 h-4 text-[#DC2626] mt-0.5 shrink-0" />
-                            <div>
-                              <p className="text-xs font-medium text-[#DC2626]">
-                                {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} pushed past launch ({cascadeWarning.maxDaysOver} BD over)
-                              </p>
+                          {/* Collapsed header bar — always visible */}
+                          <button
+                            onClick={() => setShowCascadeDetails(!showCascadeDetails)}
+                            className={`w-full flex items-center gap-2 px-4 py-2.5 text-left transition-colors ${
+                              allResolved
+                                ? 'bg-emerald-50 hover:bg-emerald-100'
+                                : 'bg-red-50 hover:bg-red-100'
+                            }`}
+                          >
+                            {allResolved ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <AlertCircle className="w-4 h-4 text-[#DC2626] shrink-0" />
+                            )}
+                            <div className="flex-1 min-w-0">
+                              {allResolved ? (
+                                <p className="text-xs font-medium text-emerald-700">
+                                  All delays resolved — ready to save
+                                </p>
+                              ) : (
+                                <p className="text-xs font-medium text-[#DC2626]">
+                                  {cascadeWarning.overCount} task{cascadeWarning.overCount !== 1 ? 's' : ''} pushed past launch ({cascadeWarning.maxDaysOver} BD over)
+                                </p>
+                              )}
                             </div>
-                          </div>
+                            {showCascadeDetails ? (
+                              <ChevronDown className="w-4 h-4 text-[#A8A29E] shrink-0" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4 text-[#A8A29E] shrink-0" />
+                            )}
+                          </button>
 
-                          {/* Over tasks with critical paths and fix options */}
-                          <div className="space-y-2 ml-6 mb-3">
-                            {overTasksWithPaths.map(({ task: overTask, daysOver, criticalPath }) => {
-                              // Find the driving dependency for this over task (the one making it late)
-                              const drivingDepId = overTask.dependencies.reduce<string | null>((best, depId) => {
-                                const d = pendingMap.get(depId);
-                                if (!d?.dueDate) return best;
-                                if (!best) return depId;
-                                const bestTask = pendingMap.get(best);
-                                return d.dueDate > (bestTask?.dueDate || '') ? depId : best;
-                              }, null);
-                              const drivingDep = drivingDepId ? pendingMap.get(drivingDepId) : null;
+                          {/* Expandable details */}
+                          {showCascadeDetails && (
+                            <div className={`px-4 py-3 ${allResolved ? 'bg-emerald-50/50' : 'bg-red-50/50'}`}>
+                              {/* Task status list */}
+                              <div className="space-y-1.5 ml-6 mb-3">
+                                {originalOverTasks.map(overTask => {
+                                  const isResolved = !currentOverIds.has(overTask.id);
+                                  const daysOver = dtcLaunch && overTask.dueDate
+                                    ? differenceInBusinessDays(parseISO(overTask.dueDate), dtcLaunch) : 0;
+                                  const criticalPath = getCriticalPath(overTask.id);
 
-                              return (
-                                <div key={overTask.id} className="bg-white rounded-lg border border-red-200 overflow-hidden">
-                                  {/* Over task header */}
-                                  <div className="px-3 py-2 bg-red-50 border-b border-red-100">
-                                    <div className="flex items-center justify-between">
-                                      <span className="text-[11px] font-semibold text-[#DC2626] truncate">{overTask.name}</span>
-                                      <span className="text-[10px] font-medium text-[#DC2626] bg-red-100 px-1.5 py-0.5 rounded shrink-0 ml-2">
-                                        {daysOver} BD over
-                                      </span>
-                                    </div>
-                                    <p className="text-[10px] text-[#92400E] mt-0.5">
-                                      Due {overTask.dueDate ? format(parseISO(overTask.dueDate), 'MMM d') : '—'} · Launch {launch.launchDate ? format(parseISO(launch.launchDate), 'MMM d') : '—'}
-                                    </p>
-                                  </div>
+                                  // Find driving dependency for quick fix
+                                  const drivingDepId = overTask.dependencies.reduce<string | null>((best, depId) => {
+                                    const d = pendingMap.get(depId);
+                                    if (!d?.dueDate) return best;
+                                    if (!best) return depId;
+                                    const bestTask = pendingMap.get(best);
+                                    return d.dueDate > (bestTask?.dueDate || '') ? depId : best;
+                                  }, null);
+                                  const drivingDep = drivingDepId ? pendingMap.get(drivingDepId) : null;
 
-                                  {/* Critical path breadcrumb */}
-                                  <div className="px-3 py-1.5 border-b border-[#F5F5F4]">
-                                    <p className="text-[9px] font-semibold text-[#A8A29E] uppercase tracking-wide mb-1">Delay chain</p>
-                                    <div className="flex items-center gap-0.5 flex-wrap">
-                                      {criticalPath.map((pathId, i) => {
-                                        const pathTask = pendingMap.get(pathId);
-                                        if (!pathTask) return null;
-                                        const isLast = i === criticalPath.length - 1;
-                                        const pathTaskOver = dtcLaunch && pathTask.dueDate ? isAfter(parseISO(pathTask.dueDate), dtcLaunch) : false;
-                                        return (
-                                          <React.Fragment key={pathId}>
-                                            <span className={`text-[10px] px-1 py-0.5 rounded ${
-                                              pathTaskOver ? 'text-[#DC2626] bg-red-50 font-medium' :
-                                              pathId === cascadeWarning.triggerTaskId ? 'text-[#1B1464] bg-indigo-50 font-medium' :
-                                              'text-[#57534E] bg-[#F5F5F4]'
-                                            }`}>
-                                              {pathTask.name.length > 25 ? pathTask.name.substring(0, 25) + '…' : pathTask.name}
-                                              <span className="text-[8px] ml-0.5 opacity-60">{pathTask.durationDays}d</span>
-                                            </span>
-                                            {!isLast && <span className="text-[10px] text-[#D6D3D1]">→</span>}
-                                          </React.Fragment>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-
-                                  {/* Quick fixes */}
-                                  <div className="px-3 py-2">
-                                    <p className="text-[9px] font-semibold text-[#A8A29E] uppercase tracking-wide mb-1.5">Quick fixes</p>
-                                    <div className="space-y-1">
-                                      {/* Fix 1: Unblock from driving dependency */}
-                                      {drivingDep && overTask.dependencies.length > 1 && (
-                                        <button
-                                          onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
-                                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left group"
-                                        >
-                                          <span className="text-[11px]">🔓</span>
-                                          <span className="text-[10px] text-[#92400E]">
-                                            Remove dependency on <span className="font-medium">{drivingDep.name}</span>
+                                  return (
+                                    <div key={overTask.id} className={`rounded-lg border overflow-hidden ${
+                                      isResolved ? 'border-emerald-200 bg-emerald-50/50' : 'border-red-200 bg-white'
+                                    }`}>
+                                      {/* Task row */}
+                                      <div className="px-3 py-2 flex items-center gap-2">
+                                        {isResolved ? (
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <AlertCircle className="w-3.5 h-3.5 text-[#DC2626] shrink-0" />
+                                        )}
+                                        <span className={`text-[11px] font-medium truncate flex-1 ${
+                                          isResolved ? 'text-emerald-700' : 'text-[#DC2626]'
+                                        }`}>
+                                          {overTask.name}
+                                        </span>
+                                        {isResolved ? (
+                                          <span className="text-[10px] font-medium text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded shrink-0">
+                                            Resolved
                                           </span>
-                                        </button>
-                                      )}
-                                      {drivingDep && overTask.dependencies.length === 1 && (
-                                        <button
-                                          onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
-                                          className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left group"
-                                        >
-                                          <span className="text-[11px]">🔓</span>
-                                          <span className="text-[10px] text-[#92400E]">
-                                            Unblock from <span className="font-medium">{drivingDep.name}</span> (only dependency)
+                                        ) : (
+                                          <span className="text-[10px] font-medium text-[#DC2626] bg-red-100 px-1.5 py-0.5 rounded shrink-0">
+                                            {daysOver} BD over
                                           </span>
-                                        </button>
-                                      )}
-                                      {/* Fix 2: Reduce lead time on bottleneck tasks in the path */}
-                                      {criticalPath.filter(id => {
-                                        const t = pendingMap.get(id);
-                                        return t && t.durationDays > 1 && id !== overTask.id;
-                                      }).slice(0, 2).map(pathId => {
-                                        const pathTask = pendingMap.get(pathId)!;
-                                        const reduceTo = Math.max(0, pathTask.durationDays - daysOver);
-                                        return (
-                                          <button
-                                            key={pathId}
-                                            onClick={() => onCascadeAdjustLeadTime(pathId, reduceTo)}
-                                            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors text-left"
-                                          >
-                                            <span className="text-[11px]">⏱</span>
-                                            <span className="text-[10px] text-[#1E40AF]">
-                                              Reduce <span className="font-medium">{pathTask.name}</span> lead time {pathTask.durationDays} → {reduceTo} BD
-                                            </span>
-                                          </button>
-                                        );
-                                      })}
-                                    </div>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
+                                        )}
+                                      </div>
 
-                          {/* Full chain (collapsible) for manual tweaking */}
-                          <div className="ml-6 mb-3">
+                                      {/* Show fixes only for unresolved tasks */}
+                                      {!isResolved && (
+                                        <div className="px-3 py-2 border-t border-red-100">
+                                          {/* Delay chain breadcrumb */}
+                                          {criticalPath.length > 1 && (
+                                            <div className="mb-2">
+                                              <div className="flex items-center gap-0.5 flex-wrap">
+                                                {criticalPath.map((pathId, i) => {
+                                                  const pathTask = pendingMap.get(pathId);
+                                                  if (!pathTask) return null;
+                                                  const isLast = i === criticalPath.length - 1;
+                                                  const pathTaskOver = dtcLaunch && pathTask.dueDate ? isAfter(parseISO(pathTask.dueDate), dtcLaunch) : false;
+                                                  return (
+                                                    <React.Fragment key={pathId}>
+                                                      <span className={`text-[10px] px-1 py-0.5 rounded ${
+                                                        pathTaskOver ? 'text-[#DC2626] bg-red-50 font-medium' :
+                                                        pathId === cascadeWarning.triggerTaskId ? 'text-[#1B1464] bg-indigo-50 font-medium' :
+                                                        'text-[#57534E] bg-[#F5F5F4]'
+                                                      }`}>
+                                                        {pathTask.name.length > 20 ? pathTask.name.substring(0, 20) + '…' : pathTask.name}
+                                                        <span className="text-[8px] ml-0.5 opacity-60">{pathTask.durationDays}d</span>
+                                                      </span>
+                                                      {!isLast && <span className="text-[10px] text-[#D6D3D1]">→</span>}
+                                                    </React.Fragment>
+                                                  );
+                                                })}
+                                              </div>
+                                            </div>
+                                          )}
+                                          {/* Quick fix buttons */}
+                                          <div className="space-y-1">
+                                            {drivingDep && (
+                                              <button
+                                                onClick={() => onCascadeRemoveDep(overTask.id, drivingDepId!)}
+                                                className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-amber-50 border border-amber-200 hover:bg-amber-100 transition-colors text-left"
+                                              >
+                                                <span className="text-[11px]">🔓</span>
+                                                <span className="text-[10px] text-[#92400E]">
+                                                  Remove dependency on <span className="font-medium">{drivingDep.name}</span>
+                                                </span>
+                                              </button>
+                                            )}
+                                            {criticalPath.filter(id => {
+                                              const t = pendingMap.get(id);
+                                              return t && t.durationDays > 1 && id !== overTask.id;
+                                            }).slice(0, 2).map(pathId => {
+                                              const pathTask = pendingMap.get(pathId)!;
+                                              const reduceTo = Math.max(0, pathTask.durationDays - daysOver);
+                                              return (
+                                                <button
+                                                  key={pathId}
+                                                  onClick={() => onCascadeAdjustLeadTime(pathId, reduceTo)}
+                                                  className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md bg-blue-50 border border-blue-200 hover:bg-blue-100 transition-colors text-left"
+                                                >
+                                                  <span className="text-[11px]">⏱</span>
+                                                  <span className="text-[10px] text-[#1E40AF]">
+                                                    Reduce <span className="font-medium">{pathTask.name}</span> lead time {pathTask.durationDays} → {reduceTo} BD
+                                                  </span>
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        </div>
+                                      )}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+
+                              {/* Full chain (collapsible) */}
+                              <div className="ml-6 mb-3">
                                 <button
                                   onClick={() => setShowFullChain(!showFullChain)}
                                   className="text-[10px] text-[#A8A29E] hover:text-[#57534E] transition-colors flex items-center gap-1"
@@ -1838,15 +1901,13 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                       if (!chainTask) return null;
                                       const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
                                         ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
-                                      const isOnCriticalPath = allPathTaskIds.has(chainId);
                                       return (
                                         <div
                                           key={chainId}
-                                          className={`grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : isOnCriticalPath ? 'bg-amber-50/50' : ''}`}
+                                          className={`grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : ''}`}
                                         >
-                                          <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : isOnCriticalPath ? 'text-[#92400E]' : 'text-[#44403C]'}`}>
+                                          <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#44403C]'}`}>
                                             {chainTask.name}
-                                            {isOver && <span className="text-[9px] text-[#DC2626] font-medium ml-1">OVER</span>}
                                           </span>
                                           <div className="flex items-center justify-center gap-0.5">
                                             <button
@@ -1868,17 +1929,53 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                     })}
                                   </div>
                                 )}
-                          </div>
+                              </div>
 
-                          {/* Action buttons */}
-                          <div className="flex items-center gap-2 ml-6">
-                            <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
-                              Keep with Delays
-                            </button>
-                            <button onClick={onCascadeDismiss} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
-                              Undo Change
-                            </button>
-                          </div>
+                              {/* Action buttons */}
+                              <div className="flex items-center gap-2 ml-6">
+                                {allResolved ? (
+                                  <button onClick={onCascadeApply} className="px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                                    Save with Fixes
+                                  </button>
+                                ) : (
+                                  <button onClick={onCascadeApply} className="px-3 py-1.5 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
+                                    Keep with Delays
+                                  </button>
+                                )}
+                                {cascadeWarning.hasFixes && (
+                                  <button onClick={onCascadeApplyOriginal} className="px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
+                                    Save without Fixes
+                                  </button>
+                                )}
+                                <button onClick={onCascadeDismiss} className="px-3 py-1.5 text-[#A8A29E] text-[11px] font-medium hover:text-[#57534E] transition-colors">
+                                  Undo Change
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Compact action buttons when collapsed */}
+                          {!showCascadeDetails && (
+                            <div className={`flex items-center gap-2 px-4 py-2 border-t ${allResolved ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100'}`}>
+                              {allResolved ? (
+                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors">
+                                  Save with Fixes
+                                </button>
+                              ) : (
+                                <button onClick={onCascadeApply} className="px-2.5 py-1 bg-[#DC2626] text-white text-[11px] font-medium rounded-lg hover:bg-[#B91C1C] transition-colors">
+                                  Keep with Delays
+                                </button>
+                              )}
+                              {cascadeWarning.hasFixes && (
+                                <button onClick={onCascadeApplyOriginal} className="px-2.5 py-1 border border-[#E7E5E4] text-[#57534E] text-[11px] font-medium rounded-lg hover:bg-[#F5F5F4] transition-colors">
+                                  Save without Fixes
+                                </button>
+                              )}
+                              <button onClick={onCascadeDismiss} className="px-2.5 py-1 text-[#A8A29E] text-[11px] font-medium hover:text-[#57534E] transition-colors">
+                                Undo Change
+                              </button>
+                            </div>
+                          )}
                         </>
                       );
                     })()}
