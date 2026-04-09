@@ -1537,11 +1537,6 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     -{task.compressionDays}d
                   </span>
                 )}
-                {task.dependencies.length > 0 && (
-                  <span className="shrink-0 text-[10px] text-[#A8A29E]" title={`Depends on ${task.dependencies.length} task${task.dependencies.length > 1 ? 's' : ''}`}>
-                    {task.dependencies.length} dep{task.dependencies.length > 1 ? 's' : ''}
-                  </span>
-                )}
               </div>
             )}
             {/* Deliverable link button */}
@@ -1569,29 +1564,35 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               </button>
             )}
           </div>
-          {task.notes && !isExpanded && (
-            <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate max-w-md">{task.notes}</p>
-          )}
-          {/* Driving dependency — shown inline without expanding */}
-          {!isExpanded && task.dependencies.length > 0 && task.status !== 'complete' && task.status !== 'skipped' && (() => {
-            const allComplete = task.dependencies.every(depId => {
-              const d = launch.tasks.find(t => t.id === depId);
-              return d && (d.status === 'complete' || d.status === 'skipped');
-            });
-            if (allComplete) return null;
-            const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
-              const dep = launch.tasks.find(t => t.id === depId);
-              if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
-              if (!latest?.dueDate) return dep;
-              return dep.dueDate > latest.dueDate ? dep : latest;
-            }, null);
-            if (!drivingDep) return null;
-            return (
-              <p className="text-[10px] text-[#A8A29E] mt-0.5 truncate">
-                <span className="text-[#D6D3D1]">↳</span> waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#FF1493] hover:underline font-medium">{drivingDep.name}</button>
-                <span className="text-[#D6D3D1]"> ({drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : '—'})</span>
-              </p>
-            );
+          {/* Subtitle line — notes or driving dependency, not both */}
+          {!isExpanded && (() => {
+            // Check for driving dependency first
+            if (task.dependencies.length > 0 && task.status !== 'complete' && task.status !== 'skipped') {
+              const allComplete = task.dependencies.every(depId => {
+                const d = launch.tasks.find(t => t.id === depId);
+                return d && (d.status === 'complete' || d.status === 'skipped');
+              });
+              if (!allComplete) {
+                const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+                  const dep = launch.tasks.find(t => t.id === depId);
+                  if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
+                  if (!latest?.dueDate) return dep;
+                  return dep.dueDate > latest.dueDate ? dep : latest;
+                }, null);
+                if (drivingDep) {
+                  return (
+                    <p className="text-[10px] text-[#D6D3D1] mt-0.5 truncate">
+                      after <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#D6D3D1] hover:text-[#A8A29E] transition-colors">{drivingDep.name}</button>
+                    </p>
+                  );
+                }
+              }
+            }
+            // Fall back to notes preview
+            if (task.notes && task.notes.trim()) {
+              return <p className="text-[10px] text-[#D6D3D1] mt-0.5 truncate max-w-md">{task.notes}</p>;
+            }
+            return null;
           })()}
         </div>
 
