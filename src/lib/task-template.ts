@@ -490,7 +490,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Bundle PDP Gallery Asset Brief',
     leadTime: 5,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
     owner: 'marketing',
     phase: 'design_briefs',
     notes: 'If any new assets needed for bundle.',
@@ -498,7 +498,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'Draft Bundle Sephora/Amazon Gallery Asset Brief',
     leadTime: 5,
-    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment', 'Finalize 360 GTM Plan & Retail Channels'],
+    dependsOn: ['Final Taglines & Campaign Copy Due', 'Finalize Bundle Assortment'],
     owner: 'marketing',
     phase: 'design_briefs',
     notes: 'If different/additional from DTC.',
