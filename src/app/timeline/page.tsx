@@ -42,7 +42,7 @@ export default function TimelinePage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [expandedLaunches, setExpandedLaunches] = useState<Set<string>>(new Set());
   const [expandedPhases, setExpandedPhases] = useState<Set<string>>(new Set());
-  const [viewMode, setViewMode] = useState<ViewMode>('by-launch');
+  const [viewMode, setViewMode] = useState<ViewMode>('stacked');
 
   useEffect(() => {
     if (loading) return;
@@ -245,9 +245,9 @@ export default function TimelinePage() {
           <p className="text-sm text-[#A8A29E]">Select launches above to see their timelines.</p>
         </div>
       ) : range ? (
-        <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden">
+        <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-auto max-h-[calc(100vh-280px)]">
           {/* Legend */}
-          <div className="flex items-center gap-4 px-4 py-2 border-b border-[#E7E5E4] bg-[#FAFAF9] flex-wrap">
+          <div className="flex items-center gap-4 px-4 py-2 border-b border-[#E7E5E4] bg-[#FAFAF9] flex-wrap sticky top-0 z-30">
             {/* Launch colors */}
             {selectedLaunches.map(l => (
               <div key={l.id} className="flex items-center gap-1.5">
@@ -296,11 +296,11 @@ export default function TimelinePage() {
             )}
           </div>
 
-          <div className="flex">
+          <div className="flex" style={{ minWidth: '1600px' }}>
             {/* Left: labels */}
             <div className="w-[220px] shrink-0 border-r border-[#E7E5E4] bg-white z-10 sticky left-0">
               {/* Header spacer - must match the sticky header height */}
-              <div className="h-[52px] border-b border-[#E7E5E4] sticky top-0 bg-white z-20" />
+              <div className="h-[52px] border-b border-[#E7E5E4] sticky top-[33px] bg-white z-20" />
 
               {viewMode === 'by-launch' ? (
                 /* ── By-Launch View: launches > phases > tasks ── */
@@ -411,11 +411,13 @@ export default function TimelinePage() {
               )}
             </div>
 
-            {/* Right: scrollable gantt */}
-            <div className="flex-1 overflow-x-auto">
-              <div className="min-w-[1400px] relative">
+            {/* Right: gantt */}
+            <div className="flex-1">
+              <div className="relative">
                 {/* Sticky header */}
-                <MultiGanttHeader range={range} />
+                <div className="sticky top-[33px] z-20">
+                  <MultiGanttHeader range={range} />
+                </div>
 
                 <div className="relative">
                   {/* Day backgrounds */}
@@ -673,7 +675,7 @@ function MultiGanttHeader({ range }: { range: GanttDateRange }) {
   const colStyle = `repeat(${range.totalDays}, minmax(18px, 1fr))`;
 
   return (
-    <div className="sticky top-0 z-20 bg-white border-b border-[#E7E5E4]">
+    <div className="bg-white border-b border-[#E7E5E4]">
       <div className="grid" style={{ gridTemplateColumns: colStyle }}>
         {months.map((m, i) => (
           <div
