@@ -1564,14 +1564,61 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
             )}
           </div>
 
-          {/* Schedule window */}
-          {task.startDate && task.dueDate && (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#57534E]">
-              <Calendar className="w-3 h-3 text-[#A8A29E]" />
-              <span>{format(parseISO(task.startDate), 'MMM d')} → {format(parseISO(task.dueDate), 'MMM d, yyyy')}</span>
-              {task.durationDays && <span className="text-[#A8A29E]">({task.durationDays} business days)</span>}
+          {/* Schedule window + lead time control */}
+          <div className="flex items-center gap-3 flex-wrap">
+            {task.startDate && task.dueDate && (
+              <div className="flex items-center gap-1.5 text-[11px] text-[#57534E]">
+                <Calendar className="w-3 h-3 text-[#A8A29E]" />
+                <span>{format(parseISO(task.startDate), 'MMM d')} → {format(parseISO(task.dueDate), 'MMM d, yyyy')}</span>
+              </div>
+            )}
+            {/* Lead time / duration adjuster */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-[#A8A29E]">Lead time:</span>
+              <div className="inline-flex items-center border border-[#E7E5E4] rounded-lg overflow-hidden">
+                <button
+                  onClick={() => {
+                    const current = task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : 3);
+                    if (current <= 1) return;
+                    const newDuration = current - 1;
+                    const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -newDuration), 'yyyy-MM-dd') : null);
+                    if (startDate) {
+                      const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
+                      updateTaskField(task.id, { durationDays: newDuration });
+                      updateTaskDateWithCascade(task.id, newDueDate);
+                    } else {
+                      updateTaskField(task.id, { durationDays: newDuration });
+                    }
+                  }}
+                  className="px-1.5 py-0.5 text-[11px] text-[#57534E] hover:bg-[#F5F5F4] transition-colors font-medium"
+                  title="Reduce lead time by 1 BD"
+                >
+                  −
+                </button>
+                <span className="px-2 py-0.5 text-[11px] font-semibold text-[#1B1464] bg-[#FAFAF9] border-x border-[#E7E5E4] min-w-[40px] text-center">
+                  {task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : '—')} BD
+                </span>
+                <button
+                  onClick={() => {
+                    const current = task.durationDays || (task.startDate && task.dueDate ? differenceInBusinessDays(parseISO(task.dueDate), parseISO(task.startDate)) : 3);
+                    const newDuration = current + 1;
+                    const startDate = task.startDate || (task.dueDate ? format(addBusinessDays(parseISO(task.dueDate), -current), 'yyyy-MM-dd') : null);
+                    if (startDate) {
+                      const newDueDate = format(addBusinessDays(parseISO(startDate), newDuration), 'yyyy-MM-dd');
+                      updateTaskField(task.id, { durationDays: newDuration });
+                      updateTaskDateWithCascade(task.id, newDueDate);
+                    } else {
+                      updateTaskField(task.id, { durationDays: newDuration });
+                    }
+                  }}
+                  className="px-1.5 py-0.5 text-[11px] text-[#57534E] hover:bg-[#F5F5F4] transition-colors font-medium"
+                  title="Increase lead time by 1 BD"
+                >
+                  +
+                </button>
+              </div>
             </div>
-          )}
+          </div>
 
           {/* 1. Dependencies — read-only pills with edit toggle */}
           {(task.dependencies.length > 0 || editingDeps || launch.tasks.some(t => t.dependencies.includes(task.id))) && (
