@@ -1583,7 +1583,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               if (drivingDep) {
                 return (
                   <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate">
-                    after <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#A8A29E] hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                    waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#A8A29E] hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
                   </p>
                 );
               }
