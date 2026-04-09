@@ -62,6 +62,12 @@ export default function LaunchDetail() {
     suggestions: { taskName: string; currentDays: number; suggestedDays: number }[];
     impossible: boolean;
   } | null>(null);
+  const [highlightedTaskIds, setHighlightedTaskIds] = useState<Set<string>>(new Set());
+  const [scrollToTaskId, setScrollToTaskId] = useState<string | null>(null);
+  const highlightTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const undoStackRef = useRef<import('@/lib/types').GTMTask[][]>([]);
+  const [undoToast, setUndoToast] = useState<string | null>(null);
+  const undoToastTimerRef = useRef<NodeJS.Timeout | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [customHex, setCustomHex] = useState(launch?.brandColor || '');
   const [imageUrlInput, setImageUrlInput] = useState(launch?.productImageUrl || '');
@@ -78,9 +84,13 @@ export default function LaunchDetail() {
   }, [foundLaunch]);
 
   const updateLaunch = useCallback((updated: Launch) => {
+    // Push current tasks to undo stack before applying changes
+    if (launch?.tasks) {
+      undoStackRef.current = [...undoStackRef.current.slice(-19), launch.tasks];
+    }
     setLaunch(updated);
     saveLaunch(updated);
-  }, []);
+  }, [launch]);
 
   const togglePhase = (phase: PhaseKey) => {
     setExpandedPhases(prev => {
@@ -90,6 +100,32 @@ export default function LaunchDetail() {
       return next;
     });
   };
+
+  const handleUndo = useCallback(() => {
+    if (!launch || undoStackRef.current.length === 0) return;
+    const previousTasks = undoStackRef.current.pop()!;
+    const restored = { ...launch, tasks: previousTasks, updatedAt: new Date().toISOString() };
+    setLaunch(restored);
+    saveLaunch(restored);
+    setUndoToast('Change undone');
+    if (undoToastTimerRef.current) clearTimeout(undoToastTimerRef.current);
+    undoToastTimerRef.current = setTimeout(() => setUndoToast(null), 2500);
+  }, [launch]);
+
+  // Ctrl+Z / Cmd+Z keyboard shortcut
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'z' && !e.shiftKey) {
+        // Don't intercept if user is typing in an input
+        const tag = (e.target as HTMLElement)?.tagName;
+        if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+        e.preventDefault();
+        handleUndo();
+      }
+    }
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [handleUndo]);
 
   const updateTaskStatus = (taskId: string, status: TaskStatus) => {
     if (!launch) return;
@@ -135,6 +171,18 @@ export default function LaunchDetail() {
     };
     updateLaunch(updated);
   }, [launch, updateLaunch]);
+
+  // Flash highlight on changed tasks and scroll to the furthest-moved one
+  const flashChangedTasks = useCallback((changedIds: Set<string>, scrollTo?: string) => {
+    if (changedIds.size === 0) return;
+    setHighlightedTaskIds(changedIds);
+    if (scrollTo) setScrollToTaskId(scrollTo);
+    if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    highlightTimerRef.current = setTimeout(() => {
+      setHighlightedTaskIds(new Set());
+      setScrollToTaskId(null);
+    }, 5000);
+  }, []);
 
   // Cascade due dates through dependency graph when a task's date changes
   const updateTaskDateWithCascade = useCallback((taskId: string, newDate: string) => {
@@ -269,7 +317,23 @@ export default function LaunchDetail() {
     }
 
     updateLaunch({ ...launch, tasks: newTasks });
-  }, [launch, updateLaunch, updateTaskField]);
+
+    // Flash highlight on cascaded tasks (exclude the source task the user just edited)
+    const cascadedIds = new Set(Array.from(visited).filter(id => id !== taskId));
+    if (cascadedIds.size > 0) {
+      // Find the task that ended up with the latest due date among cascaded tasks
+      let furthestId = '';
+      let furthestDate = '';
+      for (const id of cascadedIds) {
+        const t = taskMap.get(id);
+        if (t?.dueDate && t.dueDate > furthestDate) {
+          furthestDate = t.dueDate;
+          furthestId = id;
+        }
+      }
+      flashChangedTasks(cascadedIds, furthestId || undefined);
+    }
+  }, [launch, updateLaunch, updateTaskField, flashChangedTasks]);
 
   if (!mounted || loading) return <div className="p-8" />;
   if (!launch) return (
@@ -794,7 +858,26 @@ export default function LaunchDetail() {
             )}
           </button>
         ))}
+        {/* Undo button */}
+        {undoStackRef.current.length > 0 && (
+          <button
+            onClick={handleUndo}
+            className="ml-auto flex items-center gap-1 px-2.5 py-1.5 text-[11px] text-[#A8A29E] hover:text-[#57534E] hover:bg-[#F5F5F4] rounded-lg transition-colors mb-0.5 self-center"
+            title="Undo last change (Ctrl+Z)"
+          >
+            <RotateCcw className="w-3 h-3" />
+            Undo
+          </button>
+        )}
       </div>
+
+      {/* Undo toast */}
+      {undoToast && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1B1464] text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in">
+          <RotateCcw className="w-3.5 h-3.5" />
+          {undoToast}
+        </div>
+      )}
 
       {/* Tab Content */}
       {activeTab === 'tracker' && (
@@ -811,11 +894,29 @@ export default function LaunchDetail() {
           cascadeWarning={cascadeWarning}
           onCascadeApply={() => {
             if (cascadeWarning) {
+              // Find which tasks changed dates
+              const oldByName = new Map(launch.tasks.map(t => [t.id, t]));
+              const changedIds = new Set<string>();
+              let furthestId = '';
+              let furthestDate = '';
+              for (const t of cascadeWarning.pendingTasks) {
+                const old = oldByName.get(t.id);
+                if (old && old.dueDate !== t.dueDate && t.id !== cascadeWarning.triggerTaskId) {
+                  changedIds.add(t.id);
+                  if (t.dueDate && t.dueDate > furthestDate) {
+                    furthestDate = t.dueDate;
+                    furthestId = t.id;
+                  }
+                }
+              }
               updateLaunch({ ...launch, tasks: cascadeWarning.pendingTasks });
               setCascadeWarning(null);
+              if (changedIds.size > 0) flashChangedTasks(changedIds, furthestId || undefined);
             }
           }}
           onCascadeDismiss={() => setCascadeWarning(null)}
+          highlightedTaskIds={highlightedTaskIds}
+          scrollToTaskId={scrollToTaskId}
         />
       )}
       {activeTab === 'deliverables' && (
@@ -833,7 +934,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -852,6 +953,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   } | null;
   onCascadeApply: () => void;
   onCascadeDismiss: () => void;
+  highlightedTaskIds: Set<string>;
+  scrollToTaskId: string | null;
 }) {
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(initialTaskId || null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
@@ -862,6 +965,16 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const scrolledToTask = useRef(false);
 
   const lastClickedRef = useRef<string | null>(null);
+
+  // Auto-scroll to the furthest-moved task when cascade happens
+  useEffect(() => {
+    if (scrollToTaskId) {
+      setTimeout(() => {
+        const el = document.getElementById(`task-${scrollToTaskId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100);
+    }
+  }, [scrollToTaskId]);
 
   const toggleTaskSelection = (taskId: string, shiftKey?: boolean) => {
     setSelectedTaskIds(prev => {
@@ -1169,6 +1282,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                   phase={phase}
                   isExpanded={expandedTaskId === task.id}
                   isSelected={selectedTaskIds.has(task.id)}
+                  isHighlighted={highlightedTaskIds.has(task.id)}
                   onToggleSelect={(shiftKey?: boolean) => toggleTaskSelection(task.id, shiftKey)}
                   onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                   onMarkComplete={handleMarkComplete}
@@ -1260,6 +1374,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                       phase={phase}
                       isExpanded={expandedTaskId === task.id}
                       isSelected={selectedTaskIds.has(task.id)}
+                      isHighlighted={highlightedTaskIds.has(task.id)}
                       onToggleSelect={(shiftKey?: boolean) => toggleTaskSelection(task.id, shiftKey)}
                       onToggleExpand={() => setExpandedTaskId(expandedTaskId === task.id ? null : task.id)}
                       onMarkComplete={handleMarkComplete}
@@ -1324,12 +1439,13 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   );
 }
 
-function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, onToggleExpand, onMarkComplete, updateTaskStatus, updateTaskNotes, updateDeliverableUrl, updateTaskField, updateTaskDateWithCascade, onDeleteTask, onNavigateToTask }: {
+function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, onToggleSelect, onToggleExpand, onMarkComplete, updateTaskStatus, updateTaskNotes, updateDeliverableUrl, updateTaskField, updateTaskDateWithCascade, onDeleteTask, onNavigateToTask }: {
   task: GTMTask;
   launch: Launch;
   phase: { key: PhaseKey; color: string };
   isExpanded: boolean;
   isSelected?: boolean;
+  isHighlighted?: boolean;
   onToggleSelect?: (shiftKey?: boolean) => void;
   onToggleExpand: () => void;
   onMarkComplete: (taskId: string) => void;
@@ -1383,7 +1499,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
   }
 
   return (
-    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] ${isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
+    <div id={`task-${task.id}`} className={`border-t border-[#E7E5E4] transition-colors duration-1000 ${isHighlighted ? 'bg-blue-50 ring-1 ring-blue-200' : isOverdue || isPastLaunch ? 'bg-red-50/50' : ''} ${isSelected ? 'bg-[#FF1493]/5' : ''} ${allDepsComplete && task.status === 'not_started' ? 'border-l-2 border-l-emerald-400' : ''}`}>
       <div className="grid grid-cols-[20px_1fr_120px_80px_120px_140px_40px] gap-x-3 px-4 py-3 items-center hover:bg-[#FAFAF9] transition-colors">
         {/* Selection checkbox */}
         <input
@@ -1456,6 +1572,27 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, onToggleSelect, 
           {task.notes && !isExpanded && (
             <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate max-w-md">{task.notes}</p>
           )}
+          {/* Driving dependency — shown inline without expanding */}
+          {!isExpanded && task.dependencies.length > 0 && task.status !== 'complete' && task.status !== 'skipped' && (() => {
+            const allComplete = task.dependencies.every(depId => {
+              const d = launch.tasks.find(t => t.id === depId);
+              return d && (d.status === 'complete' || d.status === 'skipped');
+            });
+            if (allComplete) return null;
+            const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
+              const dep = launch.tasks.find(t => t.id === depId);
+              if (!dep?.dueDate || dep.status === 'complete' || dep.status === 'skipped') return latest;
+              if (!latest?.dueDate) return dep;
+              return dep.dueDate > latest.dueDate ? dep : latest;
+            }, null);
+            if (!drivingDep) return null;
+            return (
+              <p className="text-[10px] text-[#A8A29E] mt-0.5 truncate">
+                <span className="text-[#D6D3D1]">↳</span> waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#FF1493] hover:underline font-medium">{drivingDep.name}</button>
+                <span className="text-[#D6D3D1]"> ({drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : '—'})</span>
+              </p>
+            );
+          })()}
         </div>
 
         {/* Owner — editable select */}
