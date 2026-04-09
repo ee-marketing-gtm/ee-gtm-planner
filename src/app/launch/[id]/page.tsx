@@ -1061,6 +1061,111 @@ export default function LaunchDetail() {
               });
             }
           }}
+          onCascadeRemoveDep={(taskId: string, depId: string) => {
+            if (!cascadeWarning) return;
+            // Clone pending tasks with the dependency removed
+            const taskMap = new Map(cascadeWarning.pendingTasks.map(t => [t.id, { ...t }]));
+            const task = taskMap.get(taskId)!;
+            task.dependencies = task.dependencies.filter(d => d !== depId);
+
+            // Build dependents map and recalculate from the changed task
+            const dependentsOf = new Map<string, string[]>();
+            for (const t of cascadeWarning.pendingTasks) {
+              for (const did of t.dependencies) {
+                if (!dependentsOf.has(did)) dependentsOf.set(did, []);
+                dependentsOf.get(did)!.push(t.id);
+              }
+            }
+            // Also update the dependentsOf for the removed dependency
+            const depDependents = dependentsOf.get(depId);
+            if (depDependents) {
+              dependentsOf.set(depId, depDependents.filter(d => d !== taskId));
+            }
+
+            // Recalculate the changed task
+            if (task.dependencies.length > 0) {
+              const latestDepDue = task.dependencies.reduce((latest, dId) => {
+                const d = taskMap.get(dId);
+                if (!d) return latest;
+                const endDate = (d.status === 'complete' || d.status === 'skipped')
+                  ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                return endDate > latest ? endDate : latest;
+              }, '');
+              if (latestDepDue) {
+                const newStart = parseISO(latestDepDue);
+                const dur = task.durationDays || 1;
+                task.startDate = format(newStart, 'yyyy-MM-dd');
+                task.dueDate = format(addBusinessDays(newStart, Math.max(0, dur)), 'yyyy-MM-dd');
+              }
+            }
+
+            // BFS cascade from this task
+            const queue = [taskId];
+            const visited = new Set<string>([taskId]);
+            while (queue.length > 0) {
+              const currentId = queue.shift()!;
+              const deps = dependentsOf.get(currentId) || [];
+              for (const did of deps) {
+                if (visited.has(did)) continue;
+                const depTask = taskMap.get(did)!;
+                if (!depTask.dueDate) continue;
+                const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
+                  const d = taskMap.get(dId);
+                  if (!d) return latest;
+                  const endDate = (d.status === 'complete' || d.status === 'skipped')
+                    ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                  return endDate > latest ? endDate : latest;
+                }, '');
+                if (!latestDepDue) continue;
+                const newStart = parseISO(latestDepDue);
+                const dur = depTask.durationDays || 1;
+                const newStartStr = format(newStart, 'yyyy-MM-dd');
+                const newDueStr = format(addBusinessDays(newStart, Math.max(0, dur)), 'yyyy-MM-dd');
+                if (depTask.startDate !== newStartStr || depTask.dueDate !== newDueStr) {
+                  depTask.startDate = newStartStr;
+                  depTask.dueDate = newDueStr;
+                  visited.add(did);
+                  queue.push(did);
+                }
+              }
+            }
+
+            // Check if still over launch
+            const newTasks = Array.from(taskMap.values());
+            const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
+            let overCount = 0;
+            let maxDaysOver = 0;
+            for (const t of newTasks) {
+              if (t.status === 'complete' || t.status === 'skipped' || !t.dueDate) continue;
+              if (t.name === 'D2C Launch' || t.name === 'Sephora Launch') continue;
+              const due = parseISO(t.dueDate);
+              if (dtcLaunch && isAfter(due, dtcLaunch)) {
+                overCount++;
+                maxDaysOver = Math.max(maxDaysOver, differenceInBusinessDays(due, dtcLaunch));
+              }
+            }
+
+            if (overCount === 0) {
+              updateLaunch({ ...launch, tasks: newTasks });
+              setCascadeWarning(null);
+              const changedIds = new Set(cascadeWarning.chainTaskIds);
+              flashChangedTasks(changedIds);
+            } else {
+              // Remove the task from chain if it's no longer connected
+              const newChainIds = cascadeWarning.chainTaskIds.filter(id => {
+                if (id === taskId) return true; // Keep the changed task
+                const t = taskMap.get(id);
+                return t && t.dependencies.some(d => cascadeWarning.chainTaskIds.includes(d));
+              });
+              setCascadeWarning({
+                ...cascadeWarning,
+                pendingTasks: newTasks,
+                chainTaskIds: newChainIds.length > 0 ? newChainIds : cascadeWarning.chainTaskIds,
+                overCount,
+                maxDaysOver,
+              });
+            }
+          }}
           highlightedTaskIds={highlightedTaskIds}
           scrollToTaskId={scrollToTaskId}
         />
@@ -1083,7 +1188,7 @@ export default function LaunchDetail() {
   );
 }
 
-function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, highlightedTaskIds, scrollToTaskId }: {
+function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeDismiss, onCascadeAdjustLeadTime, onCascadeRemoveDep, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
   togglePhase: (phase: PhaseKey) => void;
@@ -1103,6 +1208,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   onCascadeApply: () => void;
   onCascadeDismiss: () => void;
   onCascadeAdjustLeadTime: (taskId: string, newDuration: number) => void;
+  onCascadeRemoveDep: (taskId: string, depId: string) => void;
   highlightedTaskIds: Set<string>;
   scrollToTaskId: string | null;
 }) {
@@ -1494,29 +1600,60 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
 
                     {/* Interactive dependency chain */}
                     <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mb-3 ml-6">
-                      <div className="grid grid-cols-[1fr_80px_100px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+                      <div className="grid grid-cols-[1fr_80px_100px_24px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
                         <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
-                        <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead Time</span>
+                        <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead</span>
                         <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Due Date</span>
+                        <span />
                       </div>
-                      {cascadeWarning.chainTaskIds.map((chainId, idx) => {
+                      {cascadeWarning.chainTaskIds.map((chainId) => {
                         const chainTask = cascadeWarning.pendingTasks.find(t => t.id === chainId);
                         if (!chainTask) return null;
                         const dtcLaunch = launch.launchDate ? parseISO(launch.launchDate) : null;
                         const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
                           ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
                         const isTrigger = chainId === cascadeWarning.triggerTaskId;
+
+                        // Calculate indent depth based on dependency chain from trigger
+                        // Find which chain tasks this task depends on to determine its parent
+                        const chainSet = new Set(cascadeWarning.chainTaskIds);
+                        const parentInChain = chainTask.dependencies.find(dId => chainSet.has(dId));
+                        const parentTask = parentInChain ? cascadeWarning.pendingTasks.find(t => t.id === parentInChain) : null;
+
+                        // Calculate depth by walking up the chain
+                        let depth = 0;
+                        let walkId: string | undefined = chainId;
+                        const depthVisited = new Set<string>();
+                        while (walkId && !depthVisited.has(walkId)) {
+                          depthVisited.add(walkId);
+                          const walkTask = cascadeWarning.pendingTasks.find(t => t.id === walkId);
+                          const nextParent = walkTask?.dependencies.find(dId => chainSet.has(dId));
+                          if (nextParent) {
+                            depth++;
+                            walkId = nextParent;
+                          } else {
+                            break;
+                          }
+                        }
+
                         return (
                           <div
                             key={chainId}
-                            className={`grid grid-cols-[1fr_80px_100px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : ''}`}
+                            className={`grid grid-cols-[1fr_80px_100px_24px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 group/chain ${isOver ? 'bg-red-50' : ''}`}
                           >
-                            <div className="flex items-center gap-1.5 min-w-0">
-                              {idx > 0 && <span className="text-[10px] text-[#D6D3D1]">↳</span>}
+                            <div className="flex items-center gap-1 min-w-0" style={{ paddingLeft: `${depth * 14}px` }}>
+                              {depth > 0 && (
+                                <span className="text-[10px] text-[#D6D3D1] shrink-0">↳</span>
+                              )}
                               <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : isTrigger ? 'text-[#1B1464] font-medium' : 'text-[#44403C]'}`}>
                                 {chainTask.name}
                               </span>
-                              {isOver && <span className="text-[9px] text-[#DC2626] font-medium shrink-0">OVER</span>}
+                              {parentTask && depth > 0 && (
+                                <span className="text-[9px] text-[#A8A29E] shrink-0 hidden group-hover/chain:inline" title={`Depends on ${parentTask.name}`}>
+                                  ({parentTask.name.length > 20 ? parentTask.name.substring(0, 18) + '...' : parentTask.name})
+                                </span>
+                              )}
+                              {isOver && <span className="text-[9px] text-[#DC2626] font-medium shrink-0 ml-1">OVER</span>}
                             </div>
                             <div className="flex items-center justify-center gap-0.5">
                               <button
@@ -1531,8 +1668,18 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                               >+</button>
                             </div>
                             <span className={`text-[11px] text-right ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
-                              {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d, yyyy') : '—'}
+                              {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d') : '—'}
                             </span>
+                            {/* Remove dependency button */}
+                            {parentInChain && depth > 0 && (
+                              <button
+                                onClick={() => onCascadeRemoveDep(chainId, parentInChain)}
+                                className="w-5 h-5 flex items-center justify-center rounded-full opacity-0 group-hover/chain:opacity-100 hover:bg-red-100 hover:text-red-500 text-[#A8A29E] transition-all"
+                                title={`Remove dependency on ${parentTask?.name}`}
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         );
                       })}
