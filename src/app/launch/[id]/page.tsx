@@ -80,9 +80,12 @@ export default function LaunchDetail() {
   useEffect(() => {
     if (foundLaunch) {
       // Data migration: remove D2C Launch & Sephora Launch tasks (they're dates, not tasks)
-      // Pin Sephora Final Assets Due to 50 BD before Sephora launch (only if Sephora date exists)
+      // Pin date-anchored tasks to their correct dates
       const sephoraAssetDeadline = foundLaunch.sephoraLaunchDate
         ? format(addBusinessDays(parseISO(foundLaunch.sephoraLaunchDate), -50), 'yyyy-MM-dd')
+        : null;
+      const socialCampaignDate = foundLaunch.launchDate
+        ? format(addBusinessDays(parseISO(foundLaunch.launchDate), -5), 'yyyy-MM-dd')
         : null;
       const removedIds = new Set(
         foundLaunch.tasks
@@ -100,6 +103,13 @@ export default function LaunchDetail() {
           if (t.name === 'Sephora Final Assets Due' && sephoraAssetDeadline && t.dueDate !== sephoraAssetDeadline) {
             migrated = true;
             return { ...t, dependencies: cleanDeps, dueDate: sephoraAssetDeadline, startDate: sephoraAssetDeadline };
+          }
+          // Pin Social Campaign Start to 5 BD before DTC launch, no dependencies
+          if (t.name === 'Social Campaign Start' && socialCampaignDate) {
+            if (t.dueDate !== socialCampaignDate || t.dependencies.length > 0) {
+              migrated = true;
+              return { ...t, dependencies: [], dependencyNames: undefined, dueDate: socialCampaignDate, startDate: socialCampaignDate, durationDays: 0 };
+            }
           }
           if (depsChanged) {
             migrated = true;
@@ -261,7 +271,7 @@ export default function LaunchDetail() {
           const depTask = taskMap.get(depId)!;
           if (!depTask.dueDate) continue;
           // Never recalculate pinned milestone dates
-          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch') continue;
+          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Social Campaign Start') continue;
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
@@ -329,7 +339,7 @@ export default function LaunchDetail() {
           const depTask = taskMap.get(depId)!;
           if (!depTask.dueDate) continue;
           // Never recalculate pinned milestone dates
-          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch') continue;
+          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Social Campaign Start') continue;
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
@@ -424,7 +434,7 @@ export default function LaunchDetail() {
         if (!depTask.dueDate) continue;
 
         // Never recalculate pinned milestone dates
-        if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch') continue;
+        if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Social Campaign Start') continue;
 
         // Find the latest dependency end date for this task
         const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
@@ -1152,7 +1162,7 @@ export default function LaunchDetail() {
                 const depTask = taskMap.get(depId)!;
                 if (!depTask.dueDate) continue;
                 // Never recalculate pinned milestone dates
-                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch') continue;
+                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Social Campaign Start') continue;
                 const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
                   const d = taskMap.get(dId);
                   if (!d) return latest;
@@ -1257,7 +1267,7 @@ export default function LaunchDetail() {
                 const depTask = taskMap.get(depId)!;
                 if (!depTask.dueDate) continue;
                 // Never recalculate pinned milestone dates
-                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch') continue;
+                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Social Campaign Start') continue;
                 const latestDep = depTask.dependencies.reduce((latest, dId) => {
                   const d = taskMap.get(dId);
                   if (!d) return latest;

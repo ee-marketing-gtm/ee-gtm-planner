@@ -663,12 +663,13 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   // ── Launch Milestones ──
   {
     name: 'Social Campaign Start',
-    leadTime: 10,
-    dependsOn: ['DTC & Amazon Final Assets Due'],
+    leadTime: 0,
+    dependsOn: [],
     owner: 'social',
     phase: 'design_production',
     pinnedToLaunchDate: true,
-    notes: 'Starts ~2 weeks before D2C launch. Needs final DTC/Amazon assets.',
+    d2cAssetLeadTime: 5,
+    notes: '5 BD before D2C launch date. Date is pinned to launch, not dependency-driven.',
   },
   {
     name: 'Launch Event',
