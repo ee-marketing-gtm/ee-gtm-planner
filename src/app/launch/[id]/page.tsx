@@ -2252,31 +2252,37 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 if (blockedTasks.length === 0) return null;
                 return (
                   <div>
-                    <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Blocks</label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <label className="text-[11px] font-medium text-[#57534E]">Blocks ({blockedTasks.length})</label>
+                    </div>
+                    <div className="space-y-1">
                       {blockedTasks.map(bt => (
                         <div
                           key={bt.id}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200 group/block"
+                          className="flex items-center gap-2 group/block"
                         >
                           <button
+                            onClick={() => {
+                              const newDeps = bt.dependencies.filter(d => d !== task.id);
+                              updateTaskField(bt.id, { dependencies: newDeps });
+                            }}
+                            className="w-4 h-4 rounded border border-amber-300 bg-amber-50 flex items-center justify-center shrink-0 hover:bg-red-100 hover:border-red-300 transition-colors group/cb"
+                            title={`Unblock — remove ${bt.name}'s dependency on this task`}
+                          >
+                            <X className="w-2.5 h-2.5 text-amber-400 group-hover/cb:text-red-500 transition-colors" />
+                          </button>
+                          <button
                             onClick={() => onNavigateToTask?.(bt.id)}
-                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#FF1493] transition-colors"
+                            className={`text-[11px] truncate cursor-pointer hover:text-[#FF1493] transition-colors ${
+                              bt.status === 'complete' || bt.status === 'skipped' ? 'text-[#A8A29E] line-through' : 'text-[#44403C]'
+                            }`}
                             title={`Go to ${bt.name}`}
                           >
                             {bt.name}
                           </button>
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              const newDeps = bt.dependencies.filter(d => d !== task.id);
-                              updateTaskField(bt.id, { dependencies: newDeps });
-                            }}
-                            className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover/block:opacity-100 hover:bg-red-100 hover:text-red-500 text-amber-400 transition-all"
-                            title={`Remove ${bt.name}'s dependency on this task`}
-                          >
-                            <X className="w-2.5 h-2.5" />
-                          </button>
+                          <span className="text-[9px] text-[#A8A29E] shrink-0">
+                            {bt.dueDate ? format(parseISO(bt.dueDate), 'MMM d') : ''}
+                          </span>
                         </div>
                       ))}
                     </div>
