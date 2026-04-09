@@ -512,7 +512,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     name: 'Brief Alignment Meeting',
     leadTime: 3,
     dependsOn: [
-      'Final GTM Deck',
       'Draft PDP Gallery Asset Brief',
       'Draft Sephora/Amazon Gallery Asset Brief',
       'Draft Amazon A+ Content Brief',
