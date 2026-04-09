@@ -582,7 +582,7 @@ export default function LaunchDetail() {
   const accentColor = launch.brandColor || TIER_CONFIG[launch.tier].color;
 
   const PRESET_COLORS = [
-    '#D8EE6A', '#3C3FC4', '#F4FFD1', '#EA3089', '#F6D7EA', '#E89073', '#E35AA3',
+    '#D8EE6A', '#3C3FC4', '#F4FFD1', '#EA3089', '#F6D7EA', '#E89073', '#E35AA3', '#ECEDF9',
   ];
 
   const deliverableCount = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim()).length;
