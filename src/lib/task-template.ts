@@ -28,7 +28,7 @@
 import { PhaseKey, Owner } from './types';
 
 // ── Extended owner type for template (superset of app Owner type) ──
-export type TemplateOwner = Owner | 'copywriter' | 'growth' | 'leadership';
+export type TemplateOwner = Owner | 'leadership';
 
 export interface TaskTemplate {
   name: string;
@@ -69,7 +69,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 3,
     dependsOn: [],
     owner: 'growth',
-    phase: 'pre_planning',
+    phase: 'content_planning',
     notes: 'Requires final COGS from Operations. Timing backward from when Finalize Bundle Assortment needs it.',
   },
 
@@ -280,7 +280,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: ['Finalize 360 GTM Plan & Retail Channels', 'RSP Finalization', 'Finalize Bundle Assortment'],
     owner: 'marketing',
     support: 'cross-functional',
-    phase: 'finalize_mgmt',
+    phase: 'finalize_strategies',
     notes: '360 plan captures all inputs; this is the presentation deck.',
   },
 
@@ -666,7 +666,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 10,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     isOptional: true,
     notes: '2 weeks to plan launch event. Anchored to Launch Event date.',
   },
@@ -675,7 +675,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 10,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     isOptional: true,
     notes: '2 weeks to plan OOH. Anchored to launch date.',
   },
@@ -686,7 +686,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 10,
     dependsOn: ['DTC & Amazon Final Assets Due'],
     owner: 'social',
-    phase: 'launch',
+    phase: 'design_production',
     pinnedToLaunchDate: true,
     notes: 'Starts ~2 weeks before D2C launch. Needs final DTC/Amazon assets.',
   },
@@ -695,7 +695,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 0,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     isManualDate: true,
     isOptional: true,
     notes: 'Date added manually when event is confirmed.',
@@ -705,7 +705,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 0,
     dependsOn: [],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     isManualDate: true,
     isOptional: true,
     notes: 'Date added manually when OOH is confirmed.',
@@ -715,7 +715,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 0,
     dependsOn: ['DTC & Amazon Final Assets Due', 'Final DTC PDP Copy & Reviews Due', 'Creator Content Delivered', 'Social Campaign Start'],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     pinnedToLaunchDate: true,
     notes: 'Confirm all D2C channels are live.',
   },
@@ -724,7 +724,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     leadTime: 0,
     dependsOn: ['Sephora Final Assets Due', 'Sephora Catalog & PDP Copy Due'],
     owner: 'marketing',
-    phase: 'launch',
+    phase: 'design_production',
     channelAnchor: 'sephora',
     pinnedToLaunchDate: true,
     notes: 'Confirm Sephora is live.',
@@ -736,8 +736,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
  */
 export function toAppOwner(templateOwner: TemplateOwner): Owner {
   switch (templateOwner) {
-    case 'copywriter': return 'external';
-    case 'growth': return 'product';
     case 'leadership': return 'marketing';
     default: return templateOwner as Owner;
   }

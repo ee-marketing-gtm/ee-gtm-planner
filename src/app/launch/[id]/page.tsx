@@ -633,8 +633,8 @@ export default function LaunchDetail() {
           <div className="h-2 bg-[#F5F5F4] rounded-full overflow-hidden mb-3">
             <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: accentColor }} />
           </div>
-          <div className="grid grid-cols-4 gap-3">
-            {PHASES.filter(phase => !['pre_planning', 'finalize_mgmt', 'launch'].includes(phase.key)).map(phase => {
+          <div className="grid grid-cols-3 gap-3">
+            {PHASES.map(phase => {
               const phaseTasks = launch.tasks.filter(t => t.phase === phase.key);
               if (phaseTasks.length === 0) return (
                 <div key={phase.key} className="text-center">
@@ -971,6 +971,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [hideCompleted, setHideCompleted] = useState(true);
+  const [sortBy, setSortBy] = useState<'due' | 'owner' | 'phase'>('due');
+  const [sortAsc, setSortAsc] = useState(true);
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
@@ -1201,14 +1203,27 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
               (OWNER_LABELS[t.owner] && OWNER_LABELS[t.owner].toLowerCase().includes(q))
             )
           : launch.tasks;
-        const dateSort = (a: GTMTask, b: GTMTask) => {
-          const aDate = a.dueDate || a.startDate || '9999';
-          const bDate = b.dueDate || b.startDate || '9999';
-          if (aDate !== bDate) return aDate.localeCompare(bDate);
-          return a.sortOrder - b.sortOrder;
+        const phaseOrder = Object.fromEntries(PHASES.map((p, i) => [p.key, i]));
+        const ownerOrder = Object.fromEntries(Object.keys(OWNER_LABELS).map((k, i) => [k, i]));
+        const taskSort = (a: GTMTask, b: GTMTask) => {
+          let cmp = 0;
+          if (sortBy === 'due') {
+            const aDate = a.dueDate || a.startDate || '9999';
+            const bDate = b.dueDate || b.startDate || '9999';
+            cmp = aDate.localeCompare(bDate);
+          } else if (sortBy === 'owner') {
+            cmp = (ownerOrder[a.owner] ?? 99) - (ownerOrder[b.owner] ?? 99);
+          } else if (sortBy === 'phase') {
+            cmp = (phaseOrder[a.phase] ?? 99) - (phaseOrder[b.phase] ?? 99);
+          }
+          if (cmp !== 0) return sortAsc ? cmp : -cmp;
+          // Secondary sort always by due date asc
+          const aDate = a.dueDate || '9999';
+          const bDate = b.dueDate || '9999';
+          return aDate.localeCompare(bDate) || a.sortOrder - b.sortOrder;
         };
-        const activeTasks = [...filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')].sort(dateSort);
-        const doneTasks = [...filteredTasks.filter(t => t.status === 'complete' || t.status === 'skipped')].sort(dateSort);
+        const activeTasks = [...filteredTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped')].sort(taskSort);
+        const doneTasks = [...filteredTasks.filter(t => t.status === 'complete' || t.status === 'skipped')].sort(taskSort);
         const sortedTasks = activeTasks;
         const phaseMap = Object.fromEntries(PHASES.map(p => [p.key, p]));
 
@@ -1275,9 +1290,13 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
               />
               <span>Task</span>
-              <span>Owner</span>
+              <button onClick={() => { if (sortBy === 'owner') setSortAsc(!sortAsc); else { setSortBy('owner'); setSortAsc(true); } }} className={`text-left hover:text-[#57534E] transition-colors ${sortBy === 'owner' ? 'text-[#57534E]' : ''}`}>
+                Owner {sortBy === 'owner' && (sortAsc ? '↑' : '↓')}
+              </button>
               <span>Lead</span>
-              <span>Due Date</span>
+              <button onClick={() => { if (sortBy === 'due') setSortAsc(!sortAsc); else { setSortBy('due'); setSortAsc(true); } }} className={`text-left hover:text-[#57534E] transition-colors ${sortBy === 'due' ? 'text-[#57534E]' : ''}`}>
+                Due Date {sortBy === 'due' && (sortAsc ? '↑' : '↓')}
+              </button>
               <span>Status</span>
               <span />
             </div>

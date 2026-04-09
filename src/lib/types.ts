@@ -2,8 +2,8 @@ export type LaunchType = 'new_product' | 'product_extension' | 'campaign' | 'sea
 export type LaunchTier = 'A' | 'B' | 'C';
 export type ContentProductionType = 'none' | 'no_tech' | 'with_tech' | 'landing_page';
 export type TaskStatus = 'not_started' | 'in_progress' | 'complete' | 'blocked' | 'skipped' | 'waiting_review';
-export type PhaseKey = 'pre_planning' | 'content_planning' | 'cross_functional' | 'finalize_strategies' | 'finalize_mgmt' | 'content_production' | 'design_briefs' | 'design_production' | 'packaging' | 'launch';
-export type Owner = 'marketing' | 'channel_leads' | 'creative' | 'product' | 'retail' | 'influencer' | 'pr' | 'digital' | 'ops' | 'social' | 'external';
+export type PhaseKey = 'content_planning' | 'cross_functional' | 'finalize_strategies' | 'content_production' | 'design_briefs' | 'design_production';
+export type Owner = 'marketing' | 'creative' | 'growth' | 'retail' | 'influencer' | 'pr' | 'ops' | 'social' | 'copywriter';
 
 export interface GTMTask {
   id: string;
@@ -131,43 +131,36 @@ export interface Launch {
 }
 
 export const PHASES: Phase[] = [
-  { key: 'pre_planning', name: 'Pre-Planning', color: '#E8197D' },
   { key: 'content_planning', name: 'Content Planning', color: '#3D4EDB' },
-  { key: 'cross_functional', name: 'Cross-Functional Alignment', color: '#9333ea' },
-  { key: 'finalize_strategies', name: 'Finalize Strategies', color: '#22c55e' },
-  { key: 'finalize_mgmt', name: 'Finalize & Inform Mgmt', color: '#F59E0B' },
+  { key: 'cross_functional', name: 'Alignment', color: '#9333ea' },
+  { key: 'finalize_strategies', name: 'Strategies', color: '#22c55e' },
   { key: 'content_production', name: 'Content Production', color: '#f97316' },
   { key: 'design_briefs', name: 'Design Briefs', color: '#e85d04' },
   { key: 'design_production', name: 'Asset Production', color: '#EC4899' },
-  { key: 'launch', name: 'Launch', color: '#455a64' },
 ];
 
 export const OWNER_LABELS: Record<Owner, string> = {
   marketing: 'Marketing',
-  channel_leads: 'Channel Leads',
   creative: 'Creative',
-  product: 'Product',
+  growth: 'Growth',
   retail: 'Retail',
   influencer: 'Influencer',
   social: 'Social',
   pr: 'PR',
-  digital: 'Digital',
   ops: 'Operations',
-  external: 'External Partner',
+  copywriter: 'Copywriter',
 };
 
 export const OWNER_COLORS: Record<Owner, string> = {
   marketing: '#6366F1',
-  channel_leads: '#F59E0B',
   creative: '#EC4899',
-  product: '#8B5CF6',
+  growth: '#8B5CF6',
   retail: '#14B8A6',
   influencer: '#F97316',
   social: '#0EA5E9',
   pr: '#06B6D4',
-  digital: '#3B82F6',
   ops: '#64748B',
-  external: '#A855F7',
+  copywriter: '#A855F7',
 };
 
 export const LAUNCH_TYPE_LABELS: Record<LaunchType, string> = {

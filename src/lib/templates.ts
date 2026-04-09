@@ -17,11 +17,11 @@ const TASK_TEMPLATES: TaskTemplate[] = [
   { name: 'Copy Direction', phase: 'content_planning', owner: 'marketing', durationDays: 5, sortOrder: 2 },
   { name: 'Brainstorm Meeting', phase: 'content_planning', owner: 'marketing', durationDays: 2, sortOrder: 3 },
   { name: 'Brainstorm Concepts Approved', phase: 'content_planning', owner: 'marketing', durationDays: 3, sortOrder: 4 },
-  { name: '1st Draft Marketing Deck & Asset Request Form', phase: 'content_planning', owner: 'channel_leads', durationDays: 5, sortOrder: 5 },
+  { name: '1st Draft Marketing Deck & Asset Request Form', phase: 'content_planning', owner: 'marketing', durationDays: 5, sortOrder: 5 },
 
   // Finalize & Inform Mgmt
-  { name: 'Final Marketing Launch Deck', phase: 'finalize_mgmt', owner: 'marketing', durationDays: 3, sortOrder: 6 },
-  { name: 'Management Approval', phase: 'finalize_mgmt', owner: 'marketing', durationDays: 2, sortOrder: 7 },
+  { name: 'Final Marketing Launch Deck', phase: 'finalize_strategies', owner: 'marketing', durationDays: 3, sortOrder: 6 },
+  { name: 'Management Approval', phase: 'finalize_strategies', owner: 'marketing', durationDays: 2, sortOrder: 7 },
 
   // Content Production
   { name: 'Asset Request Form Approval / AD Start', phase: 'content_production', owner: 'creative', durationDays: 11, sortOrder: 8, skipWhen: ['none'] },
@@ -31,8 +31,8 @@ const TASK_TEMPLATES: TaskTemplate[] = [
   { name: 'Tech Hand Off', phase: 'content_production', owner: 'creative', durationDays: 0, sortOrder: 12, skipWhen: ['none', 'no_tech'] },
 
   // Design Production
-  { name: 'Design Briefs Due', phase: 'design_production', owner: 'channel_leads', durationDays: 21, sortOrder: 13 },
-  { name: 'Design Approvals & Scheduling Start', phase: 'design_production', owner: 'channel_leads', durationDays: 5, sortOrder: 14 },
+  { name: 'Design Briefs Due', phase: 'design_production', owner: 'marketing', durationDays: 21, sortOrder: 13 },
+  { name: 'Design Approvals & Scheduling Start', phase: 'design_production', owner: 'marketing', durationDays: 5, sortOrder: 14 },
   { name: 'Creative 360 Review', phase: 'design_production', owner: 'creative', durationDays: 0, sortOrder: 15 },
   { name: 'Launch', phase: 'design_production', owner: 'marketing', durationDays: 0, sortOrder: 16 },
 ];
@@ -97,13 +97,13 @@ export function getDefaultMarketingPlan() {
     objectives: [''],
     keyMetrics: [{ metric: '', target: '' }],
     paidMedia: [
-      { channel: 'Social', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'YouTube', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'Display', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'Paid Search (Non-Branded)', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'Audio', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'OOH', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
-      { channel: 'Native/Partnership', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'digital' as const, notes: '' },
+      { channel: 'Social', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'YouTube', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'Display', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'Paid Search (Non-Branded)', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'Audio', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'OOH', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
+      { channel: 'Native/Partnership', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'growth' as const, notes: '' },
     ],
     influencer: [
       { channel: 'Macro', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'influencer' as const, notes: '' },
@@ -114,10 +114,10 @@ export function getDefaultMarketingPlan() {
     owned: [
       { channel: 'Instagram', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
       { channel: 'TikTok', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
-      { channel: 'Email', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'channel_leads' as const, notes: '' },
-      { channel: 'SMS', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'channel_leads' as const, notes: '' },
-      { channel: 'Homepage Takeover', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'channel_leads' as const, notes: '' },
-      { channel: 'Blog', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'channel_leads' as const, notes: '' },
+      { channel: 'Email', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
+      { channel: 'SMS', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
+      { channel: 'Homepage Takeover', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
+      { channel: 'Blog', tactic: '', timing: '', budget: null, kpiTarget: '', status: 'not_started' as const, owner: 'marketing' as const, notes: '' },
     ],
     retail: [],
     pr: [],
