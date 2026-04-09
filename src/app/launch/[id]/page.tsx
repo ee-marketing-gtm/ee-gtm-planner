@@ -41,7 +41,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string; color: string; icon: R
   { value: 'complete', label: 'Completed', color: '#10B981', icon: <CheckCircle2 className="w-3.5 h-3.5" /> },
 ];
 
-type Tab = 'tracker' | 'deliverables' | 'timeline';
+type Tab = 'tracker' | 'files' | 'meetings' | 'timeline';
 
 export default function LaunchDetail() {
   const params = useParams();
@@ -364,9 +364,11 @@ export default function LaunchDetail() {
 
   const deliverableCount = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim()).length;
 
+  const meetingTasks = launch.tasks.filter(t => t.isMeeting);
   const TABS: { key: Tab; label: string; badge?: number }[] = [
     { key: 'tracker', label: 'Task Tracker' },
-    { key: 'deliverables', label: 'Deliverables', badge: deliverableCount },
+    { key: 'files', label: 'Files', badge: deliverableCount },
+    { key: 'meetings', label: 'Meetings', badge: meetingTasks.length },
     { key: 'timeline', label: 'Timeline' },
   ];
 
@@ -537,7 +539,10 @@ export default function LaunchDetail() {
                   const renameMappings: Record<string, string[]> = {
                     'Photo Selects Ready': ['Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
                     'Sephora Final Assets Due': ['Sephora Final Assets Ready'],
-                    'Draft Sephora Catalog & PDP Copy Due': ['Draft Sephora Catalog & PDP Copy Ready'],
+                    'Draft Sephora Catalog & PDP Copy Due': ['Draft Sephora Catalog Copy'],
+                    'Draft Sephora Catalog & PDP Copy Ready': ['Draft Sephora Catalog Copy'],
+                    'Final Sephora Catalog & PDP Copy': ['Final Sephora Catalog Copy'],
+                    'Sephora Catalog & PDP Copy Review': ['Final Sephora Catalog Copy'],
                     'Finalize Influencer Strategy': ['Finalize Influencer Strategy & Start Sourcing Creators'],
                     'Start Sourcing Creators': ['Finalize Influencer Strategy & Start Sourcing Creators'],
                     'D2C Launch Complete': ['D2C Launch'],
@@ -929,8 +934,11 @@ export default function LaunchDetail() {
           scrollToTaskId={scrollToTaskId}
         />
       )}
-      {activeTab === 'deliverables' && (
+      {activeTab === 'files' && (
         <DeliverablesView launch={launch} />
+      )}
+      {activeTab === 'meetings' && (
+        <MeetingsView launch={launch} updateTaskStatus={updateTaskStatus} />
       )}
       {activeTab === 'timeline' && (
         <GanttChart
@@ -1289,7 +1297,9 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                 onChange={selectAllTasks}
                 className="w-3.5 h-3.5 rounded border-[#D6D3D1] text-[#FF1493] focus:ring-[#FF1493]/20 cursor-pointer"
               />
-              <span>Task</span>
+              <button onClick={() => { if (sortBy === 'phase') setSortAsc(!sortAsc); else { setSortBy('phase'); setSortAsc(true); } }} className={`text-left hover:text-[#57534E] transition-colors ${sortBy === 'phase' ? 'text-[#57534E]' : ''}`}>
+                Task {sortBy === 'phase' && (sortAsc ? '↑' : '↓')}
+              </button>
               <button onClick={() => { if (sortBy === 'owner') setSortAsc(!sortAsc); else { setSortBy('owner'); setSortAsc(true); } }} className={`text-left hover:text-[#57534E] transition-colors ${sortBy === 'owner' ? 'text-[#57534E]' : ''}`}>
                 Owner {sortBy === 'owner' && (sortAsc ? '↑' : '↓')}
               </button>
@@ -1611,15 +1621,15 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
               }, null);
               if (drivingDep) {
                 return (
-                  <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate">
-                    waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#A8A29E] hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
+                  <p className="text-[11px] text-[#78716C] mt-0.5 truncate">
+                    waiting on <button onClick={() => onNavigateToTask?.(drivingDep.id)} className="text-[#78716C] underline decoration-dotted hover:text-[#FF1493] transition-colors">{drivingDep.name}</button>
                   </p>
                 );
               }
             }
             // No dependencies — show note preview if any
             if (task.dependencies.length === 0 && task.notes && task.notes.trim()) {
-              return <p className="text-[11px] text-[#A8A29E] mt-0.5 truncate max-w-md">{task.notes}</p>;
+              return <p className="text-[11px] text-[#78716C] mt-0.5 truncate max-w-md">{task.notes}</p>;
             }
             return null;
           })()}
@@ -2294,6 +2304,110 @@ function DeliverablesView({ launch }: { launch: Launch }) {
                 </div>
               );
             })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MeetingsView({ launch, updateTaskStatus }: { launch: Launch; updateTaskStatus: (taskId: string, status: TaskStatus) => void }) {
+  const meetingTasks = launch.tasks
+    .filter(t => t.isMeeting)
+    .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'));
+
+  const upcoming = meetingTasks.filter(t => t.status !== 'complete' && t.status !== 'skipped');
+  const past = meetingTasks.filter(t => t.status === 'complete' || t.status === 'skipped');
+
+  const buildOutlookUrl = (task: GTMTask) => {
+    const date = task.dueDate || task.startDate || '';
+    return `https://outlook.office.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(task.name + ' \u2014 ' + launch.name)}&startdt=${date}T09:00:00&enddt=${date}T10:00:00`;
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h3 className="text-sm font-semibold text-[#1B1464] mb-3">
+          Upcoming Meetings ({upcoming.length})
+        </h3>
+        {upcoming.length === 0 ? (
+          <div className="bg-white rounded-xl border border-[#E7E5E4] p-8 text-center">
+            <Calendar className="w-8 h-8 text-[#D6D3D1] mx-auto mb-2" />
+            <p className="text-sm text-[#A8A29E]">All meetings scheduled or completed.</p>
+          </div>
+        ) : (
+          <div className="bg-white rounded-xl border border-[#E7E5E4] divide-y divide-[#E7E5E4]">
+            {upcoming.map(task => {
+              const phase = PHASES.find(p => p.key === task.phase);
+              const isOverdue = task.dueDate && parseISO(task.dueDate) < new Date();
+              return (
+                <div key={task.id} className={`flex items-center gap-3 px-4 py-3 ${isOverdue ? 'bg-red-50/50' : 'hover:bg-[#FAFAF9]'} transition-colors`}>
+                  <div className="w-2 h-2 rounded-full shrink-0" style={{ background: phase?.color || '#6B7280' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-[#1B1464] font-medium truncate">{task.name}</p>
+                    <div className="flex items-center gap-3 mt-0.5">
+                      {task.startDate && task.dueDate && task.startDate !== task.dueDate ? (
+                        <p className="text-[11px] text-[#57534E]">
+                          {format(parseISO(task.startDate), 'MMM d')} – {format(parseISO(task.dueDate), 'MMM d, yyyy')}
+                        </p>
+                      ) : task.dueDate ? (
+                        <p className={`text-[11px] ${isOverdue ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
+                          {isOverdue ? 'Overdue — was ' : ''}{format(parseISO(task.dueDate), 'MMM d, yyyy')}
+                        </p>
+                      ) : null}
+                      <p className="text-[11px] text-[#A8A29E]">{OWNER_LABELS[task.owner]}</p>
+                    </div>
+                    {task.meetingChecklist && task.meetingChecklist.length > 0 && (
+                      <div className="mt-1.5 space-y-0.5">
+                        {task.meetingChecklist.map((item, i) => (
+                          <p key={i} className="text-[10px] text-[#A8A29E] flex items-center gap-1.5">
+                            <span className="w-1 h-1 rounded-full bg-[#D6D3D1] shrink-0" />
+                            {item}
+                          </p>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <a
+                      href={buildOutlookUrl(task)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-600 hover:text-white transition-colors"
+                    >
+                      <Calendar className="w-3 h-3" />
+                      Schedule
+                    </a>
+                    <button
+                      onClick={() => updateTaskStatus(task.id, 'complete')}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-[#E7E5E4] text-[#A8A29E] rounded-lg text-xs hover:bg-emerald-50 hover:text-emerald-600 hover:border-emerald-200 transition-colors"
+                    >
+                      <Check className="w-3 h-3" />
+                      Done
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {past.length > 0 && (
+        <div>
+          <h3 className="text-sm font-semibold text-[#A8A29E] mb-3">
+            Completed ({past.length})
+          </h3>
+          <div className="bg-white rounded-xl border border-[#E7E5E4] divide-y divide-[#E7E5E4]">
+            {past.map(task => (
+              <div key={task.id} className="flex items-center gap-3 px-4 py-2.5">
+                <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                <p className="text-sm text-[#A8A29E] line-through truncate flex-1">{task.name}</p>
+                {task.dueDate && (
+                  <span className="text-[11px] text-[#D6D3D1]">{format(parseISO(task.dueDate), 'MMM d')}</span>
+                )}
+              </div>
+            ))}
           </div>
         </div>
       )}

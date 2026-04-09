@@ -52,19 +52,21 @@ export function dayIndex(date: Date, rangeStart: Date): number {
 // ── Phase colors ──
 
 const PHASE_COLORS: Record<string, string> = {
-  content_planning: '#6366F1',
-  finalize_mgmt: '#F59E0B',
-  content_production: '#10B981',
+  content_planning: '#3D4EDB',
+  cross_functional: '#9333ea',
+  finalize_strategies: '#22c55e',
+  content_production: '#f97316',
+  design_briefs: '#e85d04',
   design_production: '#EC4899',
-  packaging: '#7C3AED',
 };
 
 const PHASE_BG: Record<string, string> = {
   content_planning: '#EEF2FF',
-  finalize_mgmt: '#FFFBEB',
-  content_production: '#ECFDF5',
+  cross_functional: '#FAF5FF',
+  finalize_strategies: '#F0FDF4',
+  content_production: '#FFF7ED',
+  design_briefs: '#FFF7ED',
   design_production: '#FDF2F8',
-  packaging: '#F5F3FF',
 };
 
 // ── Month/Week header renderer ──
@@ -149,12 +151,10 @@ function TaskBar({ task, range, phaseColor }: { task: GTMTask; range: GanttDateR
       style={{ gridTemplateColumns: `repeat(${range.totalDays}, minmax(18px, 1fr))` }}
     >
       <div
-        className={`h-5 rounded-md relative group cursor-default ${isComplete ? 'opacity-50' : ''} ${task.isCompressed ? 'ring-1 ring-amber-400' : ''}`}
+        className={`h-5 rounded-md relative group cursor-default ${isComplete ? 'opacity-40' : ''} ${task.isCompressed ? 'ring-1 ring-amber-400' : ''}`}
         style={{
           gridColumn: `${col1} / ${col2}`,
-          background: isComplete
-            ? `repeating-linear-gradient(45deg, ${phaseColor}40, ${phaseColor}40 4px, ${phaseColor}20 4px, ${phaseColor}20 8px)`
-            : phaseColor,
+          background: phaseColor,
         }}
         title={`${task.name}\n${format(startDate, 'MMM d')} → ${format(endDate, 'MMM d')} (${task.durationDays}BD)\nOwner: ${OWNER_LABELS[task.owner] || task.owner}`}
       >
