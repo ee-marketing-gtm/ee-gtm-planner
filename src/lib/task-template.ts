@@ -691,25 +691,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     isOptional: true,
     notes: 'Date added manually when OOH is confirmed.',
   },
-  {
-    name: 'D2C Launch',
-    leadTime: 0,
-    dependsOn: ['DTC & Amazon Final Assets Due', 'Final DTC PDP Copy & Reviews Due', 'Creator Content Delivered', 'Social Campaign Start'],
-    owner: 'marketing',
-    phase: 'design_production',
-    pinnedToLaunchDate: true,
-    notes: 'Confirm all D2C channels are live.',
-  },
-  {
-    name: 'Sephora Launch',
-    leadTime: 0,
-    dependsOn: ['Sephora Final Assets Due', 'Final Sephora Catalog Copy'],
-    owner: 'marketing',
-    phase: 'design_production',
-    channelAnchor: 'sephora',
-    pinnedToLaunchDate: true,
-    notes: 'Confirm Sephora is live.',
-  },
 ];
 
 /**

@@ -79,7 +79,38 @@ export default function LaunchDetail() {
 
   useEffect(() => {
     if (foundLaunch) {
-      setLaunch(foundLaunch);
+      // Data migration: remove D2C Launch & Sephora Launch tasks (they're dates, not tasks)
+      // Also pin Sephora Final Assets Due to 50 BD before Sephora launch
+      const sephoraDate = foundLaunch.sephoraLaunchDate || foundLaunch.launchDate;
+      const sephoraAssetDeadline = sephoraDate
+        ? format(addBusinessDays(parseISO(sephoraDate), -50), 'yyyy-MM-dd')
+        : null;
+      const removedIds = new Set(
+        foundLaunch.tasks
+          .filter(t => t.name === 'D2C Launch' || t.name === 'Sephora Launch')
+          .map(t => t.id)
+      );
+      let migrated = removedIds.size > 0;
+      const tasks = foundLaunch.tasks
+        .filter(t => t.name !== 'D2C Launch' && t.name !== 'Sephora Launch')
+        .map(t => {
+          // Clean up any dependencies pointing to removed tasks
+          const cleanDeps = t.dependencies.filter(d => !removedIds.has(d));
+          const depsChanged = cleanDeps.length !== t.dependencies.length;
+          // Pin Sephora Final Assets Due
+          if (t.name === 'Sephora Final Assets Due' && sephoraAssetDeadline && t.dueDate !== sephoraAssetDeadline) {
+            migrated = true;
+            return { ...t, dependencies: cleanDeps, dueDate: sephoraAssetDeadline, startDate: sephoraAssetDeadline };
+          }
+          if (depsChanged) {
+            migrated = true;
+            return { ...t, dependencies: cleanDeps };
+          }
+          return t;
+        });
+      const launchToSet = migrated ? { ...foundLaunch, tasks } : foundLaunch;
+      setLaunch(launchToSet);
+      if (migrated) saveLaunch(launchToSet);
       setCustomHex(foundLaunch.brandColor || '');
       setImageUrlInput(foundLaunch.productImageUrl || '');
     }
@@ -107,12 +138,35 @@ export default function LaunchDetail() {
   const handleUndo = useCallback(() => {
     if (!launch || undoStackRef.current.length === 0) return;
     const previousTasks = undoStackRef.current.pop()!;
+
+    // Describe what changed by comparing current vs previous
+    const prevMap = new Map(previousTasks.map(t => [t.id, t]));
+    const changes: string[] = [];
+    for (const curr of launch.tasks) {
+      const prev = prevMap.get(curr.id);
+      if (!prev) continue;
+      if (curr.status !== prev.status) {
+        changes.push(`${curr.name}: ${prev.status} → ${curr.status}`);
+      } else if (curr.dueDate !== prev.dueDate) {
+        const oldD = prev.dueDate ? format(parseISO(prev.dueDate), 'MMM d') : 'none';
+        const newD = curr.dueDate ? format(parseISO(curr.dueDate), 'MMM d') : 'none';
+        changes.push(`${curr.name}: ${oldD} → ${newD}`);
+      } else if (curr.durationDays !== prev.durationDays) {
+        changes.push(`${curr.name}: lead ${prev.durationDays} → ${curr.durationDays}`);
+      } else if (curr.dependencies.length !== prev.dependencies.length) {
+        changes.push(`${curr.name}: dependency changed`);
+      }
+    }
+
     const restored = { ...launch, tasks: previousTasks, updatedAt: new Date().toISOString() };
     setLaunch(restored);
     saveLaunch(restored);
-    setUndoToast('Change undone');
+    const summary = changes.length > 0
+      ? `Undone: ${changes.slice(0, 2).join(', ')}${changes.length > 2 ? ` +${changes.length - 2} more` : ''}`
+      : 'Change undone';
+    setUndoToast(summary);
     if (undoToastTimerRef.current) clearTimeout(undoToastTimerRef.current);
-    undoToastTimerRef.current = setTimeout(() => setUndoToast(null), 2500);
+    undoToastTimerRef.current = setTimeout(() => setUndoToast(null), 4000);
   }, [launch]);
 
   // Ctrl+Z / Cmd+Z keyboard shortcut
@@ -179,8 +233,7 @@ export default function LaunchDetail() {
         const latestDepDue = task.dependencies.reduce((latest, dId) => {
           const d = taskMap.get(dId);
           if (!d) return latest;
-          const endDate = (d.status === 'complete' || d.status === 'skipped')
-            ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+          const endDate = d.dueDate || '';
           return endDate > latest ? endDate : latest;
         }, '');
         if (latestDepDue) {
@@ -208,6 +261,8 @@ export default function LaunchDetail() {
           if (visited.has(depId)) continue;
           const depTask = taskMap.get(depId)!;
           if (!depTask.dueDate) continue;
+          // Never recalculate pinned milestone dates
+          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Sephora Final Assets Due') continue;
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
@@ -274,7 +329,8 @@ export default function LaunchDetail() {
           if (visited.has(depId)) continue;
           const depTask = taskMap.get(depId)!;
           if (!depTask.dueDate) continue;
-          // Find latest dep end date (use completedDate for complete/skipped tasks)
+          // Never recalculate pinned milestone dates
+          if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Sephora Final Assets Due') continue;
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
@@ -368,14 +424,14 @@ export default function LaunchDetail() {
         const depTask = taskMap.get(depTaskId)!;
         if (!depTask.dueDate) continue;
 
+        // Never recalculate pinned milestone dates
+        if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Sephora Final Assets Due') continue;
+
         // Find the latest dependency end date for this task
-        // For completed/skipped deps, use completedDate so they don't block
         const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
           const d = taskMap.get(dId);
           if (!d) return latest;
-          const endDate = (d.status === 'complete' || d.status === 'skipped')
-            ? (d.completedDate?.split('T')[0] || d.dueDate || '')
-            : (d.dueDate || '');
+          const endDate = d.dueDate || '';
           if (endDate > latest) return endDate;
           return latest;
         }, '');
@@ -999,9 +1055,9 @@ export default function LaunchDetail() {
 
       {/* Undo toast */}
       {undoToast && (
-        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1B1464] text-white px-4 py-2 rounded-lg shadow-lg text-sm font-medium flex items-center gap-2 animate-fade-in">
-          <RotateCcw className="w-3.5 h-3.5" />
-          {undoToast}
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#1B1464] text-white px-4 py-2.5 rounded-lg shadow-lg text-[12px] font-medium flex items-center gap-2 animate-fade-in max-w-md">
+          <RotateCcw className="w-3.5 h-3.5 shrink-0" />
+          <span className="truncate">{undoToast}</span>
         </div>
       )}
 
@@ -1091,11 +1147,12 @@ export default function LaunchDetail() {
                 if (visited.has(depId)) continue;
                 const depTask = taskMap.get(depId)!;
                 if (!depTask.dueDate) continue;
+                // Never recalculate pinned milestone dates
+                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Sephora Final Assets Due') continue;
                 const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
                   const d = taskMap.get(dId);
                   if (!d) return latest;
-                  const endDate = (d.status === 'complete' || d.status === 'skipped')
-                    ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                  const endDate = d.dueDate || '';
                   return endDate > latest ? endDate : latest;
                 }, '');
                 if (!latestDepDue) continue;
@@ -1170,8 +1227,7 @@ export default function LaunchDetail() {
               const latestDepDue = targetTask.dependencies.reduce((latest, dId) => {
                 const d = taskMap.get(dId);
                 if (!d) return latest;
-                const endDate = (d.status === 'complete' || d.status === 'skipped')
-                  ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                const endDate = d.dueDate || '';
                 return endDate > latest ? endDate : latest;
               }, '');
               if (latestDepDue) {
@@ -1192,11 +1248,12 @@ export default function LaunchDetail() {
                 if (visited.has(depId)) continue;
                 const depTask = taskMap.get(depId)!;
                 if (!depTask.dueDate) continue;
+                // Never recalculate pinned milestone dates
+                if (depTask.name === 'D2C Launch' || depTask.name === 'Sephora Launch' || depTask.name === 'Sephora Final Assets Due') continue;
                 const latestDep = depTask.dependencies.reduce((latest, dId) => {
                   const d = taskMap.get(dId);
                   if (!d) return latest;
-                  const endDate = (d.status === 'complete' || d.status === 'skipped')
-                    ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+                  const endDate = d.dueDate || '';
                   return endDate > latest ? endDate : latest;
                 }, '');
                 if (!latestDep) continue;
@@ -1310,10 +1367,26 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [showCascadeDetails, setShowCascadeDetails] = useState(false);
   const [traceTaskId, setTraceTaskId] = useState<string | null>(null);
   const sortedOrderRef = useRef<string[]>([]); // locked sort order while editing
+  const lastExpandedRef = useRef<string | null>(null); // track last expanded task for scroll-after-sort
   const bulkRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
   const lastClickedRef = useRef<string | null>(null);
+
+  // When a task card collapses, scroll to its new position after re-sort
+  useEffect(() => {
+    if (expandedTaskId) {
+      lastExpandedRef.current = expandedTaskId;
+    } else if (lastExpandedRef.current) {
+      const taskId = lastExpandedRef.current;
+      lastExpandedRef.current = null;
+      // Small delay to let React re-render with new sort order
+      setTimeout(() => {
+        const el = document.getElementById(`task-${taskId}`);
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 50);
+    }
+  }, [expandedTaskId]);
 
   // Auto-scroll to the furthest-moved task when cascade happens
   useEffect(() => {
@@ -1571,6 +1644,9 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
             if (!drivingId) break;
             ids.add(drivingId);
             upSeen.add(drivingId);
+            // Stop walking past completed/skipped tasks — their upstream chain isn't relevant
+            const drivingDep = taskById.get(drivingId);
+            if (drivingDep && (drivingDep.status === 'complete' || drivingDep.status === 'skipped')) break;
             current = drivingId;
           }
 
@@ -1811,68 +1887,30 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                         .map(id => pendingMap.get(id))
                         .filter((t): t is GTMTask => !!t);
 
-                      // Find the ROOT bottleneck — the earliest task in the chain that's driving delays
-                      // Instead of per-task fixes, find the key upstream tasks that, if unblocked, fix the most
-                      const unblockFixes: { taskId: string; taskName: string; depId: string; depName: string; fixesCount: number }[] = [];
-
-                      // For each still-over task, trace back to find the real bottleneck dependency
-                      // The bottleneck is the task closest to the trigger that's causing the cascade
-                      const bottleneckCounts = new Map<string, { taskId: string; depId: string; count: number }>();
-                      for (const overTask of originalOverTasks) {
-                        if (!currentOverIds.has(overTask.id)) continue;
-                        // Walk back from over task to find the first task that depends on the trigger (or near it)
-                        let current = overTask;
-                        const walked = new Set<string>([overTask.id]);
-                        while (current) {
-                          // Find this task's driving dep in the chain
-                          let drivingDepId: string | null = null;
+                      // Build driving dependency chain for each over-launch task
+                      // Walk upstream following the driving dep (latest due date) at each step
+                      const buildChain = (taskId: string): { id: string; depId: string }[] => {
+                        const chain: { id: string; depId: string }[] = [];
+                        let currentId = taskId;
+                        const seen = new Set<string>([taskId]);
+                        while (true) {
+                          const t = pendingMap.get(currentId);
+                          if (!t || t.dependencies.length === 0) break;
+                          let drivingId: string | null = null;
                           let latestDue = '';
-                          for (const depId of current.dependencies) {
+                          for (const depId of t.dependencies) {
                             const d = pendingMap.get(depId);
                             if (!d?.dueDate) continue;
-                            const endDate = (d.status === 'complete' || d.status === 'skipped')
-                              ? (d.completedDate?.split('T')[0] || d.dueDate) : d.dueDate;
-                            if (endDate > latestDue) { latestDue = endDate; drivingDepId = depId; }
+                            const endDate = d.dueDate || '';
+                            if (endDate > latestDue) { latestDue = endDate; drivingId = depId; }
                           }
-                          if (!drivingDepId) break;
-                          const drivingDep = pendingMap.get(drivingDepId);
-                          if (!drivingDep) break;
-                          // Is the driving dep over launch? If so, the bottleneck is further upstream
-                          const depOver = dtcLaunch && drivingDep.dueDate && isAfter(parseISO(drivingDep.dueDate), dtcLaunch);
-                          if (!depOver || walked.has(drivingDepId)) {
-                            // This is the bottleneck link — current task depends on something that's on-time (or we're at the trigger)
-                            // Removing current's dep on drivingDep would let current schedule earlier
-                            const key = `${current.id}-${drivingDepId}`;
-                            const existing = bottleneckCounts.get(key);
-                            if (existing) {
-                              existing.count++;
-                            } else {
-                              bottleneckCounts.set(key, { taskId: current.id, depId: drivingDepId, count: 1 });
-                            }
-                            break;
-                          }
-                          walked.add(drivingDepId);
-                          current = drivingDep;
+                          if (!drivingId || seen.has(drivingId)) break;
+                          chain.push({ id: currentId, depId: drivingId });
+                          seen.add(drivingId);
+                          currentId = drivingId;
                         }
-                      }
-
-                      // Sort by how many over-tasks each fix would help
-                      const sortedBottlenecks = Array.from(bottleneckCounts.values())
-                        .sort((a, b) => b.count - a.count);
-
-                      for (const bn of sortedBottlenecks.slice(0, 3)) {
-                        const task = pendingMap.get(bn.taskId);
-                        const dep = pendingMap.get(bn.depId);
-                        if (task && dep) {
-                          unblockFixes.push({
-                            taskId: bn.taskId,
-                            taskName: task.name,
-                            depId: bn.depId,
-                            depName: dep.name,
-                            fixesCount: bn.count,
-                          });
-                        }
-                      }
+                        return chain;
+                      };
 
                       return (
                         <>
@@ -1924,123 +1962,91 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                             </div>
                           </div>
 
-                          {/* Expandable details */}
+                          {/* Expandable details — dependency chain view */}
                           {showCascadeDetails && (
                             <div className={`px-4 py-3 border-t ${allResolved ? 'bg-emerald-50/30 border-emerald-100' : 'bg-red-50/30 border-red-100'}`}>
-                              {/* Simple task list */}
-                              <div className="space-y-0 rounded-lg border border-[#E7E5E4] overflow-hidden mb-3">
-                                <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-3 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
-                                  <span />
-                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
-                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Due</span>
-                                  <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Status</span>
-                                </div>
+                              <p className="text-[10px] font-semibold text-[#78716C] uppercase tracking-wide mb-2 ml-0.5">
+                                Dependency chains causing delays
+                              </p>
+
+                              {/* Each over-launch task with its driving chain */}
+                              <div className="space-y-2">
                                 {originalOverTasks.map(overTask => {
                                   const isResolved = !currentOverIds.has(overTask.id);
                                   const daysOver = dtcLaunch && overTask.dueDate
                                     ? differenceInBusinessDays(parseISO(overTask.dueDate), dtcLaunch) : 0;
+                                  const chain = buildChain(overTask.id);
+
                                   return (
-                                    <div key={overTask.id} className={`grid grid-cols-[auto_1fr_auto_auto] gap-x-3 px-3 py-2 items-center border-b border-[#F5F5F4] last:border-b-0 ${
-                                      isResolved ? 'bg-emerald-50/50' : 'bg-white'
+                                    <div key={overTask.id} className={`rounded-lg border overflow-hidden ${
+                                      isResolved ? 'border-emerald-200 bg-emerald-50/50' : 'border-[#E7E5E4] bg-white'
                                     }`}>
-                                      {isResolved ? (
-                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                                      ) : (
-                                        <AlertCircle className="w-3.5 h-3.5 text-[#DC2626]" />
-                                      )}
-                                      <span className={`text-[11px] truncate ${isResolved ? 'text-emerald-700' : 'text-[#44403C]'}`}>
-                                        {overTask.name}
-                                      </span>
-                                      <span className={`text-[11px] ${isResolved ? 'text-emerald-600' : 'text-[#57534E]'}`}>
-                                        {overTask.dueDate ? format(parseISO(overTask.dueDate), 'MMM d') : '—'}
-                                      </span>
-                                      {isResolved ? (
-                                        <span className="text-[10px] font-medium text-emerald-600">Fixed</span>
-                                      ) : (
-                                        <span className="text-[10px] font-medium text-[#DC2626]">+{daysOver} BD</span>
+                                      {/* Over-launch task header */}
+                                      <div className={`flex items-center gap-2 px-3 py-2 ${
+                                        isResolved ? 'bg-emerald-50' : 'bg-red-50/50'
+                                      }`}>
+                                        {isResolved ? (
+                                          <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                        ) : (
+                                          <AlertCircle className="w-3.5 h-3.5 text-[#DC2626] shrink-0" />
+                                        )}
+                                        <span className={`text-[11px] font-medium flex-1 truncate ${
+                                          isResolved ? 'text-emerald-700' : 'text-[#DC2626]'
+                                        }`}>
+                                          {overTask.name}
+                                        </span>
+                                        <span className={`text-[11px] shrink-0 ${isResolved ? 'text-emerald-600' : 'text-[#57534E]'}`}>
+                                          {overTask.dueDate ? format(parseISO(overTask.dueDate), 'MMM d') : '—'}
+                                        </span>
+                                        {isResolved ? (
+                                          <span className="text-[10px] font-medium text-emerald-600 shrink-0">Fixed</span>
+                                        ) : (
+                                          <span className="text-[10px] font-medium text-[#DC2626] shrink-0 ml-1">+{daysOver} BD</span>
+                                        )}
+                                      </div>
+
+                                      {/* Dependency chain — each link with remove button */}
+                                      {chain.length > 0 && !isResolved && (
+                                        <div className="border-t border-[#F5F5F4]">
+                                          {chain.map((link, i) => {
+                                            const dep = pendingMap.get(link.depId);
+                                            if (!dep) return null;
+                                            const depIsOver = dtcLaunch && dep.dueDate && dep.name !== 'D2C Launch' && dep.name !== 'Sephora Launch'
+                                              ? isAfter(parseISO(dep.dueDate), dtcLaunch) : false;
+                                            return (
+                                              <div
+                                                key={link.depId}
+                                                className="flex items-center gap-1.5 py-1.5 border-b border-[#F5F5F4] last:border-b-0"
+                                                style={{ paddingLeft: `${(i + 1) * 16 + 12}px`, paddingRight: '12px' }}
+                                              >
+                                                <span className="text-[#D6D3D1] text-[10px] shrink-0">↑</span>
+                                                <span className={`text-[11px] flex-1 truncate ${depIsOver ? 'text-[#DC2626]' : 'text-[#44403C]'}`}>
+                                                  {dep.name}
+                                                </span>
+                                                <span className="text-[10px] text-[#A8A29E] shrink-0">{dep.durationDays || 0} BD</span>
+                                                <span className={`text-[10px] shrink-0 ${depIsOver ? 'text-[#DC2626]' : 'text-[#78716C]'}`}>
+                                                  {dep.dueDate ? format(parseISO(dep.dueDate), 'MMM d') : '—'}
+                                                </span>
+                                                <button
+                                                  onClick={() => onCascadeRemoveDep(link.id, link.depId)}
+                                                  className="shrink-0 flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-amber-600 hover:bg-amber-50 hover:text-amber-700 transition-colors border border-transparent hover:border-amber-200"
+                                                  title={`Remove dependency: ${pendingMap.get(link.id)?.name || ''} no longer waits for ${dep.name}`}
+                                                >
+                                                  <X className="w-2.5 h-2.5" />
+                                                  <span>unlink</span>
+                                                </button>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
                                       )}
                                     </div>
                                   );
                                 })}
                               </div>
 
-                              {/* Quick fixes — consolidated, not per-task */}
-                              {unblockFixes.length > 0 && (
-                                <div className="mb-3">
-                                  <p className="text-[10px] font-semibold text-[#78716C] uppercase tracking-wide mb-1.5 ml-1">Quick fixes</p>
-                                  <div className="space-y-1">
-                                    {unblockFixes.map(fix => (
-                                      <button
-                                        key={`${fix.taskId}-${fix.depId}`}
-                                        onClick={() => onCascadeRemoveDep(fix.taskId, fix.depId)}
-                                        className="w-full flex items-center gap-2 px-3 py-2 rounded-lg bg-white border border-[#E7E5E4] hover:border-amber-300 hover:bg-amber-50 transition-colors text-left"
-                                      >
-                                        <span className="text-[10px] text-amber-600 font-medium shrink-0">Unblock</span>
-                                        <span className="text-[11px] text-[#44403C] truncate flex-1">
-                                          {fix.taskName} <span className="text-[#A8A29E]">from</span> {fix.depName}
-                                        </span>
-                                        {fix.fixesCount > 1 && (
-                                          <span className="text-[9px] text-[#A8A29E] shrink-0">fixes {fix.fixesCount}</span>
-                                        )}
-                                      </button>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* Full chain toggle */}
-                              <div className="mb-3">
-                                <button
-                                  onClick={() => setShowFullChain(!showFullChain)}
-                                  className="text-[10px] text-[#A8A29E] hover:text-[#57534E] transition-colors flex items-center gap-1 ml-1"
-                                >
-                                  {showFullChain ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-                                  <span>Adjust lead times manually ({cascadeWarning.chainTaskIds.length} tasks)</span>
-                                </button>
-                                {showFullChain && (
-                                  <div className="bg-white rounded-lg border border-[#E7E5E4] overflow-hidden mt-1.5">
-                                    <div className="grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 bg-[#FAFAF9] border-b border-[#E7E5E4]">
-                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide">Task</span>
-                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-center">Lead</span>
-                                      <span className="text-[10px] font-semibold text-[#A8A29E] uppercase tracking-wide text-right">Due</span>
-                                    </div>
-                                    {cascadeWarning.chainTaskIds.map((chainId) => {
-                                      const chainTask = pendingMap.get(chainId);
-                                      if (!chainTask) return null;
-                                      const isOver = dtcLaunch && chainTask.dueDate && chainTask.name !== 'D2C Launch' && chainTask.name !== 'Sephora Launch'
-                                        ? isAfter(parseISO(chainTask.dueDate), dtcLaunch) : false;
-                                      return (
-                                        <div
-                                          key={chainId}
-                                          className={`grid grid-cols-[1fr_80px_90px] gap-0 px-3 py-1.5 items-center border-b border-[#F5F5F4] last:border-b-0 ${isOver ? 'bg-red-50' : ''}`}
-                                        >
-                                          <span className={`text-[11px] truncate ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#44403C]'}`}>
-                                            {chainTask.name}
-                                          </span>
-                                          <div className="flex items-center justify-center gap-0.5">
-                                            <button
-                                              onClick={() => onCascadeAdjustLeadTime(chainId, Math.max(0, (chainTask.durationDays || 1) - 1))}
-                                              className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
-                                              disabled={chainTask.durationDays <= 0}
-                                            >−</button>
-                                            <span className="text-[11px] font-medium text-[#1B1464] w-5 text-center">{chainTask.durationDays}</span>
-                                            <button
-                                              onClick={() => onCascadeAdjustLeadTime(chainId, (chainTask.durationDays || 0) + 1)}
-                                              className="w-5 h-5 flex items-center justify-center rounded text-[#A8A29E] hover:bg-[#F5F5F4] hover:text-[#57534E] transition-colors text-xs"
-                                            >+</button>
-                                          </div>
-                                          <span className={`text-[11px] text-right ${isOver ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
-                                            {chainTask.dueDate ? format(parseISO(chainTask.dueDate), 'MMM d') : '—'}
-                                          </span>
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
-                                )}
-                              </div>
-
                               {/* Bottom action buttons */}
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 mt-3">
                                 {allResolved ? (
                                   <button onClick={onCascadeApply} className="px-3 py-1.5 bg-emerald-600 text-white text-[11px] font-medium rounded-lg hover:bg-emerald-700 transition-colors">
                                     Save with Fixes
@@ -2184,6 +2190,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
 }) {
   const [statusOpen, setStatusOpen] = useState(false);
   const [editingDate, setEditingDate] = useState(false);
+  const [localDateValue, setLocalDateValue] = useState(task.dueDate || '');
   const [editingName, setEditingName] = useState(false);
   const [nameValue, setNameValue] = useState(task.name);
   const [linkLabel, setLinkLabel] = useState(task.deliverableLabel || '');
@@ -2413,19 +2420,33 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
         {editingDate ? (
           <input
             type="date"
-            value={task.dueDate || ''}
-            onChange={(e) => {
-              updateTaskDateWithCascade(task.id, e.target.value);
+            value={localDateValue}
+            onChange={(e) => setLocalDateValue(e.target.value)}
+            onBlur={() => {
+              if (localDateValue && localDateValue !== task.dueDate) {
+                updateTaskDateWithCascade(task.id, localDateValue);
+              }
               setEditingDate(false);
             }}
-            onBlur={() => setEditingDate(false)}
-            onKeyDown={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                if (localDateValue && localDateValue !== task.dueDate) {
+                  updateTaskDateWithCascade(task.id, localDateValue);
+                }
+                setEditingDate(false);
+              }
+              if (e.key === 'Escape') {
+                setLocalDateValue(task.dueDate || '');
+                setEditingDate(false);
+              }
+            }}
             className="text-xs px-1 py-0.5 border border-[#FF1493] rounded bg-white focus:outline-none"
             autoFocus
           />
         ) : (
           <button
-            onClick={() => setEditingDate(true)}
+            onClick={() => { setLocalDateValue(task.dueDate || ''); setEditingDate(true); }}
             className={`text-xs text-left hover:text-[#FF1493] transition-colors ${isOverdue || isPastLaunch ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}
             title={isPastLaunch ? 'Past launch date! Click to edit (cascades to downstream tasks)' : 'Click to edit due date (cascades to downstream tasks)'}
           >
