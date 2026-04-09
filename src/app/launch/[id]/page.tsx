@@ -211,8 +211,7 @@ export default function LaunchDetail() {
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
-            const endDate = (d.status === 'complete' || d.status === 'skipped')
-              ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+            const endDate = d.dueDate || '';
             return endDate > latest ? endDate : latest;
           }, '');
           if (!latestDepDue) continue;
@@ -279,8 +278,7 @@ export default function LaunchDetail() {
           const latestDepDue = depTask.dependencies.reduce((latest, dId) => {
             const d = taskMap.get(dId);
             if (!d) return latest;
-            const endDate = (d.status === 'complete' || d.status === 'skipped')
-              ? (d.completedDate?.split('T')[0] || d.dueDate || '') : (d.dueDate || '');
+            const endDate = d.dueDate || '';
             return endDate > latest ? endDate : latest;
           }, '');
           if (!latestDepDue) continue;
