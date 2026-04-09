@@ -18,7 +18,7 @@ import GanttChart from '@/components/GanttChart';
 import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
 import { scheduleLaunch } from '@/lib/scheduler';
 import { scheduledTasksToGTMTasks } from '@/lib/scheduler-bridge';
-import { RefreshCw, AlertCircle, X } from 'lucide-react';
+import { RefreshCw, AlertCircle, X, Upload, ImagePlus } from 'lucide-react';
 
 function getDisplayLabel(task: GTMTask): string {
   if (task.deliverableLabel && task.deliverableLabel.trim()) return task.deliverableLabel;
@@ -804,42 +804,85 @@ export default function LaunchDetail() {
             {/* Product Image */}
             <div>
               <label className="block text-[11px] font-medium text-[#57534E] mb-2">Product Image</label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="url"
-                  value={imageUrlInput}
-                  onChange={e => setImageUrlInput(e.target.value)}
-                  onBlur={() => {
-                    if (imageUrlInput !== (launch.productImageUrl || '')) {
-                      updateLaunch({ ...launch, productImageUrl: imageUrlInput || undefined });
-                    }
-                  }}
-                  onKeyDown={e => {
-                    if (e.key === 'Enter' && imageUrlInput !== (launch.productImageUrl || '')) {
-                      updateLaunch({ ...launch, productImageUrl: imageUrlInput || undefined });
-                    }
-                  }}
-                  placeholder="Paste image URL..."
-                  className="flex-1 px-3 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
-                />
-                {launch.productImageUrl && (
-                  <button
-                    onClick={() => {
-                      setImageUrlInput('');
-                      updateLaunch({ ...launch, productImageUrl: undefined });
-                    }}
-                    className="text-[11px] text-[#DC2626] hover:text-[#B91C1C] transition-colors"
-                  >
-                    Remove
-                  </button>
-                )}
-              </div>
-              {launch.productImageUrl && (
-                <div className="mt-2">
+              {launch.productImageUrl ? (
+                <div className="flex items-center gap-3">
                   <img
                     src={launch.productImageUrl}
                     alt="Product preview"
                     className="w-16 h-16 rounded-lg object-cover border border-[#E7E5E4]"
+                  />
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[11px] text-[#6366F1] hover:text-[#4F46E5] cursor-pointer transition-colors font-medium">
+                      Replace
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={e => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            const dataUrl = reader.result as string;
+                            setImageUrlInput(dataUrl);
+                            updateLaunch({ ...launch, productImageUrl: dataUrl });
+                          };
+                          reader.readAsDataURL(file);
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
+                    <button
+                      onClick={() => {
+                        setImageUrlInput('');
+                        updateLaunch({ ...launch, productImageUrl: undefined });
+                      }}
+                      className="text-[11px] text-[#DC2626] hover:text-[#B91C1C] transition-colors text-left font-medium"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <label className="flex-1 flex items-center justify-center gap-2 px-3 py-3 border-2 border-dashed border-[#D6D3D1] rounded-lg cursor-pointer hover:border-[#FF1493]/40 hover:bg-[#FF1493]/5 transition-colors">
+                    <ImagePlus className="w-4 h-4 text-[#A8A29E]" />
+                    <span className="text-xs text-[#78716C]">Upload image</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={e => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          const dataUrl = reader.result as string;
+                          setImageUrlInput(dataUrl);
+                          updateLaunch({ ...launch, productImageUrl: dataUrl });
+                        };
+                        reader.readAsDataURL(file);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                  <span className="text-[10px] text-[#A8A29E]">or</span>
+                  <input
+                    type="url"
+                    value={imageUrlInput}
+                    onChange={e => setImageUrlInput(e.target.value)}
+                    onBlur={() => {
+                      if (imageUrlInput && imageUrlInput !== (launch.productImageUrl || '')) {
+                        updateLaunch({ ...launch, productImageUrl: imageUrlInput });
+                      }
+                    }}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter' && imageUrlInput && imageUrlInput !== (launch.productImageUrl || '')) {
+                        updateLaunch({ ...launch, productImageUrl: imageUrlInput });
+                      }
+                    }}
+                    placeholder="Paste URL"
+                    className="w-28 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-[11px] focus:outline-none focus:ring-2 focus:ring-[#FF1493]/20"
                   />
                 </div>
               )}
