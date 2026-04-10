@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { Video, ExternalLink, ChevronDown, ChevronRight, CheckSquare, Square, CalendarDays } from 'lucide-react';
 import { Launch, GTMTask } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getStatusColor, getStatusLabel } from '@/lib/utils';
+import { getStatusColor, getStatusLabel, getLaunchChipStyle, getLaunchColor } from '@/lib/utils';
 
 interface MeetingRow {
   task: GTMTask;
@@ -140,7 +140,12 @@ export default function MeetingsPage() {
                     >
                       {task.name}
                     </Link>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-[#EEF0FF] text-[#3538CD]">{launch.name}</span>
+                    <span
+                      className="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                      style={getLaunchChipStyle(getLaunchColor(launch))}
+                    >
+                      {launch.name}
+                    </span>
                   </div>
 
                   {/* Schedule Window */}

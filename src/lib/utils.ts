@@ -59,6 +59,30 @@ export function getReadableTextStyle(
   };
 }
 
+/**
+ * Style helper for a launch-name chip/pill. Normally we tint with
+ * `hex + '15'` background + `hex` text, but that is unreadable when the
+ * launch color is very light (e.g. pale yellow). In that case flip the
+ * chip to use the full color as the background with dark navy text.
+ */
+export function getLaunchChipStyle(hex: string): React.CSSProperties {
+  if (isLightColor(hex)) {
+    return { background: hex, color: '#1B1464' };
+  }
+  return { background: hex + '15', color: hex };
+}
+
+/**
+ * Dot indicator style for a launch. Light colors get a dark outline so the
+ * dot stays visible on white backgrounds.
+ */
+export function getLaunchDotStyle(hex: string): React.CSSProperties {
+  if (isLightColor(hex)) {
+    return { background: hex, boxShadow: 'inset 0 0 0 1px #1B1464' };
+  }
+  return { background: hex };
+}
+
 export function getNextTask(launch: Launch): GTMTask | null {
   return launch.tasks
     .filter(t => t.status !== 'complete' && t.status !== 'skipped')

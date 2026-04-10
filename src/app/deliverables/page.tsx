@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { FileText, ExternalLink, Plus, Package, ChevronUp, ChevronDown } from 'lucide-react';
 import { Launch, GTMTask, DELIVERABLE_TASKS } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getStatusColor, getStatusLabel } from '@/lib/utils';
+import { getStatusColor, getStatusLabel, getLaunchChipStyle, getLaunchColor, getLaunchDotStyle } from '@/lib/utils';
 
 interface DeliverableRow {
   task: GTMTask;
@@ -180,7 +180,16 @@ export default function DeliverablesPage() {
               </div>
 
               {/* Launch */}
-              <span className="text-xs text-[#57534E] truncate">{launch.name}</span>
+              <span
+                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold truncate w-fit max-w-full"
+                style={getLaunchChipStyle(getLaunchColor(launch))}
+              >
+                <span
+                  className="w-1.5 h-1.5 rounded-full shrink-0"
+                  style={getLaunchDotStyle(getLaunchColor(launch))}
+                />
+                <span className="truncate">{launch.name}</span>
+              </span>
 
               {/* Due Date */}
               <span className="text-xs text-[#57534E]">

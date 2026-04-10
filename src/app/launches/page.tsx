@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { Rocket, Filter, ChevronRight } from 'lucide-react';
 import { LaunchTier, TIER_CONFIG, LAUNCH_TYPE_LABELS } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getLaunchProgress, getDaysUntilLaunch, getNextTask, getPhaseName, getLaunchColor } from '@/lib/utils';
+import { getLaunchProgress, getDaysUntilLaunch, getNextTask, getPhaseName, getLaunchColor, getLaunchChipStyle } from '@/lib/utils';
 
 export default function LaunchesPage() {
   const { launches, loading } = useData();
@@ -97,7 +97,7 @@ export default function LaunchesPage() {
                   <span className="text-xs text-[#57534E]">{LAUNCH_TYPE_LABELS[launch.launchType].split(' ')[0]}</span>
                   <span
                     className="text-xs font-medium px-2 py-0.5 rounded-full w-fit"
-                    style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
+                    style={getLaunchChipStyle(getLaunchColor(launch))}
                   >
                     Tier {launch.tier}
                   </span>

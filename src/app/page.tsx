@@ -16,7 +16,8 @@ import { useData } from '@/components/DataProvider';
 import { getStatusLabel, getStatusColor } from '@/lib/utils';
 import {
   getNextTask, getOverdueTasks, getUpcomingTasks,
-  getLaunchProgress, getDaysUntilLaunch, getPhaseName, getLaunchColor
+  getLaunchProgress, getDaysUntilLaunch, getPhaseName, getLaunchColor,
+  getLaunchChipStyle, getLaunchDotStyle, isLightColor
 } from '@/lib/utils';
 
 function getDisplayLabel(task: GTMTask): string {
@@ -303,9 +304,9 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
                   >
                     <span
                       className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 mb-1"
-                      style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
+                      style={getLaunchChipStyle(getLaunchColor(launch))}
                     >
-                      <span className="w-2 h-2 rounded-full inline-block" style={{ background: getLaunchColor(launch) }} />
+                      <span className="w-2 h-2 rounded-full inline-block" style={getLaunchDotStyle(getLaunchColor(launch))} />
                       {launch.name}
                     </span>
                     <p className="text-sm text-[#1B1464] font-medium truncate">{task.name}</p>
@@ -363,9 +364,9 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
                     <div className="flex-1 min-w-0">
                       <span
                         className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 mb-1"
-                        style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
+                        style={getLaunchChipStyle(getLaunchColor(launch))}
                       >
-                        <span className="w-2 h-2 rounded-full inline-block" style={{ background: getLaunchColor(launch) }} />
+                        <span className="w-2 h-2 rounded-full inline-block" style={getLaunchDotStyle(getLaunchColor(launch))} />
                         {launch.name}
                       </span>
                       <p className="text-sm text-[#A8A29E] line-through truncate">{task.name}</p>
@@ -505,8 +506,14 @@ function AgendaView({ tasksByDate, activeLaunches, updateTask, recentlyCompleted
                           className="w-10 h-10 rounded-lg object-cover shrink-0 bg-[#F5F5F4]"
                         />
                       ) : (
-                        <div className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-white text-xs font-bold"
-                          style={{ background: getLaunchColor(launch) }}>
+                        <div
+                          className="w-10 h-10 rounded-lg shrink-0 flex items-center justify-center text-xs font-bold"
+                          style={(() => {
+                            const c = getLaunchColor(launch);
+                            // Flip to dark text on light launch colors so the initial stays legible.
+                            return { background: c, color: isLightColor(c) ? '#1B1464' : '#FFFFFF' };
+                          })()}
+                        >
                           {launch.name.charAt(0)}
                         </div>
                       )}
@@ -663,9 +670,9 @@ function TaskRow({ task, launch, isOverdue, updateTask }: {
       <Link href={`/launch/${launch.id}?task=${task.id}`} className="flex-1 min-w-[180px]">
         <span
           className="text-xs font-semibold px-2.5 py-1 rounded-full inline-flex items-center gap-1.5 mb-1"
-          style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
+          style={getLaunchChipStyle(getLaunchColor(launch))}
         >
-          <span className="w-2 h-2 rounded-full inline-block" style={{ background: getLaunchColor(launch) }} />
+          <span className="w-2 h-2 rounded-full inline-block" style={getLaunchDotStyle(getLaunchColor(launch))} />
           {launch.name}
         </span>
         <p className="text-sm text-[#1B1464] font-medium truncate">{task.name}</p>
@@ -785,7 +792,7 @@ function LaunchCard({ launch }: { launch: Launch }) {
         <div className="flex items-start justify-between mb-3">
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span className="w-2 h-2 rounded-full" style={{ background: getLaunchColor(launch) }} />
+              <span className="w-2 h-2 rounded-full" style={getLaunchDotStyle(getLaunchColor(launch))} />
               <h3 className="text-base font-semibold text-[#1B1464]">{launch.name}</h3>
             </div>
             <div className="flex items-center gap-3 text-xs text-[#A8A29E]">
@@ -794,7 +801,7 @@ function LaunchCard({ launch }: { launch: Launch }) {
               <span>{launch.productCategory || 'No category'}</span>
               <span>·</span>
               <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium"
-                style={{ background: getLaunchColor(launch) + '15', color: getLaunchColor(launch) }}
+                style={getLaunchChipStyle(getLaunchColor(launch))}
               >
                 Tier {launch.tier}
               </span>
