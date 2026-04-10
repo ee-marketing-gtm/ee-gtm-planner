@@ -6,7 +6,7 @@ import { format, parseISO } from 'date-fns';
 import { Rocket, Filter, ChevronRight } from 'lucide-react';
 import { LaunchTier, TIER_CONFIG, LAUNCH_TYPE_LABELS } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getLaunchProgress, getDaysUntilLaunch, getNextTask, getPhaseName, getLaunchColor, getLaunchChipStyle } from '@/lib/utils';
+import { getLaunchProgress, getDaysUntilLaunch, getNextTask, getPhaseName, getLaunchChipStyle, isArchivedLaunch } from '@/lib/utils';
 
 export default function LaunchesPage() {
   const { launches, loading } = useData();
@@ -19,7 +19,10 @@ export default function LaunchesPage() {
     planning: 0, in_progress: 0, launched: 1, post_launch: 2, archived: 3,
   };
   const filtered = launches.filter(l => {
-    if (filterStatus === 'all' && l.status === 'archived') return false;
+    // Hide anything the Archive page considers archived (explicit status,
+    // post_launch, or auto-archived after 30+ days past launch) unless the
+    // user has explicitly picked a status filter that should include them.
+    if (filterStatus === 'all' && isArchivedLaunch(l)) return false;
     if (filterTier !== 'all' && l.tier !== filterTier) return false;
     if (filterStatus !== 'all' && l.status !== filterStatus) return false;
     return true;
@@ -29,13 +32,14 @@ export default function LaunchesPage() {
     if (oa !== ob) return oa - ob;
     return a.launchDate.localeCompare(b.launchDate);
   });
+  const activeLaunchCount = launches.filter(l => !isArchivedLaunch(l)).length;
 
   return (
     <div className="p-8 max-w-[1200px]">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-[#1B1464]">All Launches</h1>
-          <p className="text-sm text-[#A8A29E] mt-1">{launches.length} total launches</p>
+          <p className="text-sm text-[#A8A29E] mt-1">{activeLaunchCount} total launches</p>
         </div>
       </div>
 
@@ -97,7 +101,7 @@ export default function LaunchesPage() {
                   <span className="text-xs text-[#57534E]">{LAUNCH_TYPE_LABELS[launch.launchType].split(' ')[0]}</span>
                   <span
                     className="text-xs font-medium px-2 py-0.5 rounded-full w-fit"
-                    style={getLaunchChipStyle(getLaunchColor(launch))}
+                    style={getLaunchChipStyle(TIER_CONFIG[launch.tier].color)}
                   >
                     Tier {launch.tier}
                   </span>

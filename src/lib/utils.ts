@@ -7,6 +7,20 @@ export function getLaunchColor(launch: Launch): string {
   return launch.brandColor || TIER_CONFIG[launch.tier].color;
 }
 
+/**
+ * A launch is considered archived (and should be hidden from active
+ * views like the All Launches list, Command Center, calendar, etc.) if
+ * it has been explicitly archived, marked post-launch, or its launch
+ * date is more than 30 days in the past. The Archive page uses the same
+ * logic when listing archived launches so the two views stay in sync.
+ */
+export function isArchivedLaunch(launch: Launch): boolean {
+  if (launch.status === 'archived' || launch.status === 'post_launch') return true;
+  const launchDate = parseISO(launch.launchDate);
+  const thirtyDaysAgo = addDays(new Date(), -30);
+  return isBefore(launchDate, thirtyDaysAgo);
+}
+
 /** Compute relative luminance of a hex color (0 = black, 1 = white). */
 export function getColorLuminance(hex: string): number {
   const cleaned = hex.replace('#', '');

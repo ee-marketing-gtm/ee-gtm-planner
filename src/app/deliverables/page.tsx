@@ -146,7 +146,7 @@ export default function DeliverablesPage() {
       ) : (
         <div className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden">
           {/* Header */}
-          <div className="grid grid-cols-[minmax(200px,1.5fr)_minmax(140px,1fr)_120px_100px_auto] gap-3 px-4 py-3 bg-[#FAFAF9] border-b border-[#E7E5E4]">
+          <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(180px,260px)_90px_110px_minmax(160px,200px)] gap-3 px-4 py-3 bg-[#FAFAF9] border-b border-[#E7E5E4]">
             {([['task', 'Task Name'], ['launch', 'Launch'], ['dueDate', 'Due Date'], ['status', 'Status']] as const).map(([field, label]) => (
               <button
                 key={field}
@@ -167,13 +167,13 @@ export default function DeliverablesPage() {
           {rows.map(({ task, launch, deliverableLabel }) => (
             <div
               key={`${launch.id}-${task.id}`}
-              className="grid grid-cols-[minmax(200px,1.5fr)_minmax(140px,1fr)_120px_100px_auto] gap-3 px-4 py-3 items-center border-t border-[#E7E5E4] first:border-t-0 hover:bg-[#FAFAF9] transition-colors"
+              className="grid grid-cols-[minmax(0,2.2fr)_minmax(180px,260px)_90px_110px_minmax(160px,200px)] gap-3 px-4 py-3 items-center border-t border-[#E7E5E4] first:border-t-0 hover:bg-[#FAFAF9] transition-colors"
             >
               {/* Task Name */}
-              <div>
+              <div className="min-w-0">
                 <Link
                   href={`/launch/${launch.id}?task=${task.id}`}
-                  className="text-sm text-[#1B1464] hover:text-[#3538CD] transition-colors"
+                  className="text-sm text-[#1B1464] hover:text-[#3538CD] transition-colors truncate block"
                 >
                   {task.name}
                 </Link>
@@ -213,10 +213,11 @@ export default function DeliverablesPage() {
                   href={task.deliverableUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-[#F0FDF4] text-[#10B981] border border-[#10B981]/20 hover:bg-[#DCFCE7] transition-colors w-fit"
+                  title={deliverableLabel}
+                  className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-medium bg-[#F0FDF4] text-[#10B981] border border-[#10B981]/20 hover:bg-[#DCFCE7] transition-colors w-full max-w-full min-w-0"
                 >
-                  <ExternalLink className="w-3 h-3" />
-                  {deliverableLabel}
+                  <ExternalLink className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{deliverableLabel}</span>
                 </a>
               ) : (
                 <div className="flex items-center gap-2">
