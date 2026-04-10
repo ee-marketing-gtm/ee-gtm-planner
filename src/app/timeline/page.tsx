@@ -208,26 +208,33 @@ export default function TimelinePage() {
           {launches.map(l => {
             const isSelected = selectedIds.has(l.id);
             const color = launchColorMap.get(l.id) || '#A8A29E';
+            const lightBg = isSelected && isLightColor(color);
+            const fg = lightBg ? '#1B1464' : '#FFFFFF';
+            const mutedFg = lightBg ? 'rgba(27,20,100,0.6)' : 'rgba(255,255,255,0.7)';
+            const tierBg = lightBg ? 'rgba(27,20,100,0.12)' : 'rgba(255,255,255,0.2)';
             return (
               <button
                 key={l.id}
                 onClick={() => toggleSelected(l.id)}
                 className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
                   isSelected
-                    ? 'text-white shadow-sm'
+                    ? 'shadow-sm'
                     : 'bg-white text-[#57534E] border-[#E7E5E4] hover:border-[#D6D3D1]'
                 }`}
-                style={isSelected ? { background: color, borderColor: color } : {}}
+                style={isSelected ? { background: color, borderColor: color, color: fg } : {}}
               >
                 {isSelected && <Check className="w-3 h-3" />}
                 {l.name}
-                <span className={`text-[10px] ${isSelected ? 'text-white/70' : 'text-[#A8A29E]'}`}>
+                <span
+                  className="text-[10px]"
+                  style={isSelected ? { color: mutedFg } : { color: '#A8A29E' }}
+                >
                   {format(parseISO(l.launchDate), 'MMM d')}
                 </span>
                 <span
                   className="text-[9px] px-1.5 py-0.5 rounded-full"
                   style={isSelected
-                    ? { background: 'rgba(255,255,255,0.2)' }
+                    ? { background: tierBg, color: fg }
                     : { background: getLaunchColor(l) + '25', ...getReadableTextStyle(getLaunchColor(l), 'soft') }
                   }
                 >
