@@ -22,13 +22,18 @@ export function isLightColor(hex: string): boolean {
   return getColorLuminance(hex) > 0.6;
 }
 
-/** Readable text color and shadow for text drawn on top of (or in) the given brand color. */
+/**
+ * Style helper for text drawn in a launch/brand color. Keeps the original
+ * color and, when that color is too light to read on a white background,
+ * adds a subtle dark drop shadow / halo so the text remains legible.
+ */
 export function getReadableTextStyle(hex: string): { color: string; textShadow: string } {
   if (isLightColor(hex)) {
     return {
-      color: '#1B1464',
-      // Subtle dark drop shadow so light-colored text stays legible on white/light backgrounds
-      textShadow: '0 1px 2px rgba(27, 20, 100, 0.25), 0 0 1px rgba(27, 20, 100, 0.35)',
+      color: hex,
+      // Dark halo + drop shadow so light-colored text stays legible on white backgrounds
+      textShadow:
+        '0 0 1px rgba(27, 20, 100, 0.9), 0 0 2px rgba(27, 20, 100, 0.6), 0 1px 2px rgba(27, 20, 100, 0.35)',
     };
   }
   return { color: hex, textShadow: 'none' };

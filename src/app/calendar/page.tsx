@@ -295,7 +295,7 @@ export default function CalendarPage() {
     return Math.max(0, Math.min(100, (d / totalDays) * 100));
   }
 
-  function renderTodayMarker() {
+  function renderTodayMarker(showLabel: boolean = true) {
     if (today < visibleRange.start || today > visibleRange.end) return null;
     const left = dayToPercent(today);
     return (
@@ -305,9 +305,11 @@ export default function CalendarPage() {
         title={`Today: ${format(today, 'MMM d, yyyy')}`}
       >
         <div className="w-0.5 h-full bg-[#3538CD]" />
-        <div className="absolute -top-1 -left-[9px] w-[20px] text-center text-[9px] font-bold text-[#3538CD]">
-          Today
-        </div>
+        {showLabel && (
+          <div className="absolute -top-1 -left-[9px] w-[20px] text-center text-[9px] font-bold text-[#3538CD]">
+            Today
+          </div>
+        )}
       </div>
     );
   }
@@ -558,22 +560,23 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        {/* DTC launch date marker with rich tooltip */}
+        {/* D2C launch date marker with rich tooltip (Amazon is assumed to launch with D2C) */}
         {launchDate >= visibleRange.start && launchDate <= visibleRange.end && (
           <div
-            className="absolute top-[6px] bottom-[2px] z-10 group/dtc flex flex-col items-center"
+            className="absolute top-[6px] bottom-[2px] z-10 group/d2c flex flex-col items-center"
             style={{
               left: `${dayToPercent(launchDate)}%`,
               transform: 'translateX(-50%)',
             }}
-            title={`DTC Launch: ${launch.name} - ${format(launchDate, 'MMM d, yyyy')}`}
+            title={`D2C Launch: ${launch.name} - ${format(launchDate, 'MMM d, yyyy')}`}
           >
             <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: tierColor }} />
-            <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: tierColor }}>DTC</span>
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/dtc:block z-30 pointer-events-none">
+            <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: tierColor }}>D2C</span>
+            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/d2c:block z-30 pointer-events-none">
               <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-                <p className="font-semibold">DTC Launch: {launch.name}</p>
+                <p className="font-semibold">D2C Launch: {launch.name}</p>
                 <p className="text-white/60 mt-0.5">{format(launchDate, 'MMM d, yyyy')}</p>
+                <p className="text-white/40 text-[10px] mt-0.5">Amazon launches with D2C</p>
               </div>
             </div>
           </div>
@@ -593,7 +596,7 @@ export default function CalendarPage() {
               title={`Sephora Launch: ${launch.name} - ${format(sepDate, 'MMM d, yyyy')}`}
             >
               <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
-              <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: '#8B5CF6' }}>Seph</span>
+              <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: '#8B5CF6' }}>Seph</span>
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/seph:block z-30 pointer-events-none">
                 <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
                   <p className="font-semibold">Sephora Launch: {launch.name}</p>
@@ -604,30 +607,6 @@ export default function CalendarPage() {
           );
         })()}
 
-        {/* Amazon launch date marker with rich tooltip */}
-        {launch.amazonLaunchDate && (() => {
-          const amzDate = parseISO(launch.amazonLaunchDate);
-          if (amzDate < visibleRange.start || amzDate > visibleRange.end) return null;
-          return (
-            <div
-              className="absolute top-[6px] bottom-[2px] z-10 group/amz flex flex-col items-center"
-              style={{
-                left: `${dayToPercent(amzDate)}%`,
-                transform: 'translateX(-50%)',
-              }}
-              title={`Amazon Launch: ${launch.name} - ${format(amzDate, 'MMM d, yyyy')}`}
-            >
-              <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#F97316' }} />
-              <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: '#F97316' }}>Amzn</span>
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/amz:block z-30 pointer-events-none">
-                <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-                  <p className="font-semibold">Amazon Launch: {launch.name}</p>
-                  <p className="text-white/60 mt-0.5">{format(amzDate, 'MMM d, yyyy')}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
       </div>
     );
   }
@@ -743,7 +722,7 @@ export default function CalendarPage() {
           );
         })}
 
-        {renderTodayMarker()}
+        {renderTodayMarker(false)}
       </div>
     );
   }
@@ -941,15 +920,11 @@ export default function CalendarPage() {
                   <div key={tier} className="w-[2px] h-4 rounded-sm" style={{ backgroundColor: TIER_CONFIG[tier].color }} />
                 ))}
               </div>
-              <span>DTC launch date</span>
+              <span>D2C launch (Amazon included)</span>
             </div>
             <div className="flex items-center gap-1.5">
               <div className="w-[2px] h-4 rounded-sm bg-[#8B5CF6]" />
               <span>Sephora launch</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <div className="w-[2px] h-4 rounded-sm bg-[#F97316]" />
-              <span>Amazon launch</span>
             </div>
           </div>
 
