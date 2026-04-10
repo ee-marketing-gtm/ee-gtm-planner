@@ -148,21 +148,18 @@ export function NewLaunchModal({ onClose }: Props) {
                 />
               </div>
               <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] text-[#A8A29E]">Sephora Launch Date</label>
-                  <label className="flex items-center gap-1.5 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={hasSephora}
-                      onChange={e => {
-                        setHasSephora(e.target.checked);
-                        if (!e.target.checked) setSephoraLaunchDate('');
-                      }}
-                      className="w-3.5 h-3.5 rounded accent-[#3538CD]"
-                    />
-                    <span className="text-[10px] text-[#A8A29E]">Launching in Sephora</span>
-                  </label>
-                </div>
+                <label className="flex items-center gap-1.5 mb-1 cursor-pointer whitespace-nowrap">
+                  <input
+                    type="checkbox"
+                    checked={hasSephora}
+                    onChange={e => {
+                      setHasSephora(e.target.checked);
+                      if (!e.target.checked) setSephoraLaunchDate('');
+                    }}
+                    className="w-3.5 h-3.5 rounded accent-[#3538CD]"
+                  />
+                  <span className="text-[11px] text-[#A8A29E]">Sephora Launch Date</span>
+                </label>
                 {hasSephora ? (
                   <>
                     <input

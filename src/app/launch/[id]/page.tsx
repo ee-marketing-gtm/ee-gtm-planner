@@ -1068,7 +1068,7 @@ export default function LaunchDetail() {
         {(() => {
           const overdueTasks = launch.tasks.filter(t =>
             t.status !== 'complete' && t.status !== 'skipped' && t.dueDate &&
-            parseISO(t.dueDate) < new Date() && !recalcResult
+            startOfDay(parseISO(t.dueDate)) < startOfDay(new Date()) && !recalcResult
           );
           if (overdueTasks.length === 0 && !recalcResult) return null;
 
@@ -2422,7 +2422,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   }, []);
 
   const isOverdue = task.dueDate && task.status !== 'complete' && task.status !== 'skipped' &&
-    parseISO(task.dueDate) < new Date();
+    startOfDay(parseISO(task.dueDate)) < startOfDay(new Date());
   const isSephoraTask = task.name.toLowerCase().includes('sephora');
   const effectiveLaunchDate = isSephoraTask && launch.sephoraLaunchDate
     ? launch.sephoraLaunchDate
@@ -3347,7 +3347,7 @@ function MeetingsView({ launch, updateTaskStatus }: { launch: Launch; updateTask
           <div className="bg-white rounded-xl border border-[#E7E5E4] divide-y divide-[#E7E5E4]">
             {upcoming.map(task => {
               const phase = PHASES.find(p => p.key === task.phase);
-              const isOverdue = task.dueDate && parseISO(task.dueDate) < new Date();
+              const isOverdue = task.dueDate && startOfDay(parseISO(task.dueDate)) < startOfDay(new Date());
               return (
                 <div key={task.id} className={`flex items-center gap-3 px-4 py-3 ${isOverdue ? 'bg-red-50/50' : 'hover:bg-[#FAFAF9]'} transition-colors`}>
                   <div className="w-2 h-2 rounded-full shrink-0" style={{ background: phase?.color || '#6B7280' }} />
