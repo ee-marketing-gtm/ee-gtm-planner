@@ -1304,11 +1304,13 @@ export default function LaunchDetail() {
                 ? ''
                 : 'border-transparent text-[#A8A29E] hover:text-[#57534E]'
             }`}
-            style={activeTab === tab.key ? { borderColor: accentColor, ...getReadableTextStyle(accentColor, 'soft') } : undefined}
+            style={activeTab === tab.key ? { borderColor: accentColor } : undefined}
           >
-            {tab.label}
+            <span style={activeTab === tab.key ? getReadableTextStyle(accentColor, 'highlight') : undefined}>
+              {tab.label}
+            </span>
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '25', ...getReadableTextStyle(accentColor, 'soft') }}>
+              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '25', ...getReadableTextStyle(accentColor, 'highlight') }}>
                 {tab.badge}
               </span>
             )}
