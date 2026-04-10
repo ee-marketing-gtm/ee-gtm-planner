@@ -1727,6 +1727,44 @@ export default function LaunchDetail() {
   );
 }
 
+// Small date input with explicit Save/Cancel — used where native onChange would
+// commit as the user scrolls through the date picker.
+function DraftDateInput({ value, onSave, className, title }: {
+  value: string;
+  onSave: (v: string) => void;
+  className?: string;
+  title?: string;
+}) {
+  const [draft, setDraft] = useState(value || '');
+  useEffect(() => { setDraft(value || ''); }, [value]);
+  const dirty = draft !== (value || '') && draft !== '';
+  return (
+    <div className="inline-flex items-center gap-1 shrink-0">
+      <input
+        type="date"
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        onKeyDown={e => {
+          e.stopPropagation();
+          if (e.key === 'Enter' && dirty) onSave(draft);
+          if (e.key === 'Escape') setDraft(value || '');
+        }}
+        className={className}
+        title={title}
+      />
+      {dirty && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSave(draft); }}
+          className="px-1.5 py-0.5 text-[9px] font-semibold text-white bg-[#3538CD] rounded hover:bg-[#2A2DA8] transition-colors"
+          title="Save date change"
+        >
+          Save
+        </button>
+      )}
+    </div>
+  );
+}
+
 function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, updateTaskNotes, onUpdateLaunch, updateTaskField, updateTaskDateWithCascade, initialTaskId, cascadeWarning, onCascadeApply, onCascadeApplyOriginal, onCascadeDismiss, onCascadeAdjustLeadTime, onCascadeAdjustDueDate, onCascadeRemoveDep, onCascadeUndoStep, highlightedTaskIds, scrollToTaskId }: {
   launch: Launch;
   expandedPhases: Set<PhaseKey>;
@@ -1761,6 +1799,8 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(initialTaskId || null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set());
   const [bulkStatusOpen, setBulkStatusOpen] = useState(false);
+  const [bulkDueDateOpen, setBulkDueDateOpen] = useState(false);
+  const [bulkDueDateValue, setBulkDueDateValue] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [hideCompleted, setHideCompleted] = useState(true);
   const [sortBy, setSortBy] = useState<'due' | 'owner' | 'phase'>('due');
@@ -1771,6 +1811,7 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
   const sortedOrderRef = useRef<string[]>([]); // locked sort order while editing
   const lastExpandedRef = useRef<string | null>(null); // track last expanded task for scroll-after-sort
   const bulkRef = useRef<HTMLDivElement>(null);
+  const bulkDateRef = useRef<HTMLDivElement>(null);
   const scrolledToTask = useRef(false);
 
   const lastClickedRef = useRef<string | null>(null);
@@ -1854,10 +1895,28 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
     setBulkStatusOpen(false);
   };
 
+  const bulkUpdateDueDate = (newDate: string) => {
+    if (!newDate) return;
+    const updated = {
+      ...launch,
+      tasks: launch.tasks.map(t => {
+        if (!selectedTaskIds.has(t.id)) return t;
+        // Set due date; recalculate start = due - duration (keep lead time constant)
+        const duration = t.durationDays || 0;
+        const newStart = format(addBusinessDays(parseISO(newDate), -duration), 'yyyy-MM-dd');
+        return { ...t, dueDate: newDate, startDate: newStart };
+      }),
+    };
+    onUpdateLaunch(updated);
+    setBulkDueDateOpen(false);
+    setBulkDueDateValue('');
+  };
+
   // Close bulk dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (bulkRef.current && !bulkRef.current.contains(e.target as Node)) setBulkStatusOpen(false);
+      if (bulkDateRef.current && !bulkDateRef.current.contains(e.target as Node)) setBulkDueDateOpen(false);
     }
     document.addEventListener('mousedown', handleClick);
     return () => document.removeEventListener('mousedown', handleClick);
@@ -2151,6 +2210,55 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                           <span className="text-[#1B1464]">{s.label}</span>
                         </button>
                       ))}
+                    </div>
+                  )}
+                </div>
+                <div className="relative" ref={bulkDateRef}>
+                  <button
+                    onClick={() => {
+                      if (!bulkDueDateOpen) {
+                        // Pre-fill with the most common due date among selected, or today
+                        const selectedTasks = launch.tasks.filter(t => selectedTaskIds.has(t.id));
+                        const firstDue = selectedTasks.find(t => t.dueDate)?.dueDate || format(new Date(), 'yyyy-MM-dd');
+                        setBulkDueDateValue(firstDue);
+                      }
+                      setBulkDueDateOpen(!bulkDueDateOpen);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1 bg-white border border-[#E7E5E4] rounded-lg text-xs font-medium text-[#1B1464] hover:bg-[#FAFAF9] transition-colors"
+                  >
+                    <Calendar className="w-3 h-3" />
+                    Change Due Date
+                    <ChevronDown className="w-3 h-3" />
+                  </button>
+                  {bulkDueDateOpen && (
+                    <div className="absolute left-0 top-full mt-1 z-50 bg-white rounded-lg border border-[#E7E5E4] shadow-lg p-3 w-[240px] animate-fade-in">
+                      <label className="block text-[10px] font-medium text-[#A8A29E] uppercase tracking-wider mb-1.5">
+                        Set due date for {selectedTaskIds.size} task{selectedTaskIds.size !== 1 ? 's' : ''}
+                      </label>
+                      <input
+                        type="date"
+                        value={bulkDueDateValue}
+                        onChange={e => setBulkDueDateValue(e.target.value)}
+                        className="w-full px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD] mb-2"
+                      />
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => { setBulkDueDateOpen(false); setBulkDueDateValue(''); }}
+                          className="flex-1 px-2 py-1.5 text-xs font-medium text-[#57534E] bg-[#F5F5F4] rounded-lg hover:bg-[#E7E5E4] transition-colors"
+                        >
+                          Cancel
+                        </button>
+                        <button
+                          onClick={() => bulkUpdateDueDate(bulkDueDateValue)}
+                          disabled={!bulkDueDateValue}
+                          className="flex-1 px-2 py-1.5 text-xs font-medium text-white bg-[#3538CD] rounded-lg hover:bg-[#2A2DA8] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          Save
+                        </button>
+                      </div>
+                      <p className="text-[10px] text-[#A8A29E] mt-2 leading-snug">
+                        Sets due date on all selected tasks. Start dates shift to preserve lead time.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -2482,13 +2590,10 @@ function TrackerView({ launch, expandedPhases, togglePhase, updateTaskStatus, up
                                                   >+</button>
                                                 </div>
                                                 {/* Due date input */}
-                                                <input
-                                                  type="date"
+                                                <DraftDateInput
                                                   value={dep.dueDate || ''}
-                                                  onChange={e => {
-                                                    if (e.target.value) onCascadeAdjustDueDate(dep.id, e.target.value);
-                                                  }}
-                                                  className={`text-[10px] px-1 py-0.5 border border-[#E7E5E4] rounded bg-white shrink-0 w-[110px] ${depIsOver ? 'text-[#DC2626]' : 'text-[#78716C]'}`}
+                                                  onSave={v => onCascadeAdjustDueDate(dep.id, v)}
+                                                  className={`text-[10px] px-1 py-0.5 border border-[#E7E5E4] rounded bg-white w-[110px] ${depIsOver ? 'text-[#DC2626]' : 'text-[#78716C]'}`}
                                                   title="Change due date"
                                                 />
                                                 {/* Unlink button: removes downstream's dep on this row */}
@@ -2967,32 +3072,52 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
 
         {/* Due Date — inline editable */}
         {editingDate ? (
-          <input
-            type="date"
-            value={localDateValue}
-            onChange={(e) => setLocalDateValue(e.target.value)}
-            onBlur={() => {
-              if (localDateValue && localDateValue !== task.dueDate) {
-                updateTaskDateWithCascade(task.id, localDateValue);
-              }
-              setEditingDate(false);
-            }}
-            onKeyDown={(e) => {
-              e.stopPropagation();
-              if (e.key === 'Enter') {
+          <div className="relative inline-flex items-center gap-1">
+            <input
+              type="date"
+              value={localDateValue}
+              onChange={(e) => setLocalDateValue(e.target.value)}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  if (localDateValue && localDateValue !== task.dueDate) {
+                    updateTaskDateWithCascade(task.id, localDateValue);
+                  }
+                  setEditingDate(false);
+                }
+                if (e.key === 'Escape') {
+                  setLocalDateValue(task.dueDate || '');
+                  setEditingDate(false);
+                }
+              }}
+              className="text-xs px-1 py-0.5 border border-[#3538CD] rounded bg-white focus:outline-none"
+              autoFocus
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 if (localDateValue && localDateValue !== task.dueDate) {
                   updateTaskDateWithCascade(task.id, localDateValue);
                 }
                 setEditingDate(false);
-              }
-              if (e.key === 'Escape') {
+              }}
+              className="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-[#3538CD] rounded hover:bg-[#2A2DA8] transition-colors"
+              title="Save (Enter)"
+            >
+              Save
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
                 setLocalDateValue(task.dueDate || '');
                 setEditingDate(false);
-              }
-            }}
-            className="text-xs px-1 py-0.5 border border-[#3538CD] rounded bg-white focus:outline-none"
-            autoFocus
-          />
+              }}
+              className="px-1.5 py-0.5 text-[10px] font-semibold text-[#57534E] bg-[#F5F5F4] rounded hover:bg-[#E7E5E4] transition-colors"
+              title="Cancel (Esc)"
+            >
+              Cancel
+            </button>
+          </div>
         ) : (
           <button
             onClick={() => { setLocalDateValue(task.dueDate || ''); setEditingDate(true); }}

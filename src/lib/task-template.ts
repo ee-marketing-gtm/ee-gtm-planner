@@ -613,16 +613,11 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
   {
     name: 'Email Creative Due',
-    leadTime: 10,
-    leadTimeByDep: {
-      'Email Copy Due': 10,
-      'Lifestyle Photo Selects Ready': 5,
-      'Product Photo Selects Ready': 5,
-    },
+    leadTime: 5,
     dependsOn: ['Email Copy Due', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
     owner: 'creative',
     phase: 'design_production',
-    notes: 'Email creative requires final copy and photo selects. 10 BD from copy (driver), or 5 BD from photo selects if those are the later driver.',
+    notes: 'Email creative requires final copy and photo selects. 5 BD from whichever dep is the latest driver.',
   },
 
   // ── SEPHORA TRACK ──
