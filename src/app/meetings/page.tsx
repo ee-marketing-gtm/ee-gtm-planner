@@ -131,17 +131,17 @@ export default function MeetingsPage() {
                 className="bg-white rounded-xl border border-[#E7E5E4] overflow-hidden"
               >
                 {/* Main row */}
-                <div className="grid grid-cols-[1fr_160px_240px_100px_auto] gap-3 px-4 py-3 items-center">
+                <div className="flex items-center gap-4 px-4 py-3 flex-wrap">
                   {/* Meeting name + launch */}
-                  <div>
+                  <div className="flex-1 min-w-[240px]">
                     <Link
                       href={`/launch/${launch.id}?task=${task.id}`}
-                      className="text-sm font-medium text-[#1B1464] hover:text-[#3538CD] transition-colors"
+                      className="block text-sm font-medium text-[#1B1464] hover:text-[#3538CD] transition-colors truncate"
                     >
                       {task.name}
                     </Link>
                     <span
-                      className="inline-block mt-1 px-2 py-0.5 rounded-full text-[11px] font-semibold"
+                      className="inline-block mt-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold max-w-full truncate"
                       style={getLaunchChipStyle(getLaunchColor(launch))}
                     >
                       {launch.name}
@@ -149,34 +149,29 @@ export default function MeetingsPage() {
                   </div>
 
                   {/* Schedule Window */}
-                  <div>
+                  <div className="shrink-0">
                     {task.startDate && task.dueDate ? (
                       <div className="flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-[#3538CD]" />
-                        <span className="text-xs text-[#57534E]">
+                        <CalendarDays className="w-3.5 h-3.5 text-[#3538CD] shrink-0" />
+                        <span className="text-xs text-[#57534E] whitespace-nowrap">
                           {format(parseISO(task.startDate), 'MMM d')} &rarr; {format(parseISO(task.dueDate), 'MMM d')}
                         </span>
                       </div>
                     ) : task.dueDate ? (
                       <div className="flex items-center gap-1.5">
-                        <CalendarDays className="w-3.5 h-3.5 text-[#A8A29E]" />
-                        <span className="text-xs text-[#57534E]">
+                        <CalendarDays className="w-3.5 h-3.5 text-[#A8A29E] shrink-0" />
+                        <span className="text-xs text-[#57534E] whitespace-nowrap">
                           By {format(parseISO(task.dueDate), 'MMM d')}
                         </span>
                       </div>
                     ) : (
                       <span className="text-xs text-[#A8A29E]">&mdash;</span>
                     )}
-                    {task.startDate && task.dueDate && (
-                      <p className="text-[10px] text-[#A8A29E] mt-0.5">
-                        Schedule between {format(parseISO(task.startDate), 'MMM d')} and {format(parseISO(task.dueDate), 'MMM d')}
-                      </p>
-                    )}
                   </div>
 
                   {/* Status */}
                   <span
-                    className="text-[11px] font-medium px-2 py-0.5 rounded-full w-fit whitespace-nowrap"
+                    className="text-[11px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap shrink-0"
                     style={{
                       background: getStatusColor(task.status) + '15',
                       color: getStatusColor(task.status),
@@ -186,14 +181,14 @@ export default function MeetingsPage() {
                   </span>
 
                   {/* Actions */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 shrink-0 ml-auto">
                     <a
                       href={buildOutlookUrl(task, launch)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-medium bg-[#1B1464] text-white hover:bg-[#2D2378] transition-colors whitespace-nowrap"
                     >
-                      <ExternalLink className="w-3 h-3" />
+                      <ExternalLink className="w-3 h-3 shrink-0" />
                       Schedule in Outlook
                     </a>
                     {hasChecklist && (

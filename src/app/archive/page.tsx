@@ -6,7 +6,7 @@ import { format, parseISO, isBefore, addDays } from 'date-fns';
 import { Archive, ArrowLeft, Undo2, Trash2, CheckCircle2 } from 'lucide-react';
 import { Launch, TIER_CONFIG, LAUNCH_TYPE_LABELS, PHASES } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getLaunchProgress, getLaunchChipStyle } from '@/lib/utils';
+import { getLaunchProgress, getLaunchChipStyle, getLaunchColor } from '@/lib/utils';
 
 export default function ArchivePage() {
   const { launches, saveLaunches, loading } = useData();
@@ -78,7 +78,7 @@ export default function ArchivePage() {
                       </Link>
                       <span
                         className="px-2 py-0.5 rounded-full text-[11px] font-medium"
-                        style={getLaunchChipStyle(getLaunchColor(launch))}
+                        style={getLaunchChipStyle(TIER_CONFIG[launch.tier].color)}
                       >
                         Tier {launch.tier}
                       </span>

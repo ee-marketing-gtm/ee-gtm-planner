@@ -2491,8 +2491,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   const [linkLabel, setLinkLabel] = useState(task.deliverableLabel || '');
   const [editingDeps, setEditingDeps] = useState(false);
   const [editingLink, setEditingLink] = useState(false);
-  const [notesOpen, setNotesOpen] = useState(!!(task.notes && task.notes.trim()));
-  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -2823,31 +2822,6 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
       {isExpanded && (
         <div className="px-4 pb-4 ml-9 space-y-3 animate-fade-in">
 
-          {/* Task name edit */}
-          <div className="flex items-center gap-2">
-            {editingName ? (
-              <input
-                value={nameValue}
-                onChange={(e) => setNameValue(e.target.value)}
-                onBlur={() => { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); }}
-                onKeyDown={(e) => { if (e.key === 'Enter') { updateTaskField(task.id, { name: nameValue.trim() || task.name }); setEditingName(false); } if (e.key === 'Escape') { setNameValue(task.name); setEditingName(false); } }}
-                className="text-sm font-medium text-[#1B1464] border-b border-[#3538CD] outline-none bg-transparent flex-1"
-                autoFocus
-              />
-            ) : (
-              <>
-                <span className="text-sm font-medium text-[#1B1464]">{task.name}</span>
-                <button
-                  onClick={() => { setNameValue(task.name); setEditingName(true); }}
-                  className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
-                  title="Edit task name"
-                >
-                  <Pencil className="w-3 h-3" />
-                </button>
-              </>
-            )}
-          </div>
-
           {/* Schedule window + lead time control */}
           <div className="flex items-center gap-3 flex-wrap">
             {task.startDate && task.dueDate && (
@@ -2904,30 +2878,29 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
 
           {/* 1. Dependencies — read-only pills with edit toggle */}
           {(task.dependencies.length > 0 || editingDeps || launch.tasks.some(t => t.dependencies.includes(task.id))) && (
-            <div className="space-y-1.5">
+            <div className="space-y-2">
               <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <label className="text-[11px] font-medium text-[#57534E]">Depends on</label>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="text-[11px] font-medium text-[#57534E] shrink-0">Depends on:</label>
                   {!editingDeps && (
                     <button
                       onClick={() => setEditingDeps(true)}
-                      className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors"
+                      className="p-0.5 rounded hover:bg-[#F5F5F4] text-[#A8A29E] hover:text-[#57534E] transition-colors shrink-0"
                       title="Edit dependencies"
                     >
                       <Pencil className="w-3 h-3" />
                     </button>
                   )}
-                </div>
-                {task.dependencies.length > 0 ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {task.dependencies.map(depId => {
+                  {task.dependencies.length > 0 ? (
+                    <>
+                      {task.dependencies.map(depId => {
                       const dep = launch.tasks.find(t => t.id === depId);
                       if (!dep) return null;
                       const isComplete = dep.status === 'complete';
                       return (
                         <div
                           key={depId}
-                          className={`inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border group/dep ${
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border group/dep ${
                             isComplete
                               ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                               : 'bg-[#F5F5F4] text-[#57534E] border-[#E7E5E4]'
@@ -2958,54 +2931,28 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                         </div>
                       );
                     })}
-                  </div>
-                ) : !editingDeps ? (
-                  <p className="text-[10px] text-[#A8A29E]">No dependencies</p>
-                ) : null}
-                {task.dependencies.length > 0 && !editingDeps && (() => {
-                  // Find the driving dependency (latest due date among all deps)
-                  const drivingDep = task.dependencies.reduce<GTMTask | null>((latest, depId) => {
-                    const dep = launch.tasks.find(t => t.id === depId);
-                    if (!dep?.dueDate) return latest;
-                    if (!latest?.dueDate) return dep;
-                    return dep.dueDate > latest.dueDate ? dep : latest;
-                  }, null);
-
-                  const allDepsComplete = task.dependencies.every(depId => {
-                    const dep = launch.tasks.find(t => t.id === depId);
-                    return dep && (dep.status === 'complete' || dep.status === 'skipped');
-                  });
-
-                  const incompleteDeps = task.dependencies
-                    .map(depId => launch.tasks.find(t => t.id === depId))
-                    .filter(d => d && d.status !== 'complete' && d.status !== 'skipped');
-
-                  return (
-                    <div className="mt-1.5 space-y-0.5">
-                      {/* Always show which dep drives the start date */}
-                      {drivingDep && task.dependencies.length > 1 && (
-                        <p className="text-[10px] text-[#78716C]">
-                          Start date set by{' '}
-                          <button
-                            onClick={() => onNavigateToTask?.(drivingDep.id)}
-                            className="font-medium text-[#1B1464] underline decoration-dotted hover:text-[#3538CD] transition-colors"
-                          >
-                            {drivingDep.name}
-                          </button>
-                          <span className="text-[#A8A29E]"> (due {drivingDep.dueDate ? format(parseISO(drivingDep.dueDate), 'MMM d') : '—'})</span>
-                        </p>
-                      )}
-                      {/* Status line */}
-                      {allDepsComplete ? (
-                        <p className="text-[10px] text-emerald-600">All dependencies complete</p>
-                      ) : incompleteDeps.length > 0 ? (
-                        <p className="text-[10px] text-amber-600">
-                          Waiting on {incompleteDeps.length} incomplete: {incompleteDeps.map(d => d!.name).join(', ')}
-                        </p>
-                      ) : null}
-                    </div>
-                  );
-                })()}
+                    {(() => {
+                      const allDepsComplete = task.dependencies.every(depId => {
+                        const dep = launch.tasks.find(t => t.id === depId);
+                        return dep && (dep.status === 'complete' || dep.status === 'skipped');
+                      });
+                      const incompleteDeps = task.dependencies
+                        .map(depId => launch.tasks.find(t => t.id === depId))
+                        .filter(d => d && d.status !== 'complete' && d.status !== 'skipped');
+                      if (editingDeps) return null;
+                      if (allDepsComplete) {
+                        return <span className="text-[10px] text-emerald-600">· all complete</span>;
+                      }
+                      if (incompleteDeps.length > 0) {
+                        return <span className="text-[10px] text-amber-600">· waiting on {incompleteDeps.length}</span>;
+                      }
+                      return null;
+                    })()}
+                    </>
+                  ) : !editingDeps ? (
+                    <span className="text-[10px] text-[#A8A29E]">None</span>
+                  ) : null}
+                </div>
                 {editingDeps && (
                   <div className="mt-2">
                     <label className="text-[10px] font-medium text-[#57534E] mb-1 block">Edit Dependencies</label>
@@ -3048,63 +2995,50 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 const blockedTasks = launch.tasks.filter(t => t.dependencies.includes(task.id));
                 if (blockedTasks.length === 0) return null;
                 return (
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <label className="text-[11px] font-medium text-[#57534E]">Blocks ({blockedTasks.length})</label>
-                    </div>
-                    <div className="space-y-1">
-                      {blockedTasks.map(bt => {
-                        const isDone = bt.status === 'complete' || bt.status === 'skipped';
-                        return (
-                          <div
-                            key={bt.id}
-                            className="flex items-center gap-2 group/block"
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="text-[11px] font-medium text-[#57534E] shrink-0">Blocks:</label>
+                    {blockedTasks.map(bt => {
+                      const isDone = bt.status === 'complete' || bt.status === 'skipped';
+                      return (
+                        <div
+                          key={bt.id}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium border group/block ${
+                            isDone
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                        >
+                          <button
+                            onClick={() => onNavigateToTask?.(bt.id)}
+                            className="inline-flex items-center gap-1 cursor-pointer hover:text-[#3538CD] transition-colors"
+                            title={`Go to ${bt.name}`}
                           >
-                            {isDone ? (
-                              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                            ) : (
-                              <button
-                                onClick={() => {
-                                  const newDeps = bt.dependencies.filter(d => d !== task.id);
-                                  updateTaskField(bt.id, { dependencies: newDeps });
-                                }}
-                                className="w-4 h-4 rounded border border-amber-300 bg-amber-50 flex items-center justify-center shrink-0 hover:bg-red-100 hover:border-red-300 transition-colors group/cb"
-                                title={`Unblock — remove ${bt.name}'s dependency on this task`}
-                              >
-                                <X className="w-2.5 h-2.5 text-amber-400 group-hover/cb:text-red-500 transition-colors" />
-                              </button>
-                            )}
+                            {isDone
+                              ? <CheckCircle2 className="w-3 h-3" />
+                              : <Circle className="w-3 h-3" />
+                            }
+                            {bt.name}
+                          </button>
+                          {!isDone && (
                             <button
-                              onClick={() => onNavigateToTask?.(bt.id)}
-                              className={`text-[11px] truncate cursor-pointer hover:text-[#3538CD] transition-colors ${
-                                isDone ? 'text-[#A8A29E]' : 'text-[#44403C]'
-                              }`}
-                              title={`Go to ${bt.name}`}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newDeps = bt.dependencies.filter(d => d !== task.id);
+                                updateTaskField(bt.id, { dependencies: newDeps });
+                              }}
+                              className="ml-0.5 p-0.5 rounded-full opacity-0 group-hover/block:opacity-100 hover:bg-red-100 hover:text-red-500 text-[#A8A29E] transition-all"
+                              title={`Unblock — remove ${bt.name}'s dependency on this task`}
                             >
-                              {bt.name}
+                              <X className="w-2.5 h-2.5" />
                             </button>
-                            <span className="text-[9px] text-[#A8A29E] shrink-0">
-                              {bt.dueDate ? format(parseISO(bt.dueDate), 'MMM d') : ''}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })()}
             </div>
-          )}
-
-          {/* Trace button */}
-          {onTrace && (task.dependencies.length > 0 || launch.tasks.some(t => t.dependencies.includes(task.id))) && (
-            <button
-              onClick={() => onTrace(task.id)}
-              className="inline-flex items-center gap-1.5 text-[11px] text-[#1B1464] bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg transition-colors font-medium"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              Trace dependency chain
-            </button>
           )}
 
           {/* 2. Links section */}
@@ -3189,9 +3123,7 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             )}
             {taskTemplate && !taskTemplate.url && !hasLink && (
               <p className="text-[10px] text-[#A8A29E] mt-1.5">
-                This task links to the <span className="font-medium text-[#57534E]">{taskTemplate.category}</span> template — add its URL under{' '}
-                <Link href="/playbook" className="text-[#3538CD] underline">Playbook → Templates</Link>{' '}
-                to enable one-click &quot;Start from template&quot;.
+                Add a template URL in the Playbook to enable one-click &quot;Start from template&quot;.
               </p>
             )}
           </div>
@@ -3199,10 +3131,10 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
           {/* 3. Meeting scheduler — only for meeting tasks */}
           {task.isMeeting && (
             <div className="bg-blue-50 rounded-lg border border-blue-200 p-3">
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="flex items-start justify-between gap-3 flex-wrap">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-medium text-blue-900 flex items-center gap-1.5">
-                    <Calendar className="w-3.5 h-3.5" />
+                    <Calendar className="w-3.5 h-3.5 shrink-0" />
                     Meeting
                   </p>
                   {task.startDate && task.dueDate && task.startDate !== task.dueDate ? (
@@ -3219,9 +3151,9 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                   href={`https://outlook.office.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(task.name + ' \u2014 ' + launch.name)}&startdt=${task.startDate || task.dueDate || ''}T09:00:00&enddt=${task.startDate || task.dueDate || ''}T10:00:00`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shrink-0"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors shrink-0 whitespace-nowrap"
                 >
-                  <Calendar className="w-3.5 h-3.5" />
+                  <Calendar className="w-3.5 h-3.5 shrink-0" />
                   Schedule in Outlook
                 </a>
               </div>
@@ -3245,50 +3177,6 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
             </div>
           )}
 
-          {/* 4. Approval tracking */}
-          <div>
-            <label className="block text-[11px] font-medium text-[#57534E] mb-1.5">Approval Status</label>
-            <div className="flex items-center gap-1.5">
-              {(['draft', 'submitted', 'approved', 'revision_needed'] as const).map(status => {
-                const isActive = (task.approvalStatus || 'draft') === status;
-                const colors: Record<string, string> = {
-                  draft: '#6B7280',
-                  submitted: '#3B82F6',
-                  approved: '#10B981',
-                  revision_needed: '#F59E0B',
-                };
-                const labels: Record<string, string> = {
-                  draft: 'Draft',
-                  submitted: 'Submitted',
-                  approved: 'Approved',
-                  revision_needed: 'Needs Revision',
-                };
-                return (
-                  <button
-                    key={status}
-                    onClick={() => {
-                      const updates: Partial<GTMTask> = { approvalStatus: status };
-                      if (status === 'submitted') updates.submittedDate = new Date().toISOString();
-                      if (status === 'approved') updates.approvedDate = new Date().toISOString();
-                      updateTaskField(task.id, updates);
-                    }}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold border transition-colors ${
-                      isActive
-                        ? 'text-white border-transparent'
-                        : 'bg-white hover:bg-[#F5F5F4]'
-                    }`}
-                    style={isActive
-                      ? { background: colors[status], borderColor: colors[status] }
-                      : { color: colors[status], borderColor: colors[status] + '40' }
-                    }
-                  >
-                    {labels[status]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* 5. Notes & Updates — collapsible */}
           <div>
             <button
@@ -3309,53 +3197,6 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 rows={3}
                 className="w-full mt-1.5 px-3 py-2 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 resize-none"
               />
-            )}
-          </div>
-
-          {/* 6. Lead Time & Dependencies — collapsible power-user section */}
-          <div>
-            <button
-              onClick={() => setAdvancedOpen(!advancedOpen)}
-              className="flex items-center gap-1 text-[11px] font-medium text-[#A8A29E] hover:text-[#57534E] transition-colors"
-            >
-              {advancedOpen ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
-              <Settings2 className="w-3 h-3" />
-              Lead Time & Dependencies
-            </button>
-            {advancedOpen && (
-              <div className="flex gap-4 mt-2">
-                <div>
-                  <label className="block text-[11px] font-medium text-[#57534E] mb-1">Lead Time (days)</label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={task.durationDays}
-                    onChange={e => updateTaskField(task.id, { durationDays: parseInt(e.target.value) || 1 })}
-                    className="w-20 px-2 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-medium text-[#57534E] mb-1">Edit Dependencies</label>
-                  <select
-                    multiple
-                    value={task.dependencies}
-                    onChange={e => {
-                      const selected = Array.from(e.target.selectedOptions).map(o => o.value);
-                      updateTaskField(task.id, { dependencies: selected });
-                    }}
-                    className="w-[240px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 max-h-[80px]"
-                  >
-                    {launch.tasks
-                      .filter(t => t.id !== task.id)
-                      .sort((a, b) => a.sortOrder - b.sortOrder)
-                      .map(t => (
-                        <option key={t.id} value={t.id}>{t.name}</option>
-                      ))
-                    }
-                  </select>
-                  <p className="text-[10px] text-[#A8A29E] mt-0.5">Hold Cmd/Ctrl to select multiple</p>
-                </div>
-              </div>
             )}
           </div>
 

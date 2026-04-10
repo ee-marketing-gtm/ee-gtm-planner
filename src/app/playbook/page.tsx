@@ -571,17 +571,23 @@ const TEMPLATE_CATEGORIES = [
   'Product Page',
   'Email Briefs',
   'Campaign Copy Briefs (Copywriter)',
+];
+
+/**
+ * Category names that were part of the old playbook seed data but are no
+ * longer relevant. If any of these show up in a user's saved templates
+ * (from localStorage or the API), strip them out on load so the Templates
+ * tab stays clean without requiring a manual reset.
+ */
+const LEGACY_TEMPLATE_CATEGORIES = new Set<string>([
   'Packaging Copy Briefs (Copywriter)',
   'Packaging Copy Sheets',
   'Packaging Concept Brief (Creative)',
-];
+]);
 
 /** Map each template category to the phase it most naturally belongs in. */
 const TEMPLATE_CATEGORY_PHASE: Record<string, PhaseKey> = {
   'GTM Deck': 'content_planning',
-  'Packaging Concept Brief (Creative)': 'finalize_strategies',
-  'Packaging Copy Briefs (Copywriter)': 'finalize_strategies',
-  'Packaging Copy Sheets': 'finalize_strategies',
   'Asset Request Form': 'content_production',
   'PDP Copy & Module Brief': 'design_briefs',
   'Gallery Asset Briefs (Amazon, D2C, Sephora)': 'design_briefs',
@@ -671,7 +677,13 @@ function TemplatesTab() {
   useEffect(() => {
     loadTemplatesFromApi().then(existing => {
       if (existing.length > 0) {
-        setTemplates(existing);
+        // Strip legacy categories that were part of the old seed data
+        // but have since been removed from the playbook.
+        const cleaned = existing.filter(t => !LEGACY_TEMPLATE_CATEGORIES.has(t.category));
+        if (cleaned.length !== existing.length) {
+          saveTemplates(cleaned);
+        }
+        setTemplates(cleaned);
       } else {
         const seeded: Template[] = SEED_TEMPLATES.map(t => ({
           ...t,

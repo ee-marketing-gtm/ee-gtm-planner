@@ -43,11 +43,6 @@ export const TASK_TEMPLATE_CATEGORY: Record<string, string> = {
   // Content Planning
   'Final GTM Deck': 'GTM Deck',
 
-  // Strategies / Packaging
-  'Draft Packaging Copy': 'Packaging Copy Briefs (Copywriter)',
-  'Final Packaging Copy': 'Packaging Copy Sheets',
-  'Draft Packaging Concept': 'Packaging Concept Brief (Creative)',
-
   // Content Production
   'Draft Shoot & Content Capture Plan': 'Asset Request Form',
   'Finalize Shoot & Content Capture Plan': 'Asset Request Form',
