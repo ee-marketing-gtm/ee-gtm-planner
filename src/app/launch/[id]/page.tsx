@@ -13,7 +13,7 @@ import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, TIER_CON
 import { ExternalLink, Link2 as LinkIcon, Sparkles } from 'lucide-react';
 import { isAfter, startOfDay } from 'date-fns';
 import { useData } from '@/components/DataProvider';
-import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName } from '@/lib/utils';
+import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName, getReadableTextStyle, isLightColor } from '@/lib/utils';
 import GanttChart from '@/components/GanttChart';
 import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
 import { scheduleLaunch } from '@/lib/scheduler';
@@ -727,13 +727,17 @@ export default function LaunchDetail() {
                 />
               ) : (
                 <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center text-white text-lg font-bold shrink-0"
-                  style={{ background: accentColor }}
+                  className="w-12 h-12 rounded-lg flex items-center justify-center text-lg font-bold shrink-0"
+                  style={{
+                    background: accentColor,
+                    color: isLightColor(accentColor) ? '#1B1464' : '#ffffff',
+                    textShadow: isLightColor(accentColor) ? '0 1px 2px rgba(27,20,100,0.25)' : 'none',
+                  }}
                 >
                   {launch.name.charAt(0).toUpperCase()}
                 </div>
               )}
-              <h1 className="text-2xl font-bold" style={{ color: launch.brandColor || '#1B1464' }}>{launch.name}</h1>
+              <h1 className="text-2xl font-bold" style={launch.brandColor ? getReadableTextStyle(launch.brandColor) : { color: '#1B1464' }}>{launch.name}</h1>
               <span
                 className="px-2.5 py-0.5 rounded-full text-xs font-medium"
                 style={{
@@ -769,7 +773,7 @@ export default function LaunchDetail() {
 
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className={`text-2xl font-bold ${daysUntil < 0 ? 'text-[#DC2626]' : daysUntil <= 14 ? 'text-[#F59E0B]' : ''}`} style={daysUntil >= 15 ? { color: accentColor } : undefined}>
+              <p className={`text-2xl font-bold ${daysUntil < 0 ? 'text-[#DC2626]' : daysUntil <= 14 ? 'text-[#F59E0B]' : ''}`} style={daysUntil >= 15 ? getReadableTextStyle(accentColor) : undefined}>
                 {daysUntil < 0 ? `${Math.abs(daysUntil)}d past` : `${daysUntil} days`}
               </p>
               <p className="text-[11px] text-[#A8A29E]">until launch</p>
@@ -792,6 +796,49 @@ export default function LaunchDetail() {
         {showSettings && (
           <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-5 animate-fade-in space-y-5">
             <h3 className="text-sm font-semibold text-[#1B1464]">Launch Customization</h3>
+
+            {/* Launch Dates */}
+            <div>
+              <label className="block text-[11px] font-medium text-[#57534E] mb-2">Launch Dates</label>
+              <div className="grid grid-cols-2 gap-3 max-w-md">
+                <div>
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">DTC / Amazon</label>
+                  <input
+                    type="date"
+                    value={launch.launchDate || ''}
+                    onChange={e => {
+                      const v = e.target.value;
+                      if (!v) return;
+                      updateLaunch({
+                        ...launch,
+                        launchDate: v,
+                        amazonLaunchDate: launch.amazonLaunchDate ? v : launch.amazonLaunchDate,
+                        updatedAt: new Date().toISOString(),
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">Sephora</label>
+                  <input
+                    type="date"
+                    value={launch.sephoraLaunchDate || ''}
+                    onChange={e => {
+                      updateLaunch({
+                        ...launch,
+                        sephoraLaunchDate: e.target.value || undefined,
+                        updatedAt: new Date().toISOString(),
+                      });
+                    }}
+                    className="w-full px-2.5 py-1.5 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
+                  />
+                </div>
+              </div>
+              <p className="text-[10px] text-[#A8A29E] mt-1.5">
+                Changing dates here only updates the launch record. Use Regenerate Tasks below to reschedule all tasks against the new dates.
+              </p>
+            </div>
 
             {/* Launch Color */}
             <div>
@@ -1036,7 +1083,7 @@ export default function LaunchDetail() {
         <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-[#1B1464]">Overall Progress</span>
-            <span className="text-sm font-bold" style={{ color: accentColor }}>{progress}%</span>
+            <span className="text-sm font-bold" style={getReadableTextStyle(accentColor)}>{progress}%</span>
           </div>
           <div className="h-2 bg-[#F5F5F4] rounded-full overflow-hidden mb-3">
             <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: accentColor }} />
@@ -1229,11 +1276,11 @@ export default function LaunchDetail() {
                 ? ''
                 : 'border-transparent text-[#A8A29E] hover:text-[#57534E]'
             }`}
-            style={activeTab === tab.key ? { borderColor: accentColor, color: accentColor } : undefined}
+            style={activeTab === tab.key ? { borderColor: accentColor, ...getReadableTextStyle(accentColor) } : undefined}
           >
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '15', color: accentColor }}>
+              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '25', ...getReadableTextStyle(accentColor) }}>
                 {tab.badge}
               </span>
             )}

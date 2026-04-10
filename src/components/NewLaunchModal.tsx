@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { v4 as uuid } from 'uuid';
 import { X, Plus, Lock } from 'lucide-react';
@@ -20,6 +20,28 @@ export function NewLaunchModal({ onClose }: Props) {
   const [name, setName] = useState('');
   const [launchDate, setLaunchDate] = useState('');
   const [sephoraLaunchDate, setSephoraLaunchDate] = useState('');
+  const launchDateRef = useRef<HTMLInputElement>(null);
+  const sephoraDateRef = useRef<HTMLInputElement>(null);
+
+  // Accept MM/DD/YYYY typed input and normalize to YYYY-MM-DD.
+  const normalizeDate = (raw: string): string => {
+    if (!raw) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+    const slashMatch = raw.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/);
+    if (slashMatch) {
+      let [, m, d, y] = slashMatch;
+      if (y.length === 2) y = '20' + y;
+      return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+    }
+    const parsed = new Date(raw);
+    if (!isNaN(parsed.getTime())) {
+      const y = parsed.getFullYear();
+      const m = String(parsed.getMonth() + 1).padStart(2, '0');
+      const d = String(parsed.getDate()).padStart(2, '0');
+      return `${y}-${m}-${d}`;
+    }
+    return '';
+  };
   const [hasSephora, setHasSephora] = useState(true);
 
   const [launchType, setLaunchType] = useState<LaunchType>('new_product');
@@ -54,14 +76,23 @@ export function NewLaunchModal({ onClose }: Props) {
   };
 
   function handleCreate() {
-    if (!name || !launchDate) return;
+    // Pull the latest value straight from the DOM in case the user typed a
+    // date and the browser hasn't committed it to React state yet.
+    const rawLaunch = launchDateRef.current?.value || launchDate;
+    const rawSephora = sephoraDateRef.current?.value || sephoraLaunchDate;
+    const resolvedLaunchDate = normalizeDate(rawLaunch);
+    const resolvedSephoraDate = normalizeDate(rawSephora);
 
-    const effectiveSephoraDate = hasSephora ? (sephoraLaunchDate || undefined) : undefined;
+    if (!name || !resolvedLaunchDate) return;
+    if (resolvedLaunchDate !== launchDate) setLaunchDate(resolvedLaunchDate);
+    if (resolvedSephoraDate !== sephoraLaunchDate) setSephoraLaunchDate(resolvedSephoraDate);
+
+    const effectiveSephoraDate = hasSephora ? (resolvedSephoraDate || undefined) : undefined;
 
     const result = scheduleLaunch({
-      dtcLaunchDate: launchDate,
+      dtcLaunchDate: resolvedLaunchDate,
       sephoraLaunchDate: effectiveSephoraDate,
-      amazonLaunchDate: launchDate || undefined,
+      amazonLaunchDate: resolvedLaunchDate || undefined,
       sephoraAssetLeadBD: sephoraAssetLead,
       d2cAssetLeadBD: d2cAssetLead,
       d2cCopyLeadBD: d2cCopyLead,
@@ -87,9 +118,9 @@ export function NewLaunchModal({ onClose }: Props) {
     const launch: Launch = {
       id: uuid(),
       name,
-      launchDate,
-      sephoraLaunchDate: hasSephora ? (sephoraLaunchDate || undefined) : undefined,
-      amazonLaunchDate: launchDate || undefined,
+      launchDate: resolvedLaunchDate,
+      sephoraLaunchDate: hasSephora ? (resolvedSephoraDate || undefined) : undefined,
+      amazonLaunchDate: resolvedLaunchDate || undefined,
       launchType,
       tier,
       contentProductionType: 'with_tech',
@@ -141,9 +172,14 @@ export function NewLaunchModal({ onClose }: Props) {
               <div>
                 <label className="block text-[11px] text-[#A8A29E] mb-1">DTC / Amazon *</label>
                 <input
+                  ref={launchDateRef}
                   type="date"
                   value={launchDate}
                   onChange={e => setLaunchDate(e.target.value)}
+                  onBlur={e => {
+                    const n = normalizeDate(e.target.value);
+                    if (n) setLaunchDate(n);
+                  }}
                   className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                 />
               </div>
@@ -163,9 +199,14 @@ export function NewLaunchModal({ onClose }: Props) {
                 {hasSephora ? (
                   <>
                     <input
+                      ref={sephoraDateRef}
                       type="date"
                       value={sephoraLaunchDate}
                       onChange={e => setSephoraLaunchDate(e.target.value)}
+                      onBlur={e => {
+                        const n = normalizeDate(e.target.value);
+                        if (n) setSephoraLaunchDate(n);
+                      }}
                       className="w-full px-3 py-2 border border-[#E7E5E4] rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 focus:border-[#3538CD]"
                     />
                     {!sephoraLaunchDate && launchDate && (
@@ -351,7 +392,7 @@ export function NewLaunchModal({ onClose }: Props) {
           </button>
           <button
             onClick={handleCreate}
-            disabled={!name || !launchDate}
+            disabled={!name}
             className="px-4 py-2 text-sm font-medium bg-[#3538CD] text-white rounded-lg hover:bg-[#2D31B3] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Create Launch

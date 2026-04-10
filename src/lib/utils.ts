@@ -6,6 +6,34 @@ export function getLaunchColor(launch: Launch): string {
   return launch.brandColor || TIER_CONFIG[launch.tier].color;
 }
 
+/** Compute relative luminance of a hex color (0 = black, 1 = white). */
+export function getColorLuminance(hex: string): number {
+  const cleaned = hex.replace('#', '');
+  if (cleaned.length !== 6) return 0.5;
+  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
+  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
+  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+  const toLin = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+}
+
+/** True if the given color is light enough that dark text / halo is needed for contrast. */
+export function isLightColor(hex: string): boolean {
+  return getColorLuminance(hex) > 0.6;
+}
+
+/** Readable text color and shadow for text drawn on top of (or in) the given brand color. */
+export function getReadableTextStyle(hex: string): { color: string; textShadow: string } {
+  if (isLightColor(hex)) {
+    return {
+      color: '#1B1464',
+      // Subtle dark drop shadow so light-colored text stays legible on white/light backgrounds
+      textShadow: '0 1px 2px rgba(27, 20, 100, 0.25), 0 0 1px rgba(27, 20, 100, 0.35)',
+    };
+  }
+  return { color: hex, textShadow: 'none' };
+}
+
 export function getNextTask(launch: Launch): GTMTask | null {
   return launch.tasks
     .filter(t => t.status !== 'complete' && t.status !== 'skipped')

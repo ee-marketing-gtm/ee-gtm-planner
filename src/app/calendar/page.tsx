@@ -24,6 +24,7 @@ import {
 import { ChevronLeft, ChevronRight, CalendarDays, Plus, X } from 'lucide-react';
 import { Launch, TIER_CONFIG, LaunchTier } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
+import { getReadableTextStyle, isLightColor } from '@/lib/utils';
 
 type ZoomLevel = 'year' | 'quarter' | 'month' | 'week';
 
@@ -528,7 +529,7 @@ export default function CalendarPage() {
         >
           <span
             className="text-[10px] font-medium truncate whitespace-nowrap"
-            style={{ color: tierColor }}
+            style={getReadableTextStyle(tierColor)}
           >
             {launch.name}
           </span>
@@ -560,15 +561,15 @@ export default function CalendarPage() {
         {/* DTC launch date marker with rich tooltip */}
         {launchDate >= visibleRange.start && launchDate <= visibleRange.end && (
           <div
-            className="absolute top-[2px] z-10 group/dtc flex flex-col items-center"
+            className="absolute top-[6px] bottom-[2px] z-10 group/dtc flex flex-col items-center"
             style={{
               left: `${dayToPercent(launchDate)}%`,
               transform: 'translateX(-50%)',
             }}
             title={`DTC Launch: ${launch.name} - ${format(launchDate, 'MMM d, yyyy')}`}
           >
-            <div className="w-[2px] h-[20px] rounded-sm" style={{ backgroundColor: tierColor }} />
-            <span className="text-[7px] font-bold mt-[1px] leading-none" style={{ color: tierColor }}>DTC</span>
+            <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: tierColor }} />
+            <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: tierColor }}>DTC</span>
             <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/dtc:block z-30 pointer-events-none">
               <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
                 <p className="font-semibold">DTC Launch: {launch.name}</p>
@@ -584,15 +585,15 @@ export default function CalendarPage() {
           if (sepDate < visibleRange.start || sepDate > visibleRange.end) return null;
           return (
             <div
-              className="absolute top-[2px] z-10 group/seph flex flex-col items-center"
+              className="absolute top-[6px] bottom-[2px] z-10 group/seph flex flex-col items-center"
               style={{
                 left: `${dayToPercent(sepDate)}%`,
                 transform: 'translateX(-50%)',
               }}
               title={`Sephora Launch: ${launch.name} - ${format(sepDate, 'MMM d, yyyy')}`}
             >
-              <div className="w-[2px] h-[20px] rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
-              <span className="text-[7px] font-bold mt-[1px] leading-none" style={{ color: '#8B5CF6' }}>Seph</span>
+              <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
+              <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: '#8B5CF6' }}>Seph</span>
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/seph:block z-30 pointer-events-none">
                 <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
                   <p className="font-semibold">Sephora Launch: {launch.name}</p>
@@ -609,15 +610,15 @@ export default function CalendarPage() {
           if (amzDate < visibleRange.start || amzDate > visibleRange.end) return null;
           return (
             <div
-              className="absolute top-[2px] z-10 group/amz flex flex-col items-center"
+              className="absolute top-[6px] bottom-[2px] z-10 group/amz flex flex-col items-center"
               style={{
                 left: `${dayToPercent(amzDate)}%`,
                 transform: 'translateX(-50%)',
               }}
               title={`Amazon Launch: ${launch.name} - ${format(amzDate, 'MMM d, yyyy')}`}
             >
-              <div className="w-[2px] h-[20px] rounded-sm" style={{ backgroundColor: '#F97316' }} />
-              <span className="text-[7px] font-bold mt-[1px] leading-none" style={{ color: '#F97316' }}>Amzn</span>
+              <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#F97316' }} />
+              <span className="text-[8px] font-bold leading-none px-0.5 rounded bg-white/80" style={{ color: '#F97316' }}>Amzn</span>
               <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/amz:block z-30 pointer-events-none">
                 <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
                   <p className="font-semibold">Amazon Launch: {launch.name}</p>

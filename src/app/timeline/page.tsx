@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Check, CheckCircle2, Circle, Clock, Layers, 
 import Link from 'next/link';
 import { Launch, GTMTask, PHASES, OWNER_LABELS, TIER_CONFIG, PhaseKey } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getLaunchColor } from '@/lib/utils';
+import { getLaunchColor, getReadableTextStyle } from '@/lib/utils';
 import { computeDateRange, dayIndex, GanttDateRange } from '@/components/GanttChart';
 
 const LAUNCH_COLORS = ['#3538CD', '#6366F1', '#10B981', '#F59E0B', '#EC4899', '#0EA5E9', '#F97316', '#8B5CF6', '#14B8A6', '#EF4444'];
@@ -228,7 +228,7 @@ export default function TimelinePage() {
                   className="text-[9px] px-1.5 py-0.5 rounded-full"
                   style={isSelected
                     ? { background: 'rgba(255,255,255,0.2)' }
-                    : { background: getLaunchColor(l) + '15', color: getLaunchColor(l) }
+                    : { background: getLaunchColor(l) + '25', ...getReadableTextStyle(getLaunchColor(l)) }
                   }
                 >
                   {l.tier}
