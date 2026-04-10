@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import {
   format,
   parseISO,
@@ -24,7 +25,7 @@ import {
 import { ChevronLeft, ChevronRight, CalendarDays, Plus, X } from 'lucide-react';
 import { Launch, TIER_CONFIG, LaunchTier } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getReadableTextStyle, isLightColor } from '@/lib/utils';
+import { getReadableTextStyle } from '@/lib/utils';
 
 type ZoomLevel = 'year' | 'quarter' | 'month' | 'week';
 
@@ -108,12 +109,14 @@ function getEarliestTaskDate(launch: Launch): Date {
   return taskDates.reduce((earliest, d) => (d < earliest ? d : earliest), taskDates[0]);
 }
 
+// Marketing Calendar always uses tier color (not per-launch brand color) so
+// the calendar gives a consistent tier-at-a-glance read.
 function getTierColor(launch: Launch): string {
-  return launch.brandColor || TIER_CONFIG[launch.tier].color;
+  return TIER_CONFIG[launch.tier].color;
 }
 
 function getTierBgColor(launch: Launch): string {
-  return (launch.brandColor || TIER_CONFIG[launch.tier].color) + '20';
+  return TIER_CONFIG[launch.tier].color + '20';
 }
 
 /** Assign vertical row indices to brand moment events to avoid overlap. */
@@ -159,6 +162,9 @@ export default function CalendarPage() {
   );
   const [customMoments, setCustomMoments] = useState<CustomMoment[]>([]);
   const [showAddForm, setShowAddForm] = useState(false);
+  // Floating hover card for launch bars (uses fixed positioning so it can
+  // escape the calendar container's overflow-hidden and stay in viewport).
+  const [hoverCard, setHoverCard] = useState<{ launch: Launch; x: number; y: number } | null>(null);
   const [newEventName, setNewEventName] = useState('');
   const [newEventStart, setNewEventStart] = useState('');
   const [newEventEnd, setNewEventEnd] = useState('');
@@ -285,9 +291,13 @@ export default function CalendarPage() {
   const visibleLaunches = launches.filter(launch => {
     const launchDate = parseISO(launch.launchDate);
     const planStart = getEarliestTaskDate(launch);
-    const socialEnd = addDays(launchDate, 7);
+    // Span end = latest of D2C social end or Sephora launch date (so Sephora-only
+    // visibility in the range still pulls the launch in).
+    const d2cSocialEnd = addDays(launchDate, 7);
+    const sepDate = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : d2cSocialEnd;
+    const spanEnd = sepDate > d2cSocialEnd ? sepDate : d2cSocialEnd;
     // Check if any part of the launch span overlaps with visible range
-    return planStart <= visibleRange.end && socialEnd >= visibleRange.start;
+    return planStart <= visibleRange.end && spanEnd >= visibleRange.start;
   }).sort((a, b) => a.launchDate.localeCompare(b.launchDate));
 
   function dayToPercent(date: Date): number {
@@ -471,7 +481,11 @@ export default function CalendarPage() {
 
   function renderLaunchBar(launch: Launch, _index: number) {
     const launchDate = parseISO(launch.launchDate);
+    const sepDate = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
     const planStart = getEarliestTaskDate(launch);
+    // Extend the planning bar to the later of D2C or Sephora launch so Sephora
+    // launches visibly appear on the calendar.
+    const barEnd = sepDate && sepDate > launchDate ? sepDate : launchDate;
     const socialStart = subDays(launchDate, 14);
     const socialEnd = addDays(launchDate, 7);
     const tierColor = getTierColor(launch);
@@ -479,7 +493,7 @@ export default function CalendarPage() {
 
     // Main planning bar
     const planLeft = dayToPercent(planStart);
-    const planRight = dayToPercent(launchDate);
+    const planRight = dayToPercent(barEnd);
     const planWidth = Math.max(planRight - planLeft, 0.5);
 
     // Social campaign bar (lighter, 2 weeks before + 1 week after)
@@ -487,39 +501,23 @@ export default function CalendarPage() {
     const socialRightPct = dayToPercent(socialEnd);
     const socialWidth = Math.max(socialRightPct - socialLeftPct, 0.5);
 
-    // Task completion stats
-    const totalTasks = launch.tasks.length;
-    const completedTasks = launch.tasks.filter(t => t.status === 'complete').length;
-    const inProgressTasks = launch.tasks.filter(t => t.status === 'in_progress').length;
-
-    // Channel info
-    const channels: string[] = ['DTC'];
-    if (launch.sephoraLaunchDate) channels.push('Sephora');
-    if (launch.amazonLaunchDate) channels.push('Amazon');
-
     return (
-      <div key={launch.id} className="relative h-[40px] group">
-        {/* Social campaign span (background) with rich tooltip */}
+      <div key={launch.id} className="relative h-[40px]">
+        {/* Social campaign span (background) */}
         <div
-          className="absolute top-[14px] h-[12px] rounded-sm opacity-30 group/social"
+          className="absolute top-[14px] h-[12px] rounded-sm opacity-30 pointer-events-none"
           style={{
             left: `${socialLeftPct}%`,
             width: `${socialWidth}%`,
             backgroundColor: tierColor,
           }}
           title={`Social Campaign: ${launch.name} (${format(socialStart, 'MMM d')} - ${format(socialEnd, 'MMM d')})`}
-        >
-          <div className="absolute left-0 bottom-full mb-1 hidden group-hover/social:block z-30 pointer-events-none">
-            <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-              <p className="font-semibold">Social Campaign: {launch.name}</p>
-              <p className="text-white/60 mt-0.5">{format(socialStart, 'MMM d, yyyy')} - {format(socialEnd, 'MMM d, yyyy')}</p>
-            </div>
-          </div>
-        </div>
+        />
 
-        {/* Main planning bar */}
-        <div
-          className="absolute top-[8px] h-[24px] rounded flex items-center px-1.5 overflow-hidden cursor-default"
+        {/* Main planning bar — clickable link to launch page */}
+        <Link
+          href={`/launch/${launch.id}`}
+          className="absolute top-[8px] h-[24px] rounded flex items-center px-1.5 overflow-hidden cursor-pointer hover:brightness-95 transition-all"
           style={{
             left: `${planLeft}%`,
             width: `${planWidth}%`,
@@ -527,7 +525,11 @@ export default function CalendarPage() {
             borderLeft: `3px solid ${tierColor}`,
             minWidth: '2px',
           }}
-          title={`${launch.name} -- Tier ${launch.tier} | ${completedTasks}/${totalTasks} tasks done | Channels: ${channels.join(', ')} | ${format(planStart, 'MMM d')} - ${format(launchDate, 'MMM d')}`}
+          onMouseEnter={e => {
+            const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+            setHoverCard({ launch, x: rect.left + rect.width / 2, y: rect.top });
+          }}
+          onMouseLeave={() => setHoverCard(null)}
         >
           <span
             className="text-[10px] font-medium truncate whitespace-nowrap"
@@ -535,77 +537,35 @@ export default function CalendarPage() {
           >
             {launch.name}
           </span>
+        </Link>
 
-          {/* Rich hover tooltip */}
-          <div className="absolute left-0 bottom-full mb-1 hidden group-hover:block z-30 pointer-events-none">
-            <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2.5 shadow-lg whitespace-nowrap max-w-[320px]">
-              <p className="font-semibold text-[12px]">{launch.name}</p>
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: tierColor + '30', color: tierColor }}>Tier {launch.tier}</span>
-                <span className="text-white/50 text-[10px]">{launch.status.replace('_', ' ')}</span>
-              </div>
-              <div className="mt-1.5 space-y-0.5">
-                <p className="text-white/60">DTC Launch: {format(launchDate, 'MMM d, yyyy')}</p>
-                {launch.sephoraLaunchDate && <p className="text-white/60">Sephora: {format(parseISO(launch.sephoraLaunchDate), 'MMM d, yyyy')}</p>}
-                {launch.amazonLaunchDate && <p className="text-white/60">Amazon: {format(parseISO(launch.amazonLaunchDate), 'MMM d, yyyy')}</p>}
-              </div>
-              <div className="mt-1.5 flex items-center gap-2 text-[10px]">
-                <span className="text-green-300">{completedTasks} done</span>
-                <span className="text-blue-300">{inProgressTasks} in progress</span>
-                <span className="text-white/40">{totalTasks - completedTasks - inProgressTasks} remaining</span>
-              </div>
-              <p className="text-white/60 mt-1">Channels: {channels.join(', ')}</p>
-              <p className="text-white/60 mt-0.5">Planning: {format(planStart, 'MMM d')} → {format(launchDate, 'MMM d')}</p>
-            </div>
-          </div>
-        </div>
-
-        {/* D2C launch date marker with rich tooltip (Amazon is assumed to launch with D2C) */}
+        {/* D2C launch date marker (Amazon is assumed to launch with D2C) */}
         {launchDate >= visibleRange.start && launchDate <= visibleRange.end && (
           <div
-            className="absolute top-[6px] bottom-[2px] z-10 group/d2c flex flex-col items-center"
+            className="absolute top-[6px] bottom-[2px] z-10 flex flex-col items-center pointer-events-none"
             style={{
               left: `${dayToPercent(launchDate)}%`,
               transform: 'translateX(-50%)',
             }}
-            title={`D2C Launch: ${launch.name} - ${format(launchDate, 'MMM d, yyyy')}`}
           >
             <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: tierColor }} />
             <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: tierColor }}>D2C</span>
-            <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/d2c:block z-30 pointer-events-none">
-              <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-                <p className="font-semibold">D2C Launch: {launch.name}</p>
-                <p className="text-white/60 mt-0.5">{format(launchDate, 'MMM d, yyyy')}</p>
-                <p className="text-white/40 text-[10px] mt-0.5">Amazon launches with D2C</p>
-              </div>
-            </div>
           </div>
         )}
 
-        {/* Sephora launch date marker with rich tooltip */}
-        {launch.sephoraLaunchDate && (() => {
-          const sepDate = parseISO(launch.sephoraLaunchDate);
-          if (sepDate < visibleRange.start || sepDate > visibleRange.end) return null;
-          return (
-            <div
-              className="absolute top-[6px] bottom-[2px] z-10 group/seph flex flex-col items-center"
-              style={{
-                left: `${dayToPercent(sepDate)}%`,
-                transform: 'translateX(-50%)',
-              }}
-              title={`Sephora Launch: ${launch.name} - ${format(sepDate, 'MMM d, yyyy')}`}
-            >
-              <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
-              <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: '#8B5CF6' }}>Seph</span>
-              <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 hidden group-hover/seph:block z-30 pointer-events-none">
-                <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
-                  <p className="font-semibold">Sephora Launch: {launch.name}</p>
-                  <p className="text-white/60 mt-0.5">{format(sepDate, 'MMM d, yyyy')}</p>
-                </div>
-              </div>
-            </div>
-          );
-        })()}
+        {/* Sephora launch date marker */}
+        {sepDate && sepDate >= visibleRange.start && sepDate <= visibleRange.end && (
+          <div
+            className="absolute top-[6px] bottom-[2px] z-10 flex flex-col items-center pointer-events-none"
+            style={{
+              left: `${dayToPercent(sepDate)}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
+            <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: '#8B5CF6' }}>Seph</span>
+          </div>
+        )}
 
       </div>
     );
@@ -947,6 +907,64 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* Floating launch hover card (fixed positioning so it escapes the
+          calendar's overflow-hidden container and flips to stay on-screen). */}
+      {hoverCard && (() => {
+        const l = hoverCard.launch;
+        const cardWidth = 280;
+        const cardHeight = 180;
+        const margin = 8;
+        const vw = typeof window !== 'undefined' ? window.innerWidth : 1400;
+        const vh = typeof window !== 'undefined' ? window.innerHeight : 900;
+        // Prefer above the bar; flip below if not enough room.
+        let top = hoverCard.y - cardHeight - margin;
+        if (top < margin) top = hoverCard.y + 32 + margin;
+        // Horizontally center on cursor but clamp to viewport.
+        let left = hoverCard.x - cardWidth / 2;
+        if (left < margin) left = margin;
+        if (left + cardWidth > vw - margin) left = vw - cardWidth - margin;
+        if (top + cardHeight > vh - margin) top = vh - cardHeight - margin;
+
+        const lDate = parseISO(l.launchDate);
+        const sDate = l.sephoraLaunchDate ? parseISO(l.sephoraLaunchDate) : null;
+        const done = l.tasks.filter(t => t.status === 'complete').length;
+        const inProg = l.tasks.filter(t => t.status === 'in_progress').length;
+        const tierColor = TIER_CONFIG[l.tier].color;
+        const channelLabel = l.sephoraChannel === 'in_store' ? 'In-store'
+          : l.sephoraChannel === 'online' ? 'Online'
+          : l.sephoraChannel === 'both' ? 'Online + In-store' : null;
+
+        return (
+          <div
+            className="fixed z-50 pointer-events-none animate-fade-in"
+            style={{ top, left, width: cardWidth }}
+          >
+            <div className="bg-[#1B1464] text-white text-[11px] rounded-lg px-3.5 py-3 shadow-2xl">
+              <p className="font-semibold text-[13px] leading-tight">{l.name}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-medium" style={{ background: tierColor + '35', color: '#fff' }}>Tier {l.tier}</span>
+                <span className="text-white/50 text-[10px] capitalize">{l.status.replace('_', ' ')}</span>
+              </div>
+              <div className="mt-2 space-y-0.5 text-white/70">
+                <p><span className="text-white/40">D2C:</span> {format(lDate, 'MMM d, yyyy')}</p>
+                {sDate && (
+                  <p>
+                    <span className="text-white/40">Sephora:</span> {format(sDate, 'MMM d, yyyy')}
+                    {channelLabel && <span className="text-white/40"> · {channelLabel}</span>}
+                  </p>
+                )}
+              </div>
+              <div className="mt-2 flex items-center gap-2 text-[10px]">
+                <span className="text-green-300">{done} done</span>
+                <span className="text-blue-300">{inProg} in progress</span>
+                <span className="text-white/40">{l.tasks.length - done - inProg} remaining</span>
+              </div>
+              <p className="text-white/40 mt-2 text-[10px]">Click to open launch →</p>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }

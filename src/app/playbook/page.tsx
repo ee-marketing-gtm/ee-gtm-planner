@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { PHASES, ContentProductionType } from '@/lib/types';
 import {
   Target, BookOpen, Clock, Users, CheckSquare, ArrowRight, Lightbulb, AlertCircle,
@@ -186,6 +186,19 @@ const GATES: Gate[] = [
 function ProcessTab() {
   const [expandedGate, setExpandedGate] = useState<string | null>('content_planning');
   const [expandedTask, setExpandedTask] = useState<string | null>(null);
+  const gateRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // Expand the target gate and scroll its detailed section into view.
+  const focusGate = (gateId: string) => {
+    setExpandedGate(gateId);
+    // Wait a tick so the section renders its expanded content first.
+    requestAnimationFrame(() => {
+      const el = gateRefs.current[gateId];
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    });
+  };
 
   return (
     <div>
@@ -195,7 +208,7 @@ function ProcessTab() {
         <div className="flex items-stretch gap-0">
           {GATES.map((gate, i) => (
             <div key={gate.id} className="flex items-stretch flex-1">
-              <button onClick={() => setExpandedGate(expandedGate === gate.id ? null : gate.id)} className="flex-1 group">
+              <button onClick={() => focusGate(gate.id)} className="flex-1 group">
                 <div className="rounded-xl p-4 h-full flex flex-col items-center text-center transition-all hover:shadow-md border-2"
                   style={{ background: gate.phaseBg, borderColor: expandedGate === gate.id ? gate.phaseColor : 'transparent' }}>
                   <div className="w-10 h-10 rounded-full flex items-center justify-center mb-2" style={{ background: gate.phaseColor + '20', color: gate.phaseColor }}>
@@ -251,7 +264,7 @@ function ProcessTab() {
         {GATES.map((gate, gateIndex) => {
           const isExpanded = expandedGate === gate.id;
           return (
-            <div key={gate.id}>
+            <div key={gate.id} ref={el => { gateRefs.current[gate.id] = el; }} className="scroll-mt-24">
               <div className="bg-white rounded-2xl border border-[#E7E5E4] overflow-hidden">
                 <button onClick={() => setExpandedGate(isExpanded ? null : gate.id)} className="w-full p-5 flex items-center gap-4 hover:bg-[#FAFAF9] transition-colors text-left">
                   <div className="w-12 h-12 rounded-2xl flex items-center justify-center shrink-0" style={{ background: gate.phaseBg, color: gate.phaseColor }}>

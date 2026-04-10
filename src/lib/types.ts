@@ -112,6 +112,7 @@ export interface Launch {
   name: string;
   launchDate: string; // DTC launch date (primary)
   sephoraLaunchDate?: string; // Sephora launch date if different
+  sephoraChannel?: 'online' | 'in_store' | 'both'; // Where Sephora launch goes live
   amazonLaunchDate?: string; // Amazon launch date if different
   launchType: LaunchType;
   tier: LaunchTier;

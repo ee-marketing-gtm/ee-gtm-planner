@@ -758,15 +758,22 @@ export default function LaunchDetail() {
             {launch.description && (
               <p className="text-sm text-[#57534E] mb-2">{launch.description}</p>
             )}
-            <div className="flex items-center gap-4 text-sm mt-1">
-              <span className="font-semibold text-[#1C1917]">Launch: {format(parseISO(launch.launchDate), 'MMMM d, yyyy')}</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm mt-1">
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#EEF0FF] border border-[#3538CD]/20">
+                <span className="text-[10px] font-bold uppercase tracking-wide text-[#3538CD]">D2C</span>
+                <span className="font-semibold text-[#1C1917]">{format(parseISO(launch.launchDate), 'MMM d, yyyy')}</span>
+              </span>
               {launch.sephoraLaunchDate && (
-                <>
-                  <span className="text-[#D6D3D1]">·</span>
-                  <span className="text-[#57534E]">Sephora: {format(parseISO(launch.sephoraLaunchDate), 'MMM d, yyyy')}</span>
-                </>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-[#F3ECFF] border border-[#8B5CF6]/25">
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-[#8B5CF6]">Sephora</span>
+                  <span className="font-semibold text-[#1C1917]">{format(parseISO(launch.sephoraLaunchDate), 'MMM d, yyyy')}</span>
+                  {launch.sephoraChannel && (
+                    <span className="text-[10px] text-[#8B5CF6] font-medium">
+                      · {launch.sephoraChannel === 'in_store' ? 'In-store' : launch.sephoraChannel === 'online' ? 'Online' : 'Online + In-store'}
+                    </span>
+                  )}
+                </span>
               )}
-              <span className="text-[#D6D3D1]">·</span>
               <span className="text-[#A8A29E] text-xs">{launch.productCategory || 'No category'}</span>
             </div>
           </div>
@@ -835,6 +842,33 @@ export default function LaunchDetail() {
                   />
                 </div>
               </div>
+              {launch.sephoraLaunchDate && (
+                <div className="mt-2 max-w-md">
+                  <label className="block text-[10px] text-[#A8A29E] mb-1">Sephora Channel</label>
+                  <div className="flex gap-1.5">
+                    {([
+                      { key: 'online', label: 'Online' },
+                      { key: 'in_store', label: 'In-store' },
+                      { key: 'both', label: 'Online + In-store' },
+                    ] as const).map(opt => {
+                      const selected = (launch.sephoraChannel || 'online') === opt.key;
+                      return (
+                        <button
+                          key={opt.key}
+                          onClick={() => updateLaunch({ ...launch, sephoraChannel: opt.key, updatedAt: new Date().toISOString() })}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border transition-colors ${
+                            selected
+                              ? 'bg-[#F3ECFF] border-[#8B5CF6] text-[#8B5CF6]'
+                              : 'bg-white border-[#E7E5E4] text-[#57534E] hover:bg-[#FAFAF9]'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
               <p className="text-[10px] text-[#A8A29E] mt-1.5">
                 Changing dates here only updates the launch record. Use Regenerate Tasks below to reschedule all tasks against the new dates.
               </p>

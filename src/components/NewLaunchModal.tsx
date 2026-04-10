@@ -43,6 +43,7 @@ export function NewLaunchModal({ onClose }: Props) {
     return '';
   };
   const [hasSephora, setHasSephora] = useState(true);
+  const [sephoraChannel, setSephoraChannel] = useState<'online' | 'in_store' | 'both'>('online');
 
   const [launchType, setLaunchType] = useState<LaunchType>('new_product');
   const [tier, setTier] = useState<LaunchTier>('A');
@@ -120,6 +121,7 @@ export function NewLaunchModal({ onClose }: Props) {
       name,
       launchDate: resolvedLaunchDate,
       sephoraLaunchDate: hasSephora ? (resolvedSephoraDate || undefined) : undefined,
+      sephoraChannel: hasSephora ? sephoraChannel : undefined,
       amazonLaunchDate: resolvedLaunchDate || undefined,
       launchType,
       tier,
@@ -212,6 +214,26 @@ export function NewLaunchModal({ onClose }: Props) {
                     {!sephoraLaunchDate && launchDate && (
                       <p className="text-[10px] text-[#A8A29E] mt-0.5">Will default to DTC + 4 weeks</p>
                     )}
+                    <div className="flex gap-1 mt-1.5">
+                      {([
+                        { key: 'online', label: 'Online' },
+                        { key: 'in_store', label: 'In-store' },
+                        { key: 'both', label: 'Both' },
+                      ] as const).map(opt => (
+                        <button
+                          key={opt.key}
+                          type="button"
+                          onClick={() => setSephoraChannel(opt.key)}
+                          className={`flex-1 px-1.5 py-1 rounded-md text-[10px] font-medium border transition-colors ${
+                            sephoraChannel === opt.key
+                              ? 'bg-[#F3ECFF] border-[#8B5CF6] text-[#8B5CF6]'
+                              : 'bg-white border-[#E7E5E4] text-[#57534E] hover:bg-[#FAFAF9]'
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
                   </>
                 ) : (
                   <p className="text-[11px] text-[#A8A29E] px-3 py-2 bg-[#F5F5F4] rounded-lg">No Sephora launch</p>
