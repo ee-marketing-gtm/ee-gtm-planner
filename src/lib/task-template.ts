@@ -594,6 +594,37 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     notes: 'Final social assets. Requires social brief and photo selects.',
   },
 
+  // ── Email Production Pipeline ──
+  {
+    name: 'Final Email Brief Due',
+    leadTime: 2,
+    dependsOn: ['Brief Alignment Meeting', 'Final Taglines & Campaign Copy Due'],
+    owner: 'marketing',
+    phase: 'design_production',
+    notes: 'Finalized email brief after brief alignment meeting and final taglines/campaign copy are ready.',
+  },
+  {
+    name: 'Email Copy Due',
+    leadTime: 5,
+    dependsOn: ['Final Email Brief Due'],
+    owner: 'marketing',
+    phase: 'design_production',
+    notes: 'Email copy drafted from the finalized email brief. 5 BD after brief is final.',
+  },
+  {
+    name: 'Email Creative Due',
+    leadTime: 10,
+    leadTimeByDep: {
+      'Email Copy Due': 10,
+      'Lifestyle Photo Selects Ready': 5,
+      'Product Photo Selects Ready': 5,
+    },
+    dependsOn: ['Email Copy Due', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
+    owner: 'creative',
+    phase: 'design_production',
+    notes: 'Email creative requires final copy and photo selects. 10 BD from copy (driver), or 5 BD from photo selects if those are the later driver.',
+  },
+
   // ── SEPHORA TRACK ──
   // Work tasks (dates computed from dependencies)
   {
