@@ -228,7 +228,7 @@ export default function TimelinePage() {
                   className="text-[9px] px-1.5 py-0.5 rounded-full"
                   style={isSelected
                     ? { background: 'rgba(255,255,255,0.2)' }
-                    : { background: getLaunchColor(l) + '25', ...getReadableTextStyle(getLaunchColor(l)) }
+                    : { background: getLaunchColor(l) + '25', ...getReadableTextStyle(getLaunchColor(l), 'soft') }
                   }
                 >
                   {l.tier}

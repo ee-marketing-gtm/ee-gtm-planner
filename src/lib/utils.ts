@@ -1,3 +1,4 @@
+import type React from 'react';
 import { Launch, GTMTask, PHASES, PhaseKey, TIER_CONFIG } from './types';
 import { differenceInBusinessDays, parseISO, isAfter, isBefore, isToday, addDays } from 'date-fns';
 
@@ -23,20 +24,39 @@ export function isLightColor(hex: string): boolean {
 }
 
 /**
- * Style helper for text drawn in a launch/brand color. Keeps the original
- * color and, when that color is too light to read on a white background,
- * adds a subtle dark drop shadow / halo so the text remains legible.
+ * Style helper for text drawn in a launch/brand color. When the color is
+ * light enough that it would wash out on a white background, render it as
+ * a highlighter-style background chip behind dark navy text instead so it
+ * stays readable. Otherwise, just return the color as-is.
+ *
+ * Use mode='highlight' (default) for inline text like titles and labels
+ * where you want the marker/highlighter effect. Use mode='soft' for UI
+ * elements (tabs, badges) where you don't want to steal the background
+ * slot — it falls back to a dark-halo text-shadow for light colors.
  */
-export function getReadableTextStyle(hex: string): { color: string; textShadow: string } {
-  if (isLightColor(hex)) {
+export function getReadableTextStyle(
+  hex: string,
+  mode: 'highlight' | 'soft' = 'highlight',
+): React.CSSProperties {
+  if (!isLightColor(hex)) return { color: hex };
+
+  if (mode === 'soft') {
     return {
       color: hex,
-      // Dark halo + drop shadow so light-colored text stays legible on white backgrounds
       textShadow:
         '0 0 1px rgba(27, 20, 100, 0.9), 0 0 2px rgba(27, 20, 100, 0.6), 0 1px 2px rgba(27, 20, 100, 0.35)',
     };
   }
-  return { color: hex, textShadow: 'none' };
+
+  return {
+    color: '#1B1464',
+    background: hex,
+    padding: '0 0.3em',
+    borderRadius: '3px',
+    // So wrapped inline text keeps the highlight chip on each line segment
+    boxDecorationBreak: 'clone',
+    WebkitBoxDecorationBreak: 'clone',
+  };
 }
 
 export function getNextTask(launch: Launch): GTMTask | null {

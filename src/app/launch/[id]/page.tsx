@@ -780,7 +780,7 @@ export default function LaunchDetail() {
 
           <div className="flex items-center gap-4">
             <div className="text-right">
-              <p className={`text-2xl font-bold ${daysUntil < 0 ? 'text-[#DC2626]' : daysUntil <= 14 ? 'text-[#F59E0B]' : ''}`} style={daysUntil >= 15 ? getReadableTextStyle(accentColor) : undefined}>
+              <p className={`text-2xl font-bold ${daysUntil < 0 ? 'text-[#DC2626]' : daysUntil <= 14 ? 'text-[#F59E0B]' : ''}`} style={daysUntil >= 15 ? getReadableTextStyle(accentColor, 'soft') : undefined}>
                 {daysUntil < 0 ? `${Math.abs(daysUntil)}d past` : `${daysUntil} days`}
               </p>
               <p className="text-[11px] text-[#A8A29E]">until launch</p>
@@ -1117,7 +1117,7 @@ export default function LaunchDetail() {
         <div className="mt-4 bg-white rounded-xl border border-[#E7E5E4] p-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-[#1B1464]">Overall Progress</span>
-            <span className="text-sm font-bold" style={getReadableTextStyle(accentColor)}>{progress}%</span>
+            <span className="text-sm font-bold" style={getReadableTextStyle(accentColor, 'soft')}>{progress}%</span>
           </div>
           <div className="h-2 bg-[#F5F5F4] rounded-full overflow-hidden mb-3">
             <div className="h-full rounded-full progress-fill" style={{ width: `${progress}%`, background: accentColor }} />
@@ -1310,11 +1310,11 @@ export default function LaunchDetail() {
                 ? ''
                 : 'border-transparent text-[#A8A29E] hover:text-[#57534E]'
             }`}
-            style={activeTab === tab.key ? { borderColor: accentColor, ...getReadableTextStyle(accentColor) } : undefined}
+            style={activeTab === tab.key ? { borderColor: accentColor, ...getReadableTextStyle(accentColor, 'soft') } : undefined}
           >
             {tab.label}
             {tab.badge !== undefined && tab.badge > 0 && (
-              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '25', ...getReadableTextStyle(accentColor) }}>
+              <span className="ml-1.5 px-1.5 py-0.5 text-[10px] font-semibold rounded-full" style={{ background: accentColor + '25', ...getReadableTextStyle(accentColor, 'soft') }}>
                 {tab.badge}
               </span>
             )}
