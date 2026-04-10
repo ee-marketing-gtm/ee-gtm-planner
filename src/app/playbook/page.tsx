@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { PHASES, ContentProductionType } from '@/lib/types';
+import { PHASES, ContentProductionType, PhaseKey } from '@/lib/types';
 import {
   Target, BookOpen, Clock, Users, CheckSquare, ArrowRight, Lightbulb, AlertCircle,
   MessageSquare, FileText, Presentation, ShieldCheck, Camera, Scissors, Monitor,
@@ -576,6 +576,22 @@ const TEMPLATE_CATEGORIES = [
   'Packaging Concept Brief (Creative)',
 ];
 
+/** Map each template category to the phase it most naturally belongs in. */
+const TEMPLATE_CATEGORY_PHASE: Record<string, PhaseKey> = {
+  'GTM Deck': 'content_planning',
+  'Packaging Concept Brief (Creative)': 'finalize_strategies',
+  'Packaging Copy Briefs (Copywriter)': 'finalize_strategies',
+  'Packaging Copy Sheets': 'finalize_strategies',
+  'Asset Request Form': 'content_production',
+  'PDP Copy & Module Brief': 'design_briefs',
+  'Gallery Asset Briefs (Amazon, D2C, Sephora)': 'design_briefs',
+  'Amazon A+ Content Briefs': 'design_briefs',
+  'Social Creative Content Briefs': 'design_briefs',
+  'Email Briefs': 'design_briefs',
+  'Campaign Copy Briefs (Copywriter)': 'design_briefs',
+  'Product Page': 'design_production',
+};
+
 const SEED_TEMPLATES: Omit<Template, 'id' | 'addedAt'>[] = TEMPLATE_CATEGORIES.flatMap(cat => {
   // Pre-populated templates with known files
   if (cat === 'Gallery Asset Briefs (Amazon, D2C, Sephora)') {
@@ -702,11 +718,35 @@ function TemplatesTab() {
     setEditUrl('');
   }
 
-  const grouped = templates.reduce<Record<string, Template[]>>((acc, t) => {
-    if (!acc[t.category]) acc[t.category] = [];
-    acc[t.category].push(t);
+  // Group templates by phase (not by form/category).
+  const grouped = templates.reduce<Record<PhaseKey | 'other', Template[]>>((acc, t) => {
+    const phase = TEMPLATE_CATEGORY_PHASE[t.category] ?? 'other';
+    if (!acc[phase]) acc[phase] = [];
+    acc[phase].push(t);
     return acc;
-  }, {});
+  }, {} as Record<PhaseKey | 'other', Template[]>);
+
+  // Sort each phase's items by category then name so forms stay grouped within the phase.
+  for (const key of Object.keys(grouped) as (PhaseKey | 'other')[]) {
+    grouped[key].sort((a, b) => {
+      const catCmp = a.category.localeCompare(b.category);
+      if (catCmp !== 0) return catCmp;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  // Preserve canonical phase order from PHASES, then append "other" at the end if populated.
+  const orderedPhaseEntries: Array<{ key: PhaseKey | 'other'; label: string; color: string; items: Template[] }> = [
+    ...PHASES.filter(p => grouped[p.key]?.length).map(p => ({
+      key: p.key,
+      label: p.name,
+      color: p.color,
+      items: grouped[p.key],
+    })),
+    ...(grouped.other?.length
+      ? [{ key: 'other' as const, label: 'Other', color: '#A8A29E', items: grouped.other }]
+      : []),
+  ];
 
   return (
     <div>
@@ -770,10 +810,14 @@ function TemplatesTab() {
           <p className="text-xs text-[#D6D3D1]">Add links to your base templates for decks, briefs, and checklists so the team can easily find them.</p>
         </div>
       ) : (
-        <div className="space-y-6">
-          {Object.entries(grouped).sort(([a], [b]) => a.localeCompare(b)).map(([cat, items]) => (
-            <div key={cat}>
-              <h3 className="text-xs font-semibold text-[#78716C] uppercase tracking-wider mb-2">{cat}</h3>
+        <div className="space-y-8">
+          {orderedPhaseEntries.map(({ key, label, color, items }) => (
+            <div key={key}>
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-2.5 h-2.5 rounded-full" style={{ background: color }} />
+                <h3 className="text-xs font-bold text-[#1B1464] uppercase tracking-wider">{label}</h3>
+                <span className="text-[11px] text-[#A8A29E]">· {items.length} {items.length === 1 ? 'template' : 'templates'}</span>
+              </div>
               <div className="space-y-2">
                 {items.map(t => (
                   <div key={t.id} className="bg-white rounded-xl border border-[#E7E5E4] p-4 group hover:border-[#D6D3D1] transition-colors">
@@ -782,7 +826,10 @@ function TemplatesTab() {
                         <FileText className={`w-4 h-4 ${t.url ? 'text-[#57534E]' : 'text-[#F97316]'}`} />
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-[#1B1464]">{t.name}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-medium text-[#1B1464]">{t.name}</p>
+                          <span className="text-[10px] font-medium text-[#78716C] bg-[#F5F5F4] px-1.5 py-0.5 rounded">{t.category}</span>
+                        </div>
                         {t.description && <p className="text-xs text-[#A8A29E] mt-0.5 truncate">{t.description}</p>}
                       </div>
                       {t.url ? (
