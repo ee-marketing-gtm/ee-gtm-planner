@@ -9,11 +9,12 @@ import {
   Eye, Pause, Calendar, Settings2, Check
 } from 'lucide-react';
 import Link from 'next/link';
-import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, TIER_CONFIG, TaskStatus, DELIVERABLE_TASKS, Owner } from '@/lib/types';
-import { ExternalLink, Link2 as LinkIcon, Sparkles } from 'lucide-react';
+import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, TIER_CONFIG, TaskStatus, DELIVERABLE_TASKS, TASK_TEMPLATE_CATEGORY, Owner } from '@/lib/types';
+import { ExternalLink, Link2 as LinkIcon, Sparkles, FileText } from 'lucide-react';
 import { isAfter, startOfDay } from 'date-fns';
 import { useData } from '@/components/DataProvider';
-import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName, getReadableTextStyle, isLightColor } from '@/lib/utils';
+import { getLaunchProgress, getPhaseProgress, getDaysUntilLaunch, getStatusColor, getPhaseName, getReadableTextStyle, isLightColor, getTemplateCopyUrl } from '@/lib/utils';
+import { useTaskTemplate } from '@/components/TemplatesContext';
 import GanttChart from '@/components/GanttChart';
 import { recalculateTimeline, calculateEarlyFinishRedistribution, TaskDateChange } from '@/lib/recalculate';
 import { scheduleLaunch } from '@/lib/scheduler';
@@ -2516,6 +2517,11 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   });
   const deliverableLabel = DELIVERABLE_TASKS[task.name];
   const hasLink = task.deliverableUrl && task.deliverableUrl.trim() !== '';
+  // Look up the playbook template (if any) associated with this task so we
+  // can offer a "Start from template" button that opens a copy of the
+  // template in a new tab and expands the row for the user to paste back
+  // the saved file link.
+  const taskTemplate = useTaskTemplate(task.name);
   const currentStatus = STATUS_OPTIONS.find(s => s.value === task.status) || STATUS_OPTIONS[0];
 
   function handleStatusChange(status: TaskStatus) {
@@ -2582,11 +2588,31 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 <span className="truncate">{getDisplayLabel(task)}</span>
               </a>
             )}
-            {deliverableLabel && !hasLink && (
+            {deliverableLabel && !hasLink && taskTemplate && taskTemplate.url && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // Open template as an untitled copy in a new tab. For Google
+                  // Docs/Sheets/Slides this triggers the "Copy document" flow;
+                  // for other providers it just opens the original so the
+                  // user can File > Make a Copy manually.
+                  window.open(getTemplateCopyUrl(taskTemplate.url), '_blank', 'noopener,noreferrer');
+                  // Expand the row so the user can paste back the saved link
+                  // once they've renamed and saved it to the launch folder.
+                  if (!isExpanded) onToggleExpand();
+                }}
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#EEF0FF] text-[#3538CD] rounded-md text-[10px] font-semibold hover:bg-[#3538CD] hover:text-white transition-colors shrink-0"
+                title={`Open ${taskTemplate.category} template in a new tab as an untitled copy, then paste the saved link here`}
+              >
+                <FileText className="w-2.5 h-2.5" />
+                Start from template
+              </button>
+            )}
+            {deliverableLabel && !hasLink && (!taskTemplate || !taskTemplate.url) && (
               <button
                 onClick={onToggleExpand}
                 className="inline-flex items-center gap-1 px-2 py-0.5 bg-[#F5F5F4] text-[#A8A29E] rounded-md text-[10px] font-medium hover:bg-[#EEF0FF] hover:text-[#3538CD] transition-colors shrink-0"
-                title="Add link"
+                title={taskTemplate ? `${taskTemplate.category} template has no link yet — add one from Playbook → Templates` : 'Add link'}
               >
                 <Plus className="w-2.5 h-2.5" />
                 Add Link
@@ -3138,13 +3164,35 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                 </button>
               </div>
             ) : !hasLink && (
-              <button
-                onClick={() => setEditingLink(true)}
-                className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#3538CD] hover:text-[#3538CD] hover:bg-[#EEF0FF] transition-colors"
-              >
-                <Plus className="w-3 h-3" />
-                Add link
-              </button>
+              <div className="flex items-center gap-2 flex-wrap">
+                {taskTemplate && taskTemplate.url && (
+                  <button
+                    onClick={() => {
+                      window.open(getTemplateCopyUrl(taskTemplate.url), '_blank', 'noopener,noreferrer');
+                      setEditingLink(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-[#1B1464] text-white hover:bg-[#2D2378] transition-colors"
+                    title={`Opens "${taskTemplate.category}" template as an untitled copy in a new tab. Rename + save it to the ${launch.name} folder, then paste the link back here.`}
+                  >
+                    <FileText className="w-3 h-3" />
+                    Start from template
+                  </button>
+                )}
+                <button
+                  onClick={() => setEditingLink(true)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1.5 border border-dashed border-[#D6D3D1] text-[#A8A29E] rounded-lg text-xs hover:border-[#3538CD] hover:text-[#3538CD] hover:bg-[#EEF0FF] transition-colors"
+                >
+                  <Plus className="w-3 h-3" />
+                  {taskTemplate && taskTemplate.url ? 'Paste saved link' : 'Add link'}
+                </button>
+              </div>
+            )}
+            {taskTemplate && !taskTemplate.url && !hasLink && (
+              <p className="text-[10px] text-[#A8A29E] mt-1.5">
+                This task links to the <span className="font-medium text-[#57534E]">{taskTemplate.category}</span> template — add its URL under{' '}
+                <Link href="/playbook" className="text-[#3538CD] underline">Playbook → Templates</Link>{' '}
+                to enable one-click &quot;Start from template&quot;.
+              </p>
             )}
           </div>
 

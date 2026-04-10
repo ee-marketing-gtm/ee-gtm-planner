@@ -6,7 +6,7 @@ import { ChevronDown, ChevronRight, Check, CheckCircle2, Circle, Clock, Layers, 
 import Link from 'next/link';
 import { Launch, GTMTask, PHASES, OWNER_LABELS, TIER_CONFIG, PhaseKey } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getLaunchColor, getReadableTextStyle } from '@/lib/utils';
+import { getLaunchColor, getReadableTextStyle, isLightColor } from '@/lib/utils';
 import { computeDateRange, dayIndex, GanttDateRange } from '@/components/GanttChart';
 
 const LAUNCH_COLORS = ['#3538CD', '#6366F1', '#10B981', '#F59E0B', '#EC4899', '#0EA5E9', '#F97316', '#8B5CF6', '#14B8A6', '#EF4444'];
@@ -298,7 +298,10 @@ export default function TimelinePage() {
 
           <div className="flex" style={{ minWidth: '1600px' }}>
             {/* Left: labels */}
-            <div className="w-[220px] shrink-0 border-r border-[#E7E5E4] bg-white z-10 sticky left-0">
+            <div
+              className="w-[220px] shrink-0 border-r border-[#E7E5E4] bg-white sticky left-0"
+              style={{ position: 'sticky', left: 0, zIndex: 25, backgroundColor: '#FFFFFF' }}
+            >
               {/* Header spacer - must match the sticky header height */}
               <div className="h-[52px] border-b border-[#E7E5E4] sticky top-[33px] bg-white z-20" />
 
@@ -513,7 +516,10 @@ export default function TimelinePage() {
                                             <div className="w-full h-px bg-white/60" />
                                           </div>
                                         )}
-                                        <span className="absolute inset-0 flex items-center px-1.5 text-[9px] font-medium text-white truncate pointer-events-none">
+                                        <span
+                                          className="absolute inset-0 flex items-center px-1.5 text-[9px] font-medium truncate pointer-events-none"
+                                          style={{ color: isLightColor(barColor) ? '#1B1464' : '#FFFFFF' }}
+                                        >
                                           {isComplete && <CheckCircle2 className="w-3 h-3 mr-0.5 shrink-0" />}
                                           {t.isMeeting ? '📅 ' : ''}{t.name}
                                         </span>
@@ -590,7 +596,10 @@ export default function TimelinePage() {
                                             <div className="w-full h-px bg-white/60" />
                                           </div>
                                         )}
-                                        <span className="absolute inset-0 flex items-center px-1 text-[8px] font-medium text-white truncate pointer-events-none">
+                                        <span
+                                          className="absolute inset-0 flex items-center px-1 text-[8px] font-medium truncate pointer-events-none"
+                                          style={{ color: isLightColor(barColor) ? '#1B1464' : '#FFFFFF' }}
+                                        >
                                           {l.name}
                                         </span>
                                         <TaskTooltip task={t} launchName={l.name} startDate={startDate} endDate={endDate} />

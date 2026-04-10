@@ -83,6 +83,23 @@ export function getLaunchDotStyle(hex: string): React.CSSProperties {
   return { background: hex };
 }
 
+/**
+ * When a template lives in Google Docs / Sheets / Slides, we can transform
+ * the URL to trigger the "Make a copy" dialog (so the user ends up with an
+ * untitled copy they can rename and save to the right launch folder). For
+ * any other provider (SharePoint, Notion, Dropbox, Canva, etc.) we just
+ * return the URL as-is and let the user do File > Make a Copy manually.
+ */
+export function getTemplateCopyUrl(url: string): string {
+  if (!url) return url;
+  // Match https://docs.google.com/{document|spreadsheets|presentation|forms}/d/{id}/...
+  const match = url.match(
+    /^(https:\/\/docs\.google\.com\/(?:document|spreadsheets|presentation|forms)\/d\/[^/]+)\//,
+  );
+  if (match) return `${match[1]}/copy`;
+  return url;
+}
+
 export function getNextTask(launch: Launch): GTMTask | null {
   return launch.tasks
     .filter(t => t.status !== 'complete' && t.status !== 'skipped')

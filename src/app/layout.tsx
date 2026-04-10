@@ -3,6 +3,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { UndoProvider } from "@/components/UndoProvider";
 import { DataProvider } from "@/components/DataProvider";
+import { TemplatesProvider } from "@/components/TemplatesContext";
 
 export const metadata: Metadata = {
   title: "Evereden GTM Planner",
@@ -35,11 +36,13 @@ export default function RootLayout({
       </head>
       <body className="min-h-full flex">
         <DataProvider>
-          <Sidebar />
-          <main className="flex-1 ml-[240px] min-h-screen">
-            {children}
-          </main>
-          <UndoProvider />
+          <TemplatesProvider>
+            <Sidebar />
+            <main className="flex-1 ml-[240px] min-h-screen">
+              {children}
+            </main>
+            <UndoProvider />
+          </TemplatesProvider>
         </DataProvider>
       </body>
     </html>

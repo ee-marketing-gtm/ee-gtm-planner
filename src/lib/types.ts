@@ -32,6 +32,39 @@ export interface GTMTask {
 }
 
 // Tasks that typically produce deliverables (each gets a link column)
+/**
+ * Maps a task name to the template category in the Playbook → Templates tab.
+ * When a task has an associated template and the template URL is filled in,
+ * the launch detail page will surface a "Start from template" button that
+ * opens a new copy of the template so the user can save it to the right
+ * launch folder, then paste the resulting link back onto the task.
+ */
+export const TASK_TEMPLATE_CATEGORY: Record<string, string> = {
+  // Content Planning
+  'Final GTM Deck': 'GTM Deck',
+
+  // Strategies / Packaging
+  'Draft Packaging Copy': 'Packaging Copy Briefs (Copywriter)',
+  'Final Packaging Copy': 'Packaging Copy Sheets',
+  'Draft Packaging Concept': 'Packaging Concept Brief (Creative)',
+
+  // Content Production
+  'Draft Shoot & Content Capture Plan': 'Asset Request Form',
+  'Finalize Shoot & Content Capture Plan': 'Asset Request Form',
+
+  // Design Briefs
+  'Draft PDP Copy Brief': 'PDP Copy & Module Brief',
+  'Draft Bundle PDP Copy Brief': 'PDP Copy & Module Brief',
+  'Draft PDP Gallery Asset Brief': 'Gallery Asset Briefs (Amazon, D2C, Sephora)',
+  'Draft Sephora/Amazon Gallery Asset Brief': 'Gallery Asset Briefs (Amazon, D2C, Sephora)',
+  'Draft Bundle PDP Gallery Asset Brief': 'Gallery Asset Briefs (Amazon, D2C, Sephora)',
+  'Draft Bundle Sephora/Amazon Gallery Asset Brief': 'Gallery Asset Briefs (Amazon, D2C, Sephora)',
+  'Draft Amazon A+ Content Brief': 'Amazon A+ Content Briefs',
+  'Draft Email Brief': 'Email Briefs',
+  'Draft Social Creative Brief': 'Social Creative Content Briefs',
+  'Submit Tagline + Campaign Copy Brief': 'Campaign Copy Briefs (Copywriter)',
+};
+
 export const DELIVERABLE_TASKS: Record<string, string> = {
   'Product Sheet & Competitive Landscape': 'Product Sheet',
   'Draft Product Positioning & Messaging': 'Positioning Draft',

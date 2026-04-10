@@ -483,27 +483,38 @@ export default function CalendarPage() {
     const launchDate = parseISO(launch.launchDate);
     const sepDate = launch.sephoraLaunchDate ? parseISO(launch.sephoraLaunchDate) : null;
     const planStart = getEarliestTaskDate(launch);
-    // Extend the planning bar to the later of D2C or Sephora launch so Sephora
-    // launches visibly appear on the calendar.
-    const barEnd = sepDate && sepDate > launchDate ? sepDate : launchDate;
-    const socialStart = subDays(launchDate, 14);
-    const socialEnd = addDays(launchDate, 7);
     const tierColor = getTierColor(launch);
     const tierBg = getTierBgColor(launch);
 
-    // Main planning bar
-    const planLeft = dayToPercent(planStart);
-    const planRight = dayToPercent(barEnd);
-    const planWidth = Math.max(planRight - planLeft, 0.5);
-
-    // Social campaign bar (lighter, 2 weeks before + 1 week after)
+    // D2C social campaign (14 days before D2C launch to 7 days after).
+    const socialStart = subDays(launchDate, 14);
+    const socialEnd = addDays(launchDate, 7);
     const socialLeftPct = dayToPercent(socialStart);
     const socialRightPct = dayToPercent(socialEnd);
     const socialWidth = Math.max(socialRightPct - socialLeftPct, 0.5);
 
+    // ── D2C bar: from plan start → D2C launch date ──
+    const d2cLeft = dayToPercent(planStart);
+    const d2cRight = dayToPercent(launchDate);
+    const d2cWidth = Math.max(d2cRight - d2cLeft, 0.5);
+
+    // ── Sephora bar: from plan start → Sephora launch date ──
+    // Only rendered if the launch has a Sephora date. Sephora planning runs
+    // in parallel with D2C (same plan start) but ends at the Sephora launch.
+    const sepLeft = sepDate ? dayToPercent(planStart) : 0;
+    const sepRight = sepDate ? dayToPercent(sepDate) : 0;
+    const sepWidth = sepDate ? Math.max(sepRight - sepLeft, 0.5) : 0;
+
+    const SEPHORA_COLOR = '#8B5CF6';
+    const SEPHORA_BG = '#F3ECFF';
+
+    // Row height is taller when we show both bars so chips don't overlap.
+    const hasTwoBars = !!sepDate;
+    const rowHeight = hasTwoBars ? 74 : 52;
+
     return (
-      <div key={launch.id} className="relative h-[40px]">
-        {/* Social campaign span (background) */}
+      <div key={launch.id} className="relative" style={{ height: `${rowHeight}px` }}>
+        {/* Social campaign span (background, behind the D2C bar) */}
         <div
           className="absolute top-[14px] h-[12px] rounded-sm opacity-30 pointer-events-none"
           style={{
@@ -514,13 +525,13 @@ export default function CalendarPage() {
           title={`Social Campaign: ${launch.name} (${format(socialStart, 'MMM d')} - ${format(socialEnd, 'MMM d')})`}
         />
 
-        {/* Main planning bar — clickable link to launch page */}
+        {/* D2C planning bar */}
         <Link
           href={`/launch/${launch.id}`}
           className="absolute top-[8px] h-[24px] rounded flex items-center px-1.5 overflow-hidden cursor-pointer hover:brightness-95 transition-all"
           style={{
-            left: `${planLeft}%`,
-            width: `${planWidth}%`,
+            left: `${d2cLeft}%`,
+            width: `${d2cWidth}%`,
             backgroundColor: tierBg,
             borderLeft: `3px solid ${tierColor}`,
             minWidth: '2px',
@@ -535,36 +546,91 @@ export default function CalendarPage() {
             className="text-[10px] font-medium truncate whitespace-nowrap"
             style={getReadableTextStyle(tierColor)}
           >
-            {launch.name}
+            <span className="opacity-70 mr-1">D2C</span>{launch.name}
           </span>
         </Link>
 
-        {/* D2C launch date marker (Amazon is assumed to launch with D2C) */}
+        {/* Sephora planning bar (stacked below D2C) */}
+        {sepDate && (
+          <Link
+            href={`/launch/${launch.id}`}
+            className="absolute top-[36px] h-[22px] rounded flex items-center px-1.5 overflow-hidden cursor-pointer hover:brightness-95 transition-all"
+            style={{
+              left: `${sepLeft}%`,
+              width: `${sepWidth}%`,
+              backgroundColor: SEPHORA_BG,
+              borderLeft: `3px solid ${SEPHORA_COLOR}`,
+              minWidth: '2px',
+            }}
+            onMouseEnter={e => {
+              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+              setHoverCard({ launch, x: rect.left + rect.width / 2, y: rect.top });
+            }}
+            onMouseLeave={() => setHoverCard(null)}
+          >
+            <span
+              className="text-[10px] font-medium truncate whitespace-nowrap"
+              style={{ color: SEPHORA_COLOR }}
+            >
+              <span className="opacity-70 mr-1">Sephora</span>{launch.name}
+            </span>
+          </Link>
+        )}
+
+        {/* D2C launch date marker — vertical line + chip below the bars */}
         {launchDate >= visibleRange.start && launchDate <= visibleRange.end && (
           <div
-            className="absolute top-[6px] bottom-[2px] z-10 flex flex-col items-center pointer-events-none"
+            className="absolute z-10 flex flex-col items-center pointer-events-none"
             style={{
               left: `${dayToPercent(launchDate)}%`,
+              top: '6px',
+              bottom: '16px',
               transform: 'translateX(-50%)',
             }}
           >
             <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: tierColor }} />
-            <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: tierColor }}>D2C</span>
           </div>
+        )}
+        {launchDate >= visibleRange.start && launchDate <= visibleRange.end && (
+          <span
+            className="absolute z-10 text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4] pointer-events-none whitespace-nowrap"
+            style={{
+              left: `${dayToPercent(launchDate)}%`,
+              bottom: '2px',
+              transform: 'translateX(-50%)',
+              color: tierColor,
+            }}
+          >
+            D2C {format(launchDate, 'MMM d')}
+          </span>
         )}
 
         {/* Sephora launch date marker */}
         {sepDate && sepDate >= visibleRange.start && sepDate <= visibleRange.end && (
           <div
-            className="absolute top-[6px] bottom-[2px] z-10 flex flex-col items-center pointer-events-none"
+            className="absolute z-10 flex flex-col items-center pointer-events-none"
             style={{
               left: `${dayToPercent(sepDate)}%`,
+              top: '34px',
+              bottom: '16px',
               transform: 'translateX(-50%)',
             }}
           >
-            <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: '#8B5CF6' }} />
-            <span className="text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4]" style={{ color: '#8B5CF6' }}>Seph</span>
+            <div className="w-[2px] flex-1 rounded-sm" style={{ backgroundColor: SEPHORA_COLOR }} />
           </div>
+        )}
+        {sepDate && sepDate >= visibleRange.start && sepDate <= visibleRange.end && (
+          <span
+            className="absolute z-10 text-[8px] font-bold leading-none px-1 py-[1px] rounded bg-white shadow-sm border border-[#E7E5E4] pointer-events-none whitespace-nowrap"
+            style={{
+              left: `${dayToPercent(sepDate)}%`,
+              bottom: '2px',
+              transform: 'translateX(-50%)',
+              color: SEPHORA_COLOR,
+            }}
+          >
+            Seph {format(sepDate, 'MMM d')}
+          </span>
         )}
 
       </div>
