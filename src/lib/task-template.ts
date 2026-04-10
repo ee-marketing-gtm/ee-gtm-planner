@@ -32,7 +32,14 @@ export type TemplateOwner = Owner | 'leadership';
 
 export interface TaskTemplate {
   name: string;
-  leadTime: number;             // business days (duration of work)
+  leadTime: number;             // business days (duration of work) — default/fallback
+  /**
+   * Optional per-dependency lead time override. When the driving dependency
+   * (the one with the latest due date) matches a key here, that lead time
+   * is used instead of the default `leadTime`. Useful for tasks where
+   * different upstream deps require different amounts of work downstream.
+   */
+  leadTimeByDep?: Record<string, number>;
   dependsOn: string[];          // task names this depends on
   owner: TemplateOwner;
   support?: string;             // secondary owner / team
@@ -561,10 +568,15 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   {
     name: 'R1 Assets Due (Email, Social, PDP, Homepage, Amazon A+)',
     leadTime: 10,
+    leadTimeByDep: {
+      'Final Asset Design Briefs Due': 10,
+      'Lifestyle Photo Selects Ready': 5,
+      'Product Photo Selects Ready': 5,
+    },
     dependsOn: ['Final Asset Design Briefs Due', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
     owner: 'creative',
     phase: 'design_production',
-    notes: 'First round of all design assets. Requires BOTH: finalized briefs AND photo selects. ~2 weeks for creative.',
+    notes: 'First round of all design assets. Lead time is 10 BD from final briefs, or 5 BD from photo selects if those are the driver.',
   },
   {
     name: 'Asset Feedback Due',
@@ -574,7 +586,7 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     phase: 'design_production',
   },
   {
-    name: 'Social Assets Ready',
+    name: 'Social Assets Due',
     leadTime: 5,
     dependsOn: ['Draft Social Creative Brief', 'Lifestyle Photo Selects Ready', 'Product Photo Selects Ready'],
     owner: 'social',
@@ -610,18 +622,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     phase: 'design_production',
     channelAnchor: 'sephora',
     notes: 'Finalize copy for Sephora submission.',
-  },
-
-  // Sephora submission deadlines (pinned to 10 weeks before Sephora launch)
-  {
-    name: 'Sephora Final Assets Due',
-    leadTime: 0,
-    dependsOn: ['Sephora Final Assets Ready'],
-    owner: 'retail',
-    phase: 'design_production',
-    channelAnchor: 'sephora',
-    sephoraLeadTime: 50,
-    notes: 'Submission deadline: 10 weeks (50 BD) before Sephora launch date.',
   },
 
   // ── D2C / AMAZON TRACK ──
@@ -669,16 +669,6 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
   },
 
   // ── Launch Milestones ──
-  {
-    name: 'Social Campaign Start',
-    leadTime: 0,
-    dependsOn: [],
-    owner: 'social',
-    phase: 'design_production',
-    pinnedToLaunchDate: true,
-    d2cAssetLeadTime: 5,
-    notes: '5 BD before D2C launch date. Date is pinned to launch, not dependency-driven.',
-  },
   {
     name: 'Launch Event',
     leadTime: 0,

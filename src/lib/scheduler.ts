@@ -253,7 +253,10 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
       } else {
         succDue = deadlines.get(succName);
         const succTmpl = taskMap.get(succName);
-        succLeadTime = succTmpl ? succTmpl.leadTime : 0;
+        // Use per-dep lead time override if the successor has one keyed to this task
+        succLeadTime = succTmpl
+          ? (succTmpl.leadTimeByDep?.[name] ?? succTmpl.leadTime)
+          : 0;
       }
       if (!succDue) continue;
 
@@ -342,18 +345,27 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
 
     const activeDeps = tmpl.dependsOn.filter(d => taskMap.has(d));
     let latestDepDue: Date | null = null;
+    let drivingDep: string | null = null;
     for (const dep of activeDeps) {
       const depDue = dueDates.get(dep);
-      if (depDue && (!latestDepDue || depDue > latestDepDue)) latestDepDue = depDue;
+      if (depDue && (!latestDepDue || depDue > latestDepDue)) {
+        latestDepDue = depDue;
+        drivingDep = dep;
+      }
     }
+
+    // Effective lead time: if a per-dep override exists for the driving dep, use it
+    const effectiveLeadTime = (drivingDep && tmpl.leadTimeByDep?.[drivingDep] !== undefined)
+      ? tmpl.leadTimeByDep[drivingDep]
+      : tmpl.leadTime;
 
     let forwardDue: Date;
     if (latestDepDue) {
-      forwardDue = addBusinessDays(latestDepDue, tmpl.leadTime);
+      forwardDue = addBusinessDays(latestDepDue, effectiveLeadTime);
     } else {
       // Root task: use backward deadline
       const deadline = deadlines.get(name);
-      forwardDue = deadline || subtractBusinessDays(dtcDate, tmpl.leadTime);
+      forwardDue = deadline || subtractBusinessDays(dtcDate, effectiveLeadTime);
     }
 
     // For ops tasks with dueDateOffset, use backward deadline
@@ -380,7 +392,22 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
     const due = dueDates.get(tmpl.name);
     if (!due) continue;
 
-    const startDate = subtractBusinessDays(due, tmpl.leadTime);
+    // Recompute driving dep to get the effective lead time for this task
+    const activeDepsOut = tmpl.dependsOn.filter(d => taskMap.has(d));
+    let latestDepOut: Date | null = null;
+    let drivingDepOut: string | null = null;
+    for (const dep of activeDepsOut) {
+      const dd = dueDates.get(dep);
+      if (dd && (!latestDepOut || dd > latestDepOut)) {
+        latestDepOut = dd;
+        drivingDepOut = dep;
+      }
+    }
+    const effectiveLeadTimeOut = (drivingDepOut && tmpl.leadTimeByDep?.[drivingDepOut] !== undefined)
+      ? tmpl.leadTimeByDep[drivingDepOut]
+      : tmpl.leadTime;
+
+    const startDate = subtractBusinessDays(due, effectiveLeadTimeOut);
     const dueDateStr = formatDate(due);
     const startDateStr = formatDate(startDate);
 
@@ -391,14 +418,8 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
     let isBottleneck = false;
 
     if (deadline) {
-      const activeDeps = tmpl.dependsOn.filter(d => taskMap.has(d));
-      let latestDep: Date | null = null;
-      for (const dep of activeDeps) {
-        const dd = dueDates.get(dep);
-        if (dd && (!latestDep || dd > latestDep)) latestDep = dd;
-      }
-      if (latestDep) {
-        const idealDue = addBusinessDays(latestDep, tmpl.leadTime);
+      if (latestDepOut) {
+        const idealDue = addBusinessDays(latestDepOut, effectiveLeadTimeOut);
         if (idealDue > deadline) {
           isCompressed = true;
           compressionDays = differenceInBusinessDays(idealDue, deadline);
@@ -421,7 +442,7 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
       appOwner: toAppOwner(tmpl.owner),
       support: tmpl.support,
       phase: tmpl.phase,
-      leadTime: tmpl.leadTime,
+      leadTime: effectiveLeadTimeOut,
       dependsOn: tmpl.dependsOn.filter(d => taskMap.has(d)),
       sortOrder: i + 1,
       isMeeting: tmpl.isMeeting,

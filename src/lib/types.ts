@@ -81,7 +81,6 @@ export const DELIVERABLE_TASKS: Record<string, string> = {
   'Draft Bundle Sephora/Amazon Gallery Asset Brief': 'Bundle Sephora/Amazon Brief',
   'Final Asset Design Briefs Due': 'Final Design Briefs',
   'R1 Assets Due (Email, Social, PDP, Homepage, Amazon A+)': 'R1 Assets Folder',
-  'Sephora Final Assets Due': 'Sephora Assets',
   'DTC & Amazon Final Assets Due': 'DTC/Amazon Assets',
   'Draft Sephora Catalog Copy': 'Sephora Copy Draft',
   'Final Sephora Catalog Copy': 'Final Sephora Copy',
