@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { format, parseISO, addBusinessDays, differenceInBusinessDays } from 'date-fns';
+import { format, parseISO, addBusinessDays, differenceInBusinessDays, startOfMonth, endOfMonth, addMonths, subMonths, isSameDay, isSameMonth, getDay, addDays } from 'date-fns';
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, AlertTriangle,
   ChevronDown, ChevronRight, Trash2, RotateCcw, Plus, Pencil, Archive,
@@ -1710,7 +1710,7 @@ export default function LaunchDetail() {
         />
       )}
       {activeTab === 'files' && (
-        <DeliverablesView launch={launch} />
+        <DeliverablesView launch={launch} onUpdateLaunch={updateLaunch} />
       )}
       {activeTab === 'meetings' && (
         <MeetingsView launch={launch} updateTaskStatus={updateTaskStatus} />
@@ -1727,39 +1727,154 @@ export default function LaunchDetail() {
   );
 }
 
-// Small date input with explicit Save/Cancel — used where native onChange would
-// commit as the user scrolls through the date picker.
+// Reusable custom calendar popover. Uses our own grid so Save/Cancel buttons
+// can live at the bottom below the date grid.
+function CalendarPopover({ value, onSave, onCancel, anchorClassName }: {
+  value: string;
+  onSave: (v: string) => void;
+  onCancel: () => void;
+  anchorClassName?: string;
+}) {
+  const initial = value ? parseISO(value) : new Date();
+  const [selected, setSelected] = useState<Date>(initial);
+  const [viewMonth, setViewMonth] = useState<Date>(startOfMonth(initial));
+  const popRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (popRef.current && !popRef.current.contains(e.target as Node)) onCancel();
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === 'Escape') onCancel();
+      if (e.key === 'Enter') onSave(format(selected, 'yyyy-MM-dd'));
+    }
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [selected, onSave, onCancel]);
+
+  // Build 6-row day grid starting on Sunday
+  const monthStart = startOfMonth(viewMonth);
+  const gridStart = addDays(monthStart, -getDay(monthStart)); // back to Sunday
+  const days: Date[] = [];
+  for (let i = 0; i < 42; i++) days.push(addDays(gridStart, i));
+
+  return (
+    <div
+      ref={popRef}
+      onClick={e => e.stopPropagation()}
+      className={`absolute z-50 bg-white rounded-xl border border-[#E7E5E4] shadow-lg p-3 w-[260px] animate-fade-in ${anchorClassName || 'left-0 top-full mt-1'}`}
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-xs font-semibold text-[#1B1464]">{format(viewMonth, 'MMMM yyyy')}</div>
+        <div className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => setViewMonth(m => subMonths(m, 1))}
+            className="p-1 rounded hover:bg-[#F5F5F4] text-[#57534E]"
+            title="Previous month"
+          >
+            <ChevronRight className="w-3.5 h-3.5 rotate-180" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMonth(startOfMonth(new Date()))}
+            className="p-1 rounded hover:bg-[#F5F5F4] text-[#57534E]"
+            title="Today"
+          >
+            <span className="w-1.5 h-1.5 bg-[#57534E] rounded-full inline-block" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMonth(m => addMonths(m, 1))}
+            className="p-1 rounded hover:bg-[#F5F5F4] text-[#57534E]"
+            title="Next month"
+          >
+            <ChevronRight className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+      {/* Day headers */}
+      <div className="grid grid-cols-7 gap-0.5 text-[9px] font-semibold text-[#A8A29E] uppercase tracking-wider mb-1">
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+          <div key={d} className="text-center py-0.5">{d}</div>
+        ))}
+      </div>
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-0.5">
+        {days.map((d, i) => {
+          const inMonth = isSameMonth(d, viewMonth);
+          const isSelected = isSameDay(d, selected);
+          const isToday = isSameDay(d, new Date());
+          return (
+            <button
+              key={i}
+              type="button"
+              onClick={() => setSelected(d)}
+              className={`h-7 text-[11px] rounded transition-colors ${
+                isSelected
+                  ? 'bg-[#3538CD] text-white font-semibold'
+                  : isToday
+                  ? 'bg-[#F5F5F4] text-[#1B1464] font-semibold hover:bg-[#E7E5E4]'
+                  : inMonth
+                  ? 'text-[#44403C] hover:bg-[#F5F5F4]'
+                  : 'text-[#D6D3D1] hover:bg-[#F5F5F4]'
+              }`}
+            >
+              {d.getDate()}
+            </button>
+          );
+        })}
+      </div>
+      {/* Save/Cancel at the BOTTOM */}
+      <div className="flex gap-2 mt-3 pt-2 border-t border-[#F5F5F4]">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="flex-1 px-2 py-1.5 text-[11px] font-medium text-[#57534E] bg-[#F5F5F4] rounded-lg hover:bg-[#E7E5E4] transition-colors"
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          onClick={() => onSave(format(selected, 'yyyy-MM-dd'))}
+          className="flex-1 px-2 py-1.5 text-[11px] font-semibold text-white bg-[#3538CD] rounded-lg hover:bg-[#2A2DA8] transition-colors"
+        >
+          Save
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Compact date trigger + popover for use in tight rows (cascade panel, task row).
 function DraftDateInput({ value, onSave, className, title }: {
   value: string;
   onSave: (v: string) => void;
   className?: string;
   title?: string;
 }) {
-  const [draft, setDraft] = useState(value || '');
-  useEffect(() => { setDraft(value || ''); }, [value]);
-  const dirty = draft !== (value || '') && draft !== '';
+  const [open, setOpen] = useState(false);
   return (
-    <div className="inline-flex items-center gap-1 shrink-0">
-      <input
-        type="date"
-        value={draft}
-        onChange={e => setDraft(e.target.value)}
-        onKeyDown={e => {
-          e.stopPropagation();
-          if (e.key === 'Enter' && dirty) onSave(draft);
-          if (e.key === 'Escape') setDraft(value || '');
-        }}
-        className={className}
-        title={title}
-      />
-      {dirty && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onSave(draft); }}
-          className="px-1.5 py-0.5 text-[9px] font-semibold text-white bg-[#3538CD] rounded hover:bg-[#2A2DA8] transition-colors"
-          title="Save date change"
-        >
-          Save
-        </button>
+    <div className="relative inline-block shrink-0" onClick={e => e.stopPropagation()}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={className || 'text-[10px] px-1.5 py-0.5 border border-[#E7E5E4] rounded bg-white text-[#78716C] hover:bg-[#FAFAF9]'}
+        title={title || 'Change date'}
+      >
+        {value ? format(parseISO(value), 'MMM d, yyyy') : '+ Set date'}
+      </button>
+      {open && (
+        <CalendarPopover
+          value={value}
+          onSave={v => { setOpen(false); onSave(v); }}
+          onCancel={() => setOpen(false)}
+        />
       )}
     </div>
   );
@@ -3072,51 +3187,18 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
 
         {/* Due Date — inline editable */}
         {editingDate ? (
-          <div className="relative inline-flex items-center gap-1">
-            <input
-              type="date"
-              value={localDateValue}
-              onChange={(e) => setLocalDateValue(e.target.value)}
-              onKeyDown={(e) => {
-                e.stopPropagation();
-                if (e.key === 'Enter') {
-                  if (localDateValue && localDateValue !== task.dueDate) {
-                    updateTaskDateWithCascade(task.id, localDateValue);
-                  }
-                  setEditingDate(false);
-                }
-                if (e.key === 'Escape') {
-                  setLocalDateValue(task.dueDate || '');
-                  setEditingDate(false);
-                }
+          <div className="relative" onClick={e => e.stopPropagation()}>
+            <span className={`text-xs ${isOverdue || isPastLaunch ? 'text-[#DC2626] font-medium' : 'text-[#57534E]'}`}>
+              {task.dueDate ? format(parseISO(task.dueDate), 'MMM d, yyyy') : '—'}
+            </span>
+            <CalendarPopover
+              value={task.dueDate || ''}
+              onSave={(v) => {
+                if (v && v !== task.dueDate) updateTaskDateWithCascade(task.id, v);
+                setEditingDate(false);
               }}
-              className="text-xs px-1 py-0.5 border border-[#3538CD] rounded bg-white focus:outline-none"
-              autoFocus
+              onCancel={() => setEditingDate(false)}
             />
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                if (localDateValue && localDateValue !== task.dueDate) {
-                  updateTaskDateWithCascade(task.id, localDateValue);
-                }
-                setEditingDate(false);
-              }}
-              className="px-1.5 py-0.5 text-[10px] font-semibold text-white bg-[#3538CD] rounded hover:bg-[#2A2DA8] transition-colors"
-              title="Save (Enter)"
-            >
-              Save
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setLocalDateValue(task.dueDate || '');
-                setEditingDate(false);
-              }}
-              className="px-1.5 py-0.5 text-[10px] font-semibold text-[#57534E] bg-[#F5F5F4] rounded hover:bg-[#E7E5E4] transition-colors"
-              title="Cancel (Esc)"
-            >
-              Cancel
-            </button>
           </div>
         ) : (
           <button
@@ -3570,9 +3652,20 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   );
 }
 
-function DeliverablesView({ launch }: { launch: Launch }) {
+function DeliverablesView({ launch, onUpdateLaunch }: { launch: Launch; onUpdateLaunch: (l: Launch) => void }) {
   const tasksWithLinks = launch.tasks.filter(t => t.deliverableUrl && t.deliverableUrl.trim());
   const tasksMissingLinks = launch.tasks.filter(t => DELIVERABLE_TASKS[t.name] && (!t.deliverableUrl || !t.deliverableUrl.trim()));
+  const [editingUrlId, setEditingUrlId] = useState<string | null>(null);
+  const [draftUrl, setDraftUrl] = useState('');
+
+  const saveUrl = (taskId: string, url: string) => {
+    onUpdateLaunch({
+      ...launch,
+      tasks: launch.tasks.map(t => t.id === taskId ? { ...t, deliverableUrl: url } : t),
+    });
+    setEditingUrlId(null);
+    setDraftUrl('');
+  };
 
   return (
     <div className="space-y-6">
@@ -3630,7 +3723,43 @@ function DeliverablesView({ launch }: { launch: Launch }) {
                     <p className="text-sm text-[#A8A29E] truncate">{task.name}</p>
                     <p className="text-[11px] text-[#D6D3D1]">{DELIVERABLE_TASKS[task.name]}</p>
                   </div>
-                  <span className="text-[11px] text-[#D6D3D1] px-2 py-0.5 bg-[#F5F5F4] rounded">No link</span>
+                  {editingUrlId === task.id ? (
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <input
+                        type="url"
+                        autoFocus
+                        value={draftUrl}
+                        onChange={e => setDraftUrl(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === 'Enter' && draftUrl.trim()) saveUrl(task.id, draftUrl.trim());
+                          if (e.key === 'Escape') { setEditingUrlId(null); setDraftUrl(''); }
+                        }}
+                        placeholder="https://..."
+                        className="w-[260px] px-2 py-1 border border-[#3538CD] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
+                      />
+                      <button
+                        onClick={() => draftUrl.trim() && saveUrl(task.id, draftUrl.trim())}
+                        disabled={!draftUrl.trim()}
+                        className="px-2 py-1 text-[11px] font-semibold text-white bg-[#3538CD] rounded-lg hover:bg-[#2A2DA8] transition-colors disabled:opacity-50"
+                      >
+                        Save
+                      </button>
+                      <button
+                        onClick={() => { setEditingUrlId(null); setDraftUrl(''); }}
+                        className="px-2 py-1 text-[11px] font-medium text-[#57534E] bg-[#F5F5F4] rounded-lg hover:bg-[#E7E5E4] transition-colors"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => { setEditingUrlId(task.id); setDraftUrl(''); }}
+                      className="inline-flex items-center gap-1.5 text-[11px] text-[#3538CD] px-2.5 py-1 bg-[#EEF0FF] rounded-lg hover:bg-[#3538CD] hover:text-white transition-colors shrink-0"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add link
+                    </button>
+                  )}
                 </div>
               );
             })}
