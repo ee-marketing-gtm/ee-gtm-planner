@@ -8,7 +8,7 @@ import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, Owner, T
 import { useData } from '@/components/DataProvider';
 import { getPhaseName, getLaunchColor } from '@/lib/utils';
 
-type ViewMode = 'by_launch' | 'all' | 'by_owner';
+type ViewMode = 'by_launch' | 'all' | 'by_owner' | 'by_task';
 type TimeFilter = 'overdue' | 'this_week' | 'next_2_weeks' | 'all';
 type SortDir = 'asc' | 'desc';
 
@@ -259,8 +259,22 @@ export default function TrackerPage() {
     return groups;
   };
 
+  const groupedByTask = () => {
+    const groups: Record<string, TaskWithLaunch[]> = {};
+    for (const item of allTasks) {
+      const key = item.task.name;
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(item);
+    }
+    for (const key of Object.keys(groups)) {
+      groups[key].sort((a, b) => (a.task.dueDate || '9999').localeCompare(b.task.dueDate || '9999'));
+    }
+    return groups;
+  };
+
   const groups = viewMode === 'by_owner' ? groupedByOwner()
     : viewMode === 'by_launch' ? groupedByLaunch()
+    : viewMode === 'by_task' ? groupedByTask()
     : { 'All Tasks': allTasks };
 
   return (
@@ -281,6 +295,7 @@ export default function TrackerPage() {
             ['all', 'All Tasks'],
             ['by_launch', 'By Launch'],
             ['by_owner', 'By Owner'],
+            ['by_task', 'By Task'],
           ] as [ViewMode, string][]).map(([key, label]) => (
             <button
               key={key}
