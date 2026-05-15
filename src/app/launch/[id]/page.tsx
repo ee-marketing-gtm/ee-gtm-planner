@@ -6,8 +6,9 @@ import { format, parseISO, addBusinessDays, differenceInBusinessDays, startOfMon
 import {
   ArrowLeft, CheckCircle2, Circle, Clock, AlertTriangle,
   ChevronDown, ChevronRight, Trash2, RotateCcw, Plus, Pencil, Archive,
-  Eye, Pause, Calendar, Settings2, Check
+  Eye, Pause, Calendar, Settings2, Check, Download
 } from 'lucide-react';
+import { downloadMondayCSV } from '@/lib/monday-export';
 import Link from 'next/link';
 import { Launch, GTMTask, PHASES, PhaseKey, OWNER_LABELS, OWNER_COLORS, TIER_CONFIG, TaskStatus, DELIVERABLE_TASKS, TASK_TEMPLATE_CATEGORY, Owner } from '@/lib/types';
 import { ExternalLink, Link2 as LinkIcon, Sparkles, FileText } from 'lucide-react';
@@ -778,6 +779,14 @@ export default function LaunchDetail() {
               </p>
               <p className="text-[11px] text-[#A8A29E]">until launch</p>
             </div>
+            <button
+              onClick={() => downloadMondayCSV(launch)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] rounded-lg text-xs font-medium hover:bg-[#F5F5F4] transition-colors"
+              title="Download a CSV ready to import into Monday.com"
+            >
+              <Download className="w-3.5 h-3.5" />
+              Export for Monday
+            </button>
             <button
               onClick={handleArchive}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 border border-[#E7E5E4] text-[#57534E] rounded-lg text-xs font-medium hover:bg-[#F5F5F4] transition-colors"
