@@ -25,7 +25,7 @@ import {
 import { ChevronLeft, ChevronRight, CalendarDays, Plus, X } from 'lucide-react';
 import { Launch, TIER_CONFIG, LaunchTier } from '@/lib/types';
 import { useData } from '@/components/DataProvider';
-import { getReadableTextStyle } from '@/lib/utils';
+import { getReadableTextStyle, isArchivedLaunch } from '@/lib/utils';
 
 type ZoomLevel = 'year' | 'quarter' | 'month' | 'week';
 type ViewMode = 'timeline' | 'campaigns';
@@ -194,7 +194,7 @@ export default function CalendarPage() {
   const [newEventColor, setNewEventColor] = useState(PRESET_COLORS[0]);
 
   useEffect(() => {
-    const data = allLaunches.filter(l => l.status !== 'archived');
+    const data = allLaunches.filter(l => !isArchivedLaunch(l));
     setLaunches(data);
   }, [allLaunches]);
 
