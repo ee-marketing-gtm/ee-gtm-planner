@@ -2946,6 +2946,8 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
   const [nameValue, setNameValue] = useState(task.name);
   const [linkLabel, setLinkLabel] = useState(task.deliverableLabel || '');
   const [editingDeps, setEditingDeps] = useState(false);
+  const [depSearch, setDepSearch] = useState('');
+  const [showDepPath, setShowDepPath] = useState(false);
   const [editingLink, setEditingLink] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const statusRef = useRef<HTMLDivElement>(null);
@@ -3396,41 +3398,144 @@ function TaskRow({ task, launch, phase, isExpanded, isSelected, isHighlighted, o
                     <span className="text-[10px] text-[#A8A29E]">None</span>
                   ) : null}
                 </div>
-                {editingDeps && (
-                  <div className="mt-2">
-                    <label className="text-[10px] font-medium text-[#57534E] mb-1 block">Edit Dependencies</label>
-                    <select
-                      multiple
-                      value={task.dependencies}
-                      onChange={e => {
-                        const selected = Array.from(e.target.selectedOptions).map(o => o.value);
-                        updateTaskField(task.id, { dependencies: selected });
-                      }}
-                      className="w-[280px] px-2 py-1 border border-[#E7E5E4] rounded-lg text-xs focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20 max-h-[100px]"
-                    >
-                      {launch.tasks
-                        .filter(t => t.id !== task.id)
-                        .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''))
-                        .map(t => (
-                          <option key={t.id} value={t.id}>{t.name}</option>
-                        ))
-                      }
-                    </select>
-                    <p className="text-[10px] text-[#A8A29E] mt-0.5">Hold Cmd/Ctrl to select multiple</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => setEditingDeps(false)}
-                        className="px-3 py-1 bg-[#3538CD] text-white text-[11px] font-medium rounded-lg hover:bg-[#2D31B3] transition-colors"
-                      >
-                        Done
-                      </button>
-                      <button
-                        onClick={() => setEditingDeps(false)}
-                        className="px-3 py-1 text-[#57534E] text-[11px] font-medium hover:bg-[#F5F5F4] rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
+                {editingDeps && (() => {
+                  const selectedIds = new Set(task.dependencies);
+                  const candidates = launch.tasks
+                    .filter(t => t.id !== task.id)
+                    .filter(t => !depSearch || t.name.toLowerCase().includes(depSearch.toLowerCase()))
+                    .sort((a, b) => (a.dueDate || '').localeCompare(b.dueDate || ''));
+                  const toggleDep = (id: string) => {
+                    const next = selectedIds.has(id)
+                      ? task.dependencies.filter(d => d !== id)
+                      : [...task.dependencies, id];
+                    updateTaskField(task.id, { dependencies: next });
+                  };
+                  return (
+                    <div className="mt-2 w-full max-w-[520px] border border-[#E7E5E4] rounded-lg bg-white shadow-sm">
+                      <div className="flex items-center justify-between px-3 py-2 border-b border-[#E7E5E4]">
+                        <span className="text-[11px] font-medium text-[#57534E]">
+                          Edit dependencies · {task.dependencies.length} selected
+                        </span>
+                        <button
+                          onClick={() => { setEditingDeps(false); setDepSearch(''); }}
+                          className="text-[10px] text-[#A8A29E] hover:text-[#57534E]"
+                          title="Close"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </div>
+                      <div className="px-3 py-2 border-b border-[#E7E5E4]">
+                        <input
+                          type="text"
+                          value={depSearch}
+                          onChange={e => setDepSearch(e.target.value)}
+                          placeholder="Search tasks…"
+                          className="w-full px-2 py-1 border border-[#E7E5E4] rounded text-[11px] focus:outline-none focus:ring-2 focus:ring-[#3538CD]/20"
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-[280px] overflow-y-auto py-1">
+                        {candidates.length === 0 ? (
+                          <div className="px-3 py-4 text-[11px] text-[#A8A29E] text-center">No tasks match.</div>
+                        ) : candidates.map(t => {
+                          const checked = selectedIds.has(t.id);
+                          const isDone = t.status === 'complete' || t.status === 'skipped';
+                          return (
+                            <label
+                              key={t.id}
+                              className={`flex items-center gap-2 px-3 py-1.5 text-[11px] cursor-pointer hover:bg-[#F5F5F4] ${
+                                checked ? 'bg-[#EEF0FF]' : ''
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleDep(t.id)}
+                                className="shrink-0 accent-[#3538CD]"
+                              />
+                              <span className={`flex-1 truncate ${isDone ? 'text-emerald-700' : 'text-[#1C1917]'}`}>
+                                {t.name}
+                              </span>
+                              {t.dueDate && (
+                                <span className="text-[10px] text-[#A8A29E] shrink-0 tabular-nums">
+                                  {format(parseISO(t.dueDate), 'MMM d')}
+                                </span>
+                              )}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center justify-end gap-2 px-3 py-2 border-t border-[#E7E5E4] bg-[#FAFAF9]">
+                        <button
+                          onClick={() => { setEditingDeps(false); setDepSearch(''); }}
+                          className="px-3 py-1 bg-[#3538CD] text-white text-[11px] font-medium rounded-lg hover:bg-[#2D31B3] transition-colors"
+                        >
+                          Done
+                        </button>
+                      </div>
                     </div>
+                  );
+                })()}
+                {!editingDeps && task.dependencies.length > 0 && (
+                  <div className="mt-1.5">
+                    <button
+                      onClick={() => setShowDepPath(v => !v)}
+                      className="inline-flex items-center gap-1 text-[10px] text-[#3538CD] hover:underline"
+                    >
+                      {showDepPath ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
+                      {showDepPath ? 'Hide' : 'Show'} dependency path
+                    </button>
+                    {showDepPath && (() => {
+                      const taskMap = new Map(launch.tasks.map(t => [t.id, t]));
+                      const chain: GTMTask[] = [];
+                      const seen = new Set<string>();
+                      let cur: GTMTask | undefined = task;
+                      while (cur && !seen.has(cur.id)) {
+                        seen.add(cur.id);
+                        chain.unshift(cur);
+                        let driving: GTMTask | undefined;
+                        let latest = '';
+                        for (const depId of cur.dependencies) {
+                          const dep = taskMap.get(depId);
+                          if (dep && (!driving || (dep.dueDate || '') > latest)) {
+                            driving = dep;
+                            latest = dep.dueDate || '';
+                          }
+                        }
+                        cur = driving;
+                      }
+                      return (
+                        <div className="mt-1 p-2 rounded-md bg-[#FAFAF9] border border-[#E7E5E4]">
+                          <p className="text-[10px] text-[#A8A29E] mb-1.5">Critical chain (longest upstream path):</p>
+                          <div className="flex items-center flex-wrap gap-1">
+                            {chain.map((t, i) => {
+                              const isThis = t.id === task.id;
+                              return (
+                                <React.Fragment key={t.id}>
+                                  {i > 0 && <span className="text-[#A8A29E] text-[10px]">→</span>}
+                                  <button
+                                    onClick={() => !isThis && onNavigateToTask?.(t.id)}
+                                    disabled={isThis}
+                                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] border ${
+                                      isThis
+                                        ? 'bg-[#3538CD] text-white border-[#3538CD] cursor-default'
+                                        : 'bg-white text-[#57534E] border-[#E7E5E4] hover:border-[#3538CD] hover:text-[#3538CD]'
+                                    }`}
+                                  >
+                                    <span className="truncate max-w-[180px]">{t.name}</span>
+                                    {t.dueDate && (
+                                      <span className={`tabular-nums ${isThis ? 'text-white/80' : 'text-[#A8A29E]'}`}>
+                                        {format(parseISO(t.dueDate), 'MMM d')}
+                                      </span>
+                                    )}
+                                  </button>
+                                </React.Fragment>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
               </div>

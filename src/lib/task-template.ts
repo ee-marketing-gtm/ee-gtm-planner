@@ -301,7 +301,9 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     dependsOn: [],
     owner: 'ops',
     phase: 'content_production',
-    notes: 'Packaging samples must be ready before shoots. Due date works backward from shoot dates. Packaging development tracked separately.',
+    channelAnchor: 'sephora',
+    sephoraLeadTime: 90,
+    notes: 'Packaging samples must be ready before shoots. Defaults to 18 weeks (90 BD) before Sephora launch; pulls earlier if shoot dates require. Packaging development tracked separately.',
   },
 
   // ═══════════════════════════════════════════════════════════════════
@@ -629,7 +631,8 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'creative',
     phase: 'design_production',
     channelAnchor: 'sephora',
-    notes: 'Finalized Sephora assets after feedback round.',
+    sephoraLeadTime: 50,
+    notes: 'Finalized Sephora assets after feedback round. Hard deadline: 50 BD before Sephora launch.',
   },
   {
     name: 'Draft Sephora Catalog Copy',
@@ -647,7 +650,8 @@ export const LAUNCH_TASK_TEMPLATE: TaskTemplate[] = [
     owner: 'marketing',
     phase: 'design_production',
     channelAnchor: 'sephora',
-    notes: 'Finalize copy for Sephora submission.',
+    sephoraLeadTime: 50,
+    notes: 'Finalize copy for Sephora submission. Hard deadline: 50 BD before Sephora launch.',
   },
 
   // ── D2C / AMAZON TRACK ──

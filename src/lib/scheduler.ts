@@ -121,16 +121,12 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
     : addBusinessDays(dtcDate, 20);
   const amazonDate = input.amazonLaunchDate ? parseISO(input.amazonLaunchDate) : null;
 
-  // Configurable lead times with defaults
-  const sephAssetLead = input.sephoraAssetLeadBD ?? 50;
-  const d2cAssetLead = input.d2cAssetLeadBD ?? 15;
-  const d2cCopyLead = input.d2cCopyLeadBD ?? 10;
+  // Configurable lead times — when provided, override the template's per-task lead time
+  const sephAssetLeadOverride = input.sephoraAssetLeadBD;
+  const d2cAssetLeadOverride = input.d2cAssetLeadBD;
+  const d2cCopyLeadOverride = input.d2cCopyLeadBD;
   const creatorLead = input.creatorLeadBD ?? 5;
 
-  // Compute hard deadlines for channel-specific tasks
-  const sephoraAssetDeadline = subtractBusinessDays(sephoraDate, sephAssetLead);
-  const d2cAssetDeadline = subtractBusinessDays(dtcDate, d2cAssetLead);
-  const d2cCopyDeadline = subtractBusinessDays(dtcDate, d2cCopyLead);
   const creatorDeadline = subtractBusinessDays(dtcDate, creatorLead);
 
   // 1. Filter tasks
@@ -266,20 +262,33 @@ export function scheduleLaunch(input: ScheduleInput): ScheduleResult {
       }
     }
 
-    // Apply channel-specific hard deadlines
-    // Sephora asset/copy lead time constraint
+    // Apply channel-specific hard deadlines.
+    // Input overrides target the Sephora asset/copy submission deadlines and
+    // the DTC asset/copy deadlines specifically — not every task with a
+    // sephoraLeadTime/d2cAssetLeadTime/d2cCopyLeadTime hint.
+    const SEPHORA_ASSET_TASKS = new Set(['Sephora Final Assets Ready', 'Final Sephora Catalog Copy']);
+    const DTC_ASSET_TASKS = new Set(['DTC & Amazon Final Assets Due']);
+    const DTC_COPY_TASKS = new Set(['Final DTC PDP Copy & Reviews Due']);
+
     if (tmpl.sephoraLeadTime) {
-      const sephConstraint = subtractBusinessDays(sephoraDate, tmpl.sephoraLeadTime);
+      const lead = SEPHORA_ASSET_TASKS.has(tmpl.name)
+        ? (sephAssetLeadOverride ?? tmpl.sephoraLeadTime)
+        : tmpl.sephoraLeadTime;
+      const sephConstraint = subtractBusinessDays(sephoraDate, lead);
       earliestNeeded = minDate(earliestNeeded, sephConstraint) || sephConstraint;
     }
-    // D2C asset lead time constraint
     if (tmpl.d2cAssetLeadTime) {
-      const d2cConstraint = subtractBusinessDays(dtcDate, tmpl.d2cAssetLeadTime);
+      const lead = DTC_ASSET_TASKS.has(tmpl.name)
+        ? (d2cAssetLeadOverride ?? tmpl.d2cAssetLeadTime)
+        : tmpl.d2cAssetLeadTime;
+      const d2cConstraint = subtractBusinessDays(dtcDate, lead);
       earliestNeeded = minDate(earliestNeeded, d2cConstraint) || d2cConstraint;
     }
-    // D2C copy lead time constraint
     if (tmpl.d2cCopyLeadTime) {
-      const d2cConstraint = subtractBusinessDays(dtcDate, tmpl.d2cCopyLeadTime);
+      const lead = DTC_COPY_TASKS.has(tmpl.name)
+        ? (d2cCopyLeadOverride ?? tmpl.d2cCopyLeadTime)
+        : tmpl.d2cCopyLeadTime;
+      const d2cConstraint = subtractBusinessDays(dtcDate, lead);
       earliestNeeded = minDate(earliestNeeded, d2cConstraint) || d2cConstraint;
     }
     // Creator content: must finish 5 BD before D2C launch
